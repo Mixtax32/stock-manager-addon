@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import os
@@ -42,10 +42,13 @@ async def startup():
     logger.info("Database initialized")
     logger.info("Stock Manager started successfully")
 
-# Root endpoint - serve frontend
+# Root endpoint - serve frontend (no-cache to avoid stale JS after updates)
 @app.get("/")
 async def read_root():
-    return FileResponse("/app/app/static/index.html")
+    return FileResponse(
+        "/app/app/static/index.html",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
+    )
 
 # API endpoints
 @app.get("/api/products", response_model=List[Product])
