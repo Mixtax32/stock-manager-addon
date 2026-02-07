@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="Stock Manager API",
     description="API para gestión de inventario doméstico",
-    version="0.1.0"
+    version="0.1.1"
 )
 
 # CORS configuration for Home Assistant ingress
@@ -33,6 +33,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Global exception handler - always return JSON so frontend can parse errors
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled exception: {exc}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Error interno: {str(exc)}"}
+    )
 
 # Startup event
 @app.on_event("startup")
