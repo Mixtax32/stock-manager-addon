@@ -321,7 +321,7 @@
     <div class="container">
         <div class="header">
             <h1>📦 Stock Manager</h1>
-            <p>Sistema de gestión de inventario</p>
+            <p>Sistema de gestión de inventario <small style="color:#999">v0.1.1</small></p>
             <div class="sync-status" id="sync-status">✅ Base de datos conectada</div>
             
             <div class="tabs">
@@ -450,9 +450,10 @@
                 options.body = JSON.stringify(body);
             }
 
+            const url = `${API_BASE}${endpoint}`;
             try {
-                const response = await fetch(`${API_BASE}${endpoint}`, options);
-                
+                const response = await fetch(url, options);
+
                 if (!response.ok) {
                     const text = await response.text().catch(() => '');
                     let errorMessage;
@@ -464,17 +465,17 @@
                     }
                     throw new Error(errorMessage);
                 }
-                
+
                 if (method === 'DELETE') {
                     return true;
                 }
-                
+
                 return await response.json().catch(() => {
                     throw new Error('Respuesta inválida del servidor');
                 });
             } catch (error) {
-                console.error('API Error:', error);
-                alert('Error: ' + error.message);
+                console.error(`API Error [${method} ${url}]:`, error);
+                alert(`Error (${method} ${url}): ${error.message}`);
                 throw error;
             }
         }
