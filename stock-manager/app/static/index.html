@@ -437,7 +437,7 @@
             await loadProducts();
         };
 
-        // API calls
+        // API calls - Sin autenticación (Home Assistant maneja esto con ingress)
         async function apiCall(endpoint, method = 'GET', body = null) {
             const options = {
                 method: method,
@@ -454,7 +454,7 @@
                 const response = await fetch(`${API_BASE}${endpoint}`, options);
                 
                 if (!response.ok) {
-                    const error = await response.json();
+                    const error = await response.json().catch(() => ({ detail: 'Error desconocido' }));
                     throw new Error(error.detail || 'Error en la API');
                 }
                 
@@ -578,7 +578,6 @@
                 const product = products.find(p => p.barcode === currentBarcode);
                 
                 if (!product) {
-                    // Create new product
                     await apiCall('/products', 'POST', {
                         barcode: currentBarcode,
                         name: name,
@@ -587,7 +586,6 @@
                     });
                 }
                 
-                // Update stock
                 await apiCall(`/products/${currentBarcode}/stock`, 'POST', {
                     quantity: quantity
                 });
