@@ -1,26 +1,27 @@
-ARG BUILD_FROM
-FROM $BUILD_FROM
+ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base-python:3.11
+FROM ${BUILD_FROM}
 
-# Install requirements
-RUN apk add --no-cache \
-    python3 \
-    py3-pip \
-    sqlite
+# Install system dependencies
+RUN apk add --no-cache sqlite
 
-# Copy app
+# Set working directory
 WORKDIR /app
+
+# Copy requirements and install Python dependencies
 COPY requirements.txt .
 RUN pip3 install --no-cache-dir -r requirements.txt
 
+# Copy application
 COPY app/ ./app/
 COPY run.sh /
+
+# Make run script executable
 RUN chmod a+x /run.sh
 
 # Labels
 LABEL \
     io.hass.name="Stock Manager" \
     io.hass.description="Sistema de gestión de inventario doméstico" \
-    io.hass.arch="armhf|aarch64|i386|amd64|armv7" \
     io.hass.type="addon" \
     io.hass.version="0.1.0"
 
