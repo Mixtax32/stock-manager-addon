@@ -745,7 +745,7 @@
 
             shoppingList.innerHTML = lowStockProducts.map(p => {
                 const needed = p.min_stock - p.stock + 2;
-                return `<li>• ${p.name} - ${needed} uds (${p.category})</li>`;
+                return `<li> ${p.name} - ${needed} uds (${p.category})</li>`;
             }).join('');
         }
     </script>
