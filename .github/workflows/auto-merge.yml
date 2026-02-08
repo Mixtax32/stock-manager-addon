@@ -15,11 +15,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Create PR
-        run: gh pr create --base main --head "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --body "Auto-merge" || echo "PR already exists or nothing to merge"
+      - name: Create and merge PR
         env:
           GH_TOKEN: ${{ github.token }}
-      - name: Merge PR
-        run: gh pr merge "$GITHUB_REF_NAME" --merge --delete-branch || echo "Nothing to merge"
-        env:
-          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "Branch: $GITHUB_REF_NAME"
+          echo "Repo: $GITHUB_REPOSITORY"
+          echo "--- Creating PR ---"
+          gh pr create --base main --head "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --body "Auto-merge" --repo "$GITHUB_REPOSITORY" 2>&1 || true
+          echo "--- Merging PR ---"
+          gh pr merge "$GITHUB_REF_NAME" --merge --delete-branch --repo "$GITHUB_REPOSITORY" 2>&1 || true
