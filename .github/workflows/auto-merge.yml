@@ -13,12 +13,13 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
-      - name: Create PR and merge
-        run: |
-          PR_URL=$(gh pr create --base main --head "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --body "Auto-merge from $GITHUB_REF_NAME" 2>/dev/null || echo "exists")
-          if [ "$PR_URL" = "exists" ]; then
-            PR_URL=$(gh pr view "$GITHUB_REF_NAME" --json url -q .url)
-          fi
-          gh pr merge "$GITHUB_REF_NAME" --merge
+        with:
+          fetch-depth: 0
+      - name: Create PR
+        run: gh pr create --base main --head "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --body "Auto-merge" || echo "PR already exists or nothing to merge"
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Merge PR
+        run: gh pr merge "$GITHUB_REF_NAME" --merge --delete-branch || echo "Nothing to merge"
         env:
           GH_TOKEN: ${{ github.token }}
