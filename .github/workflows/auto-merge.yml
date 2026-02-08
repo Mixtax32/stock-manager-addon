@@ -1,19 +1,25 @@
 name: Auto-merge claude branches
 
 on:
-  pull_request:
-    types: [opened, reopened]
+  push:
+    branches:
+      - 'claude/**'
 
 jobs:
-  auto-merge:
-    if: startsWith(github.head_ref, 'claude/')
+  create-and-merge:
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Create PR
+        run: gh pr create --base main --head "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --body "Auto-merge" || echo "PR already exists or nothing to merge"
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Merge PR
-        run: gh pr merge ${{ github.event.number }} --merge
+        run: gh pr merge "$GITHUB_REF_NAME" --merge --delete-branch || echo "Nothing to merge"
         env:
           GH_TOKEN: ${{ github.token }}
