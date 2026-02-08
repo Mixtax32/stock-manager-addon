@@ -517,11 +517,18 @@
         // Scanner
         document.getElementById('start-scan').onclick = async function() {
             try {
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error(
+                        'La cámara no está disponible. Se requiere HTTPS para usar la cámara. ' +
+                        'Accede a través de HTTPS o usa la introducción manual del código de barras.'
+                    );
+                }
+
                 const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
                 stream.getTracks().forEach(track => track.stop());
-                
+
                 html5QrCode = new Html5Qrcode("scanner-container");
-                
+
                 await html5QrCode.start(
                     { facingMode: "environment" },
                     { fps: 10, qrbox: { width: 250, height: 250 } },
@@ -530,7 +537,7 @@
 
                 document.getElementById('start-scan').classList.add('hidden');
                 document.getElementById('stop-scan').classList.remove('hidden');
-                
+
             } catch (err) {
                 alert('Error con la cámara: ' + err.message);
             }
