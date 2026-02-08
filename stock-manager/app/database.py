@@ -20,9 +20,15 @@ class Database:
                     category TEXT NOT NULL,
                     stock INTEGER NOT NULL DEFAULT 0,
                     min_stock INTEGER NOT NULL DEFAULT 2,
+                    expiry_date TEXT DEFAULT NULL,
                     last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+            # Migration: add expiry_date column if it doesn't exist (for existing DBs)
+            async with db.execute("PRAGMA table_info(products)") as cursor:
+                columns = [row[1] for row in await cursor.fetchall()]
+            if 'expiry_date' not in columns:
+                await db.execute("ALTER TABLE products ADD COLUMN expiry_date TEXT DEFAULT NULL")
             await db.commit()
     
     async def get_all_products(self) -> List[Product]:
@@ -47,9 +53,9 @@ class Database:
         """Create new product"""
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(
-                """INSERT INTO products (barcode, name, category, stock, min_stock, last_updated)
-                   VALUES (?, ?, ?, 0, ?, ?)""",
-                (product.barcode, product.name, product.category, product.min_stock, datetime.now())
+                """INSERT INTO products (barcode, name, category, stock, min_stock, expiry_date, last_updated)
+                   VALUES (?, ?, ?, 0, ?, ?, ?)""",
+                (product.barcode, product.name, product.category, product.min_stock, product.expiry_date, datetime.now())
             )
             await db.commit()
         return await self.get_product(product.barcode)
@@ -79,6 +85,8 @@ class Database:
             updates['category'] = update.category
         if update.min_stock is not None:
             updates['min_stock'] = update.min_stock
+        if update.expiry_date is not None:
+            updates['expiry_date'] = update.expiry_date
         
         if updates:
             updates['last_updated'] = datetime.now()

@@ -8,6 +8,7 @@ class Product(BaseModel):
     category: str
     stock: int
     min_stock: int
+    expiry_date: Optional[str] = None
     last_updated: Optional[datetime] = None
 
 class ProductCreate(BaseModel):
@@ -15,6 +16,7 @@ class ProductCreate(BaseModel):
     name: str
     category: str
     min_stock: int = 2
+    expiry_date: Optional[str] = None
 
 class StockUpdate(BaseModel):
     quantity: int  # Positive to add, negative to remove
@@ -23,3 +25,4 @@ class ProductUpdate(BaseModel):
     name: Optional[str] = None
     category: Optional[str] = None
     min_stock: Optional[int] = None
+    expiry_date: Optional[str] = None
