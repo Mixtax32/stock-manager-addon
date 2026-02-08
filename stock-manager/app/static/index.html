@@ -260,6 +260,10 @@
             border-radius: 8px;
         }
 
+        .shopping-list ul {
+            list-style: none;
+        }
+
         .empty-state {
             text-align: center;
             padding: 40px;
@@ -735,7 +739,7 @@
 
             if (lowStockProducts.length === 0) {
                 alertList.innerHTML = '<li class="alert-item">✅ Todo OK</li>';
-                shoppingList.innerHTML = '<li style="list-style:none">✅ No necesitas comprar nada</li>';
+                shoppingList.innerHTML = '<li>✅ No necesitas comprar nada</li>';
                 return;
             }
 
