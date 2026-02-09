@@ -1,6 +1,13 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
+
+class Batch(BaseModel):
+    id: int
+    barcode: str
+    quantity: int
+    expiry_date: Optional[str] = None
+    added_date: Optional[str] = None
 
 class Product(BaseModel):
     barcode: str
@@ -9,6 +16,7 @@ class Product(BaseModel):
     stock: int
     min_stock: int
     expiry_date: Optional[str] = None
+    batches: List[Batch] = []
     last_updated: Optional[datetime] = None
 
 class ProductCreate(BaseModel):
@@ -16,13 +24,12 @@ class ProductCreate(BaseModel):
     name: str
     category: str
     min_stock: int = 2
-    expiry_date: Optional[str] = None
 
 class StockUpdate(BaseModel):
-    quantity: int  # Positive to add, negative to remove
+    quantity: int
+    expiry_date: Optional[str] = None
 
 class ProductUpdate(BaseModel):
     name: Optional[str] = None
     category: Optional[str] = None
     min_stock: Optional[int] = None
-    expiry_date: Optional[str] = None

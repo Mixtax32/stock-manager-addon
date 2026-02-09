@@ -134,9 +134,8 @@
         .btn-primary { background: #333; color: #fff; }
         .btn-add { background: #166534; color: #4ade80; }
         .btn-remove { background: #7f1d1d; color: #f87171; }
-        .btn-delete { background: #333; color: #666; }
 
-        /* Product form (after scan) */
+        /* Product form */
         #product-action { margin-top: 12px; }
         .form-grid {
             display: grid;
@@ -177,20 +176,19 @@
 
         /* Product list */
         .product-row {
+            padding: 10px 0;
+            border-bottom: 1px solid #222;
+        }
+        .product-row:last-child { border-bottom: none; }
+        .product-top {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 10px 0;
-            border-bottom: 1px solid #222;
             gap: 8px;
         }
-        .product-row:last-child { border-bottom: none; }
         .product-main { flex: 1; min-width: 0; }
         .product-main .name { font-size: 15px; color: #e0e0e0; font-weight: 500; }
         .product-main .meta { font-size: 12px; color: #555; margin-top: 2px; }
-        .product-main .expiry-ok { color: #555; }
-        .product-main .expiry-soon { color: #f59e0b; font-weight: 600; }
-        .product-main .expiry-expired { color: #ef4444; font-weight: 600; }
         .product-stock {
             display: flex;
             align-items: center;
@@ -232,6 +230,24 @@
         }
         .btn-del:hover { color: #ef4444; }
 
+        /* Batches */
+        .batch-list {
+            margin-top: 6px;
+            padding-left: 8px;
+            border-left: 2px solid #222;
+        }
+        .batch-row {
+            font-size: 12px;
+            color: #555;
+            padding: 2px 0;
+            display: flex;
+            gap: 8px;
+        }
+        .batch-row .batch-qty { color: #888; font-weight: 600; min-width: 40px; }
+        .batch-row .expiry-ok { color: #555; }
+        .batch-row .expiry-soon { color: #f59e0b; }
+        .batch-row .expiry-expired { color: #ef4444; }
+
         .empty-state { color: #444; font-size: 14px; padding: 12px 0; text-align: center; }
 
         .hidden { display: none; }
@@ -246,7 +262,7 @@
     <div class="container">
         <div class="header">
             <h1>Stock Manager</h1>
-            <small>v0.1.3</small>
+            <small>v0.2.0</small>
         </div>
 
         <!-- Stats -->
@@ -442,12 +458,11 @@
                 document.getElementById('product-name').value = product.name;
                 document.getElementById('product-category').value = product.category;
                 document.getElementById('min-stock').value = product.min_stock;
-                document.getElementById('expiry-date').value = product.expiry_date || '';
             } else {
                 document.getElementById('product-name').value = '';
                 document.getElementById('min-stock').value = 2;
-                document.getElementById('expiry-date').value = '';
             }
+            document.getElementById('expiry-date').value = '';
 
             if (html5QrCode && html5QrCode.isScanning) {
                 html5QrCode.stop().then(() => {
@@ -469,12 +484,12 @@
                 const product = products.find(p => p.barcode === currentBarcode);
                 if (!product) {
                     await apiCall('/products', 'POST', {
-                        barcode: currentBarcode, name, category, min_stock: minStock, expiry_date: expiryDate
+                        barcode: currentBarcode, name, category, min_stock: minStock
                     });
-                } else if (expiryDate !== product.expiry_date) {
-                    await apiCall(`/products/${currentBarcode}`, 'PATCH', { expiry_date: expiryDate });
                 }
-                await apiCall(`/products/${currentBarcode}/stock`, 'POST', { quantity });
+                await apiCall(`/products/${currentBarcode}/stock`, 'POST', {
+                    quantity, expiry_date: expiryDate
+                });
                 await loadProducts();
                 resetScanner();
             } catch (error) {
@@ -533,7 +548,7 @@
             }
         }
 
-        // UI Updates
+        // UI
         async function updateUI() {
             const stats = await loadStats();
             document.getElementById('total-products').textContent = stats.total_products;
@@ -548,10 +563,10 @@
             const today = new Date(); today.setHours(0,0,0,0);
             const expiry = new Date(expiryDate + 'T00:00:00');
             const daysLeft = Math.ceil((expiry - today) / 86400000);
-            if (daysLeft < 0) return { text: 'CADUCADO', class: 'expiry-expired' };
-            if (daysLeft === 0) return { text: 'Caduca HOY', class: 'expiry-expired' };
-            if (daysLeft <= 7) return { text: `Caduca en ${daysLeft}d`, class: 'expiry-soon' };
-            return { text: `Cad: ${expiry.toLocaleDateString('es-ES')}`, class: 'expiry-ok' };
+            if (daysLeft < 0) return { text: 'CADUCADO', cls: 'expiry-expired' };
+            if (daysLeft === 0) return { text: 'Caduca HOY', cls: 'expiry-expired' };
+            if (daysLeft <= 7) return { text: `Caduca en ${daysLeft}d`, cls: 'expiry-soon' };
+            return { text: `Cad: ${expiry.toLocaleDateString('es-ES')}`, cls: 'expiry-ok' };
         }
 
         function updateShoppingList() {
@@ -566,10 +581,10 @@
             list.innerHTML = lowStock.map(p => {
                 const needed = p.min_stock - p.stock + 2;
                 const exp = getExpiryInfo(p.expiry_date);
-                const expiryHtml = exp && (exp.class !== 'expiry-ok')
-                    ? `<span class="expiry-warn">${exp.text}</span>` : '';
+                const expiryHtml = exp && (exp.cls !== 'expiry-ok')
+                    ? ` <span class="expiry-warn">${exp.text}</span>` : '';
                 return `<div class="shopping-item">
-                    <span class="name">${p.name} ${expiryHtml}</span>
+                    <span class="name">${p.name}${expiryHtml}</span>
                     <span class="qty">${needed} uds</span>
                 </div>`;
             }).join('');
@@ -592,19 +607,35 @@
 
             list.innerHTML = products.map(p => {
                 const isLow = p.stock <= p.min_stock;
-                const exp = getExpiryInfo(p.expiry_date);
-                const expiryHtml = exp ? `<span class="${exp.class}"> · ${exp.text}</span>` : '';
+                // Batch breakdown
+                let batchHtml = '';
+                if (p.batches && p.batches.length > 0) {
+                    const batchRows = p.batches.map(b => {
+                        const exp = getExpiryInfo(b.expiry_date);
+                        const expText = exp
+                            ? `<span class="${exp.cls}">${exp.text}</span>`
+                            : '<span class="expiry-ok">Sin caducidad</span>';
+                        return `<div class="batch-row">
+                            <span class="batch-qty">${b.quantity} ud${b.quantity > 1 ? 's' : ''}</span>
+                            ${expText}
+                        </div>`;
+                    }).join('');
+                    batchHtml = `<div class="batch-list">${batchRows}</div>`;
+                }
                 return `<div class="product-row">
-                    <div class="product-main">
-                        <div class="name">${p.name}</div>
-                        <div class="meta">${p.category}${expiryHtml}</div>
+                    <div class="product-top">
+                        <div class="product-main">
+                            <div class="name">${p.name}</div>
+                            <div class="meta">${p.category}</div>
+                        </div>
+                        <div class="product-stock">
+                            <button class="btn-round remove" onclick="quickRemove('${p.barcode}')">-</button>
+                            <span class="stock-num ${isLow ? 'low' : ''}">${p.stock}</span>
+                            <button class="btn-round add" onclick="quickAdd('${p.barcode}')">+</button>
+                            <button class="btn-del" onclick="deleteProduct('${p.barcode}')" title="Eliminar">&#x2715;</button>
+                        </div>
                     </div>
-                    <div class="product-stock">
-                        <button class="btn-round remove" onclick="quickRemove('${p.barcode}')">-</button>
-                        <span class="stock-num ${isLow ? 'low' : ''}">${p.stock}</span>
-                        <button class="btn-round add" onclick="quickAdd('${p.barcode}')">+</button>
-                        <button class="btn-del" onclick="deleteProduct('${p.barcode}')" title="Eliminar">&#x2715;</button>
-                    </div>
+                    ${batchHtml}
                 </div>`;
             }).join('');
         }
