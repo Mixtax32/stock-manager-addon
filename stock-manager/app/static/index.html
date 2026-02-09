@@ -250,6 +250,94 @@
 
         .empty-state { color: #444; font-size: 14px; padding: 12px 0; text-align: center; }
 
+        /* Management panel */
+        .panel-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: #0f0f0f;
+            z-index: 100;
+            overflow-y: auto;
+        }
+        .panel-overlay.active { display: block; }
+        .panel {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 16px;
+        }
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #222;
+            margin-bottom: 16px;
+        }
+        .panel-header h2 { font-size: 18px; color: #fff; font-weight: 600; }
+        .panel-close {
+            background: none;
+            border: 1px solid #333;
+            color: #aaa;
+            font-size: 14px;
+            padding: 6px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .panel-close:active { opacity: 0.7; }
+        .edit-card {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 8px;
+            padding: 14px;
+            margin-bottom: 10px;
+        }
+        .edit-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .edit-card-header .name { font-size: 16px; font-weight: 600; color: #fff; }
+        .edit-card-header .barcode { font-size: 12px; color: #555; }
+        .edit-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .edit-grid .form-group input,
+        .edit-grid .form-group select {
+            padding: 6px 8px;
+            font-size: 13px;
+        }
+        .edit-grid .form-group label { font-size: 11px; }
+        .edit-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .btn-save { background: #166534; color: #4ade80; padding: 6px 14px; font-size: 13px; }
+        .btn-delete-sm { background: #7f1d1d; color: #f87171; padding: 6px 14px; font-size: 13px; }
+        .edit-saved {
+            color: #4ade80;
+            font-size: 12px;
+            margin-left: 8px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .edit-saved.show { opacity: 1; }
+        .btn-manage {
+            background: none;
+            border: 1px solid #333;
+            color: #888;
+            font-size: 11px;
+            padding: 4px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .btn-manage:active { opacity: 0.7; }
+
         .hidden { display: none; }
 
         @media (max-width: 500px) {
@@ -262,7 +350,7 @@
     <div class="container">
         <div class="header">
             <h1>Stock Manager</h1>
-            <small>v0.2.0</small>
+            <small>v0.2.1</small>
         </div>
 
         <!-- Stats -->
@@ -349,13 +437,25 @@
 
         <!-- Inventario -->
         <div class="section" id="inventory-section">
-            <div class="section-header" onclick="toggleSection('inventory-section')">
-                <h2>Inventario</h2>
-                <span class="toggle"></span>
+            <div class="section-header">
+                <h2 onclick="toggleSection('inventory-section')" style="flex:1">Inventario</h2>
+                <button class="btn-manage" onclick="event.stopPropagation(); openManagePanel()">Gestionar</button>
+                <span class="toggle" onclick="toggleSection('inventory-section')" style="margin-left:8px"></span>
             </div>
             <div class="section-body">
                 <div id="product-list"></div>
             </div>
+        </div>
+    </div>
+
+    <!-- Panel de gestión -->
+    <div class="panel-overlay" id="manage-panel">
+        <div class="panel">
+            <div class="panel-header">
+                <h2>Gestionar Inventario</h2>
+                <button class="panel-close" onclick="closeManagePanel()">Volver</button>
+            </div>
+            <div id="manage-list"></div>
         </div>
     </div>
 
@@ -638,6 +738,97 @@
                     ${batchHtml}
                 </div>`;
             }).join('');
+        }
+        // Management panel
+        function openManagePanel() {
+            document.getElementById('manage-panel').classList.add('active');
+            renderManageList();
+        }
+
+        function closeManagePanel() {
+            document.getElementById('manage-panel').classList.remove('active');
+            loadProducts();
+        }
+
+        function renderManageList() {
+            const list = document.getElementById('manage-list');
+            if (products.length === 0) {
+                list.innerHTML = '<div class="empty-state">Sin productos.</div>';
+                return;
+            }
+
+            const sorted = [...products].sort((a, b) => a.name.localeCompare(b.name));
+
+            list.innerHTML = sorted.map(p => {
+                return `<div class="edit-card" id="edit-${p.barcode}">
+                    <div class="edit-card-header">
+                        <span class="name">${p.name}</span>
+                        <span class="barcode">${p.barcode} · ${p.stock} uds</span>
+                    </div>
+                    <div class="edit-grid">
+                        <div class="form-group">
+                            <label>Nombre</label>
+                            <input type="text" id="edit-name-${p.barcode}" value="${p.name}">
+                        </div>
+                        <div class="form-group">
+                            <label>Categoría</label>
+                            <select id="edit-cat-${p.barcode}">
+                                <option value="Alimentos" ${p.category === 'Alimentos' ? 'selected' : ''}>Alimentos</option>
+                                <option value="Bebidas" ${p.category === 'Bebidas' ? 'selected' : ''}>Bebidas</option>
+                                <option value="Limpieza" ${p.category === 'Limpieza' ? 'selected' : ''}>Limpieza</option>
+                                <option value="Higiene" ${p.category === 'Higiene' ? 'selected' : ''}>Higiene Personal</option>
+                                <option value="Otros" ${p.category === 'Otros' ? 'selected' : ''}>Otros</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Stock Mínimo</label>
+                            <input type="number" id="edit-min-${p.barcode}" value="${p.min_stock}" min="1">
+                        </div>
+                    </div>
+                    <div class="edit-actions">
+                        <button class="btn btn-save" onclick="saveProduct('${p.barcode}')">Guardar</button>
+                        <button class="btn btn-delete-sm" onclick="manageDelete('${p.barcode}')">Eliminar</button>
+                        <span class="edit-saved" id="saved-${p.barcode}">Guardado</span>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        async function saveProduct(barcode) {
+            const name = document.getElementById(`edit-name-${barcode}`).value.trim();
+            const category = document.getElementById(`edit-cat-${barcode}`).value;
+            const minStock = parseInt(document.getElementById(`edit-min-${barcode}`).value);
+            if (!name) { alert('El nombre no puede estar vacío'); return; }
+            try {
+                await apiCall(`/products/${barcode}`, 'PATCH', {
+                    name, category, min_stock: minStock
+                });
+                // Update local data
+                const p = products.find(p => p.barcode === barcode);
+                if (p) { p.name = name; p.category = category; p.min_stock = minStock; }
+                // Show saved indicator
+                const saved = document.getElementById(`saved-${barcode}`);
+                saved.classList.add('show');
+                setTimeout(() => saved.classList.remove('show'), 2000);
+                // Update card header
+                const header = document.querySelector(`#edit-${barcode} .edit-card-header .name`);
+                if (header) header.textContent = name;
+            } catch (error) {
+                console.error('Error saving product:', error);
+            }
+        }
+
+        async function manageDelete(barcode) {
+            const p = products.find(p => p.barcode === barcode);
+            if (confirm(`¿Eliminar "${p ? p.name : barcode}"?`)) {
+                try {
+                    await apiCall(`/products/${barcode}`, 'DELETE');
+                    products = products.filter(p => p.barcode !== barcode);
+                    renderManageList();
+                } catch (error) {
+                    console.error('Error deleting product:', error);
+                }
+            }
         }
     </script>
 </body>
