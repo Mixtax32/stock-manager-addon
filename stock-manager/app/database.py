@@ -225,7 +225,7 @@ class Database:
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
             async with db.execute(
-                "SELECT * FROM products WHERE stock <= min_stock ORDER BY name"
+                "SELECT * FROM products WHERE stock < min_stock ORDER BY name"
             ) as cursor:
                 rows = await cursor.fetchall()
             products = []
@@ -241,7 +241,7 @@ class Database:
                 """SELECT
                     COUNT(*) as total_products,
                     SUM(stock) as total_units,
-                    COUNT(CASE WHEN stock <= min_stock THEN 1 END) as low_stock_count
+                    COUNT(CASE WHEN stock < min_stock THEN 1 END) as low_stock_count
                    FROM products"""
             ) as cursor:
                 row = await cursor.fetchone()
