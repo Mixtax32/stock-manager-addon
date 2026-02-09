@@ -30,6 +30,6 @@ LABEL \
     io.hass.name="Stock Manager" \
     io.hass.description="Sistema de gestión de inventario doméstico" \
     io.hass.type="addon" \
-    io.hass.version="0.2.5"
+    io.hass.version="0.2.6"
 
 CMD [ "/run.sh" ]
