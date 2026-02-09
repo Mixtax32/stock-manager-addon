@@ -404,6 +404,28 @@
         }
         .btn-manage:active { opacity: 0.7; }
 
+        /* Search results */
+        .search-results {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 6px;
+            margin-top: 6px;
+            overflow: hidden;
+        }
+        .search-result-item {
+            padding: 10px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #222;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .search-result-item:last-child { border-bottom: none; }
+        .search-result-item:active { background: #252525; }
+        .search-result-item .sr-name { color: #e0e0e0; font-size: 14px; }
+        .search-result-item .sr-meta { color: #555; font-size: 12px; }
+        .search-no-results { padding: 10px 12px; color: #555; font-size: 13px; }
+
         .hidden { display: none; }
 
         @media (max-width: 500px) {
@@ -416,7 +438,7 @@
     <div class="container">
         <div class="header">
             <h1>Stock Manager</h1>
-            <small>v0.2.4</small>
+            <small>v0.2.5</small>
         </div>
 
         <!-- Stats -->
@@ -454,9 +476,10 @@
             </div>
             <div class="section-body">
                 <div class="barcode-input">
-                    <input type="text" id="manual-barcode" placeholder="Código de barras" inputmode="numeric">
+                    <input type="text" id="manual-barcode" placeholder="Código de barras o nombre" autocomplete="off">
                     <button class="btn btn-primary" onclick="useManualBarcode()">Buscar</button>
                 </div>
+                <div id="search-results" class="search-results hidden"></div>
                 <div class="camera-row">
                     <button class="btn btn-primary" id="start-scan" style="flex:1">Iniciar Cámara</button>
                     <button class="btn btn-remove hidden" id="stop-scan" style="flex:1">Detener</button>
@@ -611,8 +634,55 @@
         };
 
         function useManualBarcode() {
-            const barcode = document.getElementById('manual-barcode').value.trim();
-            if (!barcode) { alert('Introduce un código'); return; }
+            const input = document.getElementById('manual-barcode').value.trim();
+            if (!input) { alert('Introduce un código o nombre'); return; }
+
+            // First try exact barcode match
+            const byBarcode = products.find(p => p.barcode === input);
+            if (byBarcode) {
+                hideSearchResults();
+                onScanSuccess(input);
+                document.getElementById('manual-barcode').value = '';
+                return;
+            }
+
+            // Search by name (case-insensitive partial match)
+            const query = input.toLowerCase();
+            const matches = products.filter(p => p.name.toLowerCase().includes(query));
+
+            if (matches.length === 1) {
+                // Single match - select it directly
+                hideSearchResults();
+                onScanSuccess(matches[0].barcode);
+                document.getElementById('manual-barcode').value = '';
+            } else if (matches.length > 1) {
+                // Multiple matches - show list to pick from
+                showSearchResults(matches);
+            } else {
+                // No match - treat as new barcode
+                hideSearchResults();
+                onScanSuccess(input);
+                document.getElementById('manual-barcode').value = '';
+            }
+        }
+
+        function showSearchResults(matches) {
+            const container = document.getElementById('search-results');
+            container.innerHTML = matches.map(p =>
+                `<div class="search-result-item" onclick="pickSearchResult('${p.barcode}')">
+                    <span class="sr-name">${p.name}</span>
+                    <span class="sr-meta">${p.stock} uds · ${p.category}</span>
+                </div>`
+            ).join('');
+            container.classList.remove('hidden');
+        }
+
+        function hideSearchResults() {
+            document.getElementById('search-results').classList.add('hidden');
+        }
+
+        function pickSearchResult(barcode) {
+            hideSearchResults();
             onScanSuccess(barcode);
             document.getElementById('manual-barcode').value = '';
         }
