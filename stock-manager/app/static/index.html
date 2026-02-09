@@ -829,7 +829,7 @@
 
         function updateShoppingList() {
             const list = document.getElementById('shopping-list');
-            const lowStock = products.filter(p => p.stock <= p.min_stock);
+            const lowStock = products.filter(p => p.stock < p.min_stock);
 
             if (lowStock.length === 0) {
                 list.innerHTML = '<div class="shopping-empty">Todo en orden</div>';
@@ -856,15 +856,15 @@
             }
 
             products.sort((a, b) => {
-                const aLow = a.stock <= a.min_stock;
-                const bLow = b.stock <= b.min_stock;
+                const aLow = a.stock < a.min_stock;
+                const bLow = b.stock < b.min_stock;
                 if (aLow && !bLow) return -1;
                 if (!aLow && bLow) return 1;
                 return a.name.localeCompare(b.name);
             });
 
             list.innerHTML = products.map(p => {
-                const isLow = p.stock <= p.min_stock;
+                const isLow = p.stock < p.min_stock;
                 // Batch breakdown
                 let batchHtml = '';
                 if (p.batches && p.batches.length > 0) {
