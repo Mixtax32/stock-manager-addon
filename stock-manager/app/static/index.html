@@ -404,6 +404,28 @@
         }
         .btn-manage:active { opacity: 0.7; }
 
+        /* Search results */
+        .search-results {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 6px;
+            margin-top: 6px;
+            overflow: hidden;
+        }
+        .search-result-item {
+            padding: 10px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #222;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .search-result-item:last-child { border-bottom: none; }
+        .search-result-item:active { background: #252525; }
+        .search-result-item .sr-name { color: #e0e0e0; font-size: 14px; }
+        .search-result-item .sr-meta { color: #555; font-size: 12px; }
+        .search-no-results { padding: 10px 12px; color: #555; font-size: 13px; }
+
         .hidden { display: none; }
 
         @media (max-width: 500px) {
@@ -416,7 +438,7 @@
     <div class="container">
         <div class="header">
             <h1>Stock Manager</h1>
-            <small>v0.2.3</small>
+            <small>v0.2.6</small>
         </div>
 
         <!-- Stats -->
@@ -438,7 +460,7 @@
         <!-- Necesitas comprar -->
         <div class="section" id="shopping-section">
             <div class="section-header" onclick="toggleSection('shopping-section')">
-                <h2>Necesitas comprar</h2>
+                <h2>Lista de la compra</h2>
                 <span class="toggle"></span>
             </div>
             <div class="section-body">
@@ -454,9 +476,10 @@
             </div>
             <div class="section-body">
                 <div class="barcode-input">
-                    <input type="text" id="manual-barcode" placeholder="Código de barras" inputmode="numeric">
+                    <input type="text" id="manual-barcode" placeholder="Código de barras o nombre" autocomplete="off">
                     <button class="btn btn-primary" onclick="useManualBarcode()">Buscar</button>
                 </div>
+                <div id="search-results" class="search-results hidden"></div>
                 <div class="camera-row">
                     <button class="btn btn-primary" id="start-scan" style="flex:1">Iniciar Cámara</button>
                     <button class="btn btn-remove hidden" id="stop-scan" style="flex:1">Detener</button>
@@ -465,25 +488,33 @@
                 <div id="scanned-code" class="hidden"></div>
 
                 <div id="product-action" class="hidden">
-                    <div class="form-grid">
-                        <div class="form-group full">
-                            <label>Nombre</label>
-                            <input type="text" id="product-name" placeholder="Ej: Leche Entera">
+                    <div id="existing-product-info" class="hidden" style="background:#1a2e1a;border:1px solid #2d4a2d;border-radius:6px;padding:10px 12px;margin-bottom:10px;">
+                        <span id="existing-product-name" style="color:#4ade80;font-weight:600;font-size:15px;"></span>
+                        <span id="existing-product-stock" style="color:#888;font-size:13px;margin-left:8px;"></span>
+                    </div>
+                    <div id="new-product-fields">
+                        <div class="form-grid">
+                            <div class="form-group full">
+                                <label>Nombre</label>
+                                <input type="text" id="product-name" placeholder="Ej: Leche Entera">
+                            </div>
+                            <div class="form-group">
+                                <label>Categoría</label>
+                                <select id="product-category">
+                                    <option value="Alimentos">Alimentos</option>
+                                    <option value="Bebidas">Bebidas</option>
+                                    <option value="Limpieza">Limpieza</option>
+                                    <option value="Higiene">Higiene Personal</option>
+                                    <option value="Otros">Otros</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Stock Mínimo</label>
+                                <input type="number" id="min-stock" value="2" min="1">
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label>Categoría</label>
-                            <select id="product-category">
-                                <option value="Alimentos">Alimentos</option>
-                                <option value="Bebidas">Bebidas</option>
-                                <option value="Limpieza">Limpieza</option>
-                                <option value="Higiene">Higiene Personal</option>
-                                <option value="Otros">Otros</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Stock Mínimo</label>
-                            <input type="number" id="min-stock" value="2" min="1">
-                        </div>
+                    </div>
+                    <div class="form-grid" style="margin-top:8px;">
                         <div class="form-group">
                             <label>Caducidad</label>
                             <input type="date" id="expiry-date">
@@ -611,8 +642,55 @@
         };
 
         function useManualBarcode() {
-            const barcode = document.getElementById('manual-barcode').value.trim();
-            if (!barcode) { alert('Introduce un código'); return; }
+            const input = document.getElementById('manual-barcode').value.trim();
+            if (!input) { alert('Introduce un código o nombre'); return; }
+
+            // First try exact barcode match
+            const byBarcode = products.find(p => p.barcode === input);
+            if (byBarcode) {
+                hideSearchResults();
+                onScanSuccess(input);
+                document.getElementById('manual-barcode').value = '';
+                return;
+            }
+
+            // Search by name (case-insensitive partial match)
+            const query = input.toLowerCase();
+            const matches = products.filter(p => p.name.toLowerCase().includes(query));
+
+            if (matches.length === 1) {
+                // Single match - select it directly
+                hideSearchResults();
+                onScanSuccess(matches[0].barcode);
+                document.getElementById('manual-barcode').value = '';
+            } else if (matches.length > 1) {
+                // Multiple matches - show list to pick from
+                showSearchResults(matches);
+            } else {
+                // No match - treat as new barcode
+                hideSearchResults();
+                onScanSuccess(input);
+                document.getElementById('manual-barcode').value = '';
+            }
+        }
+
+        function showSearchResults(matches) {
+            const container = document.getElementById('search-results');
+            container.innerHTML = matches.map(p =>
+                `<div class="search-result-item" onclick="pickSearchResult('${p.barcode}')">
+                    <span class="sr-name">${p.name}</span>
+                    <span class="sr-meta">${p.stock} uds · ${p.category}</span>
+                </div>`
+            ).join('');
+            container.classList.remove('hidden');
+        }
+
+        function hideSearchResults() {
+            document.getElementById('search-results').classList.add('hidden');
+        }
+
+        function pickSearchResult(barcode) {
+            hideSearchResults();
             onScanSuccess(barcode);
             document.getElementById('manual-barcode').value = '';
         }
@@ -625,14 +703,24 @@
 
             const product = products.find(p => p.barcode === currentBarcode);
             if (product) {
+                // Existing product: show compact info, hide full form
+                document.getElementById('existing-product-info').classList.remove('hidden');
+                document.getElementById('existing-product-name').textContent = product.name;
+                document.getElementById('existing-product-stock').textContent = `(${product.stock} uds en stock)`;
+                document.getElementById('new-product-fields').classList.add('hidden');
+                // Keep values in hidden fields for addStock()
                 document.getElementById('product-name').value = product.name;
                 document.getElementById('product-category').value = product.category;
                 document.getElementById('min-stock').value = product.min_stock;
             } else {
+                // New product: show full form
+                document.getElementById('existing-product-info').classList.add('hidden');
+                document.getElementById('new-product-fields').classList.remove('hidden');
                 document.getElementById('product-name').value = '';
                 document.getElementById('min-stock').value = 2;
             }
             document.getElementById('expiry-date').value = '';
+            document.getElementById('quantity').value = 1;
 
             if (html5QrCode && html5QrCode.isScanning) {
                 html5QrCode.stop().then(() => {
@@ -749,7 +837,7 @@
             }
 
             list.innerHTML = lowStock.map(p => {
-                const needed = p.min_stock - p.stock + 2;
+                const needed = p.min_stock - p.stock;
                 const exp = getExpiryInfo(p.expiry_date);
                 const expiryHtml = exp && (exp.cls !== 'expiry-ok')
                     ? ` <span class="expiry-warn">${exp.text}</span>` : '';

@@ -1,8 +1,8 @@
 name: Stock Manager
-version: "0.2.3"
+version: "0.2.6"
 slug: stock_manager
 description: Sistema de gestión de inventario doméstico con escáner de códigos de barras
-url: https://github.com/tu-usuario/stock-manager-addon
+url: https://github.com/Mixtax32/stock-manager-addon
 arch:
   - armhf
   - armv7
