@@ -416,7 +416,7 @@
     <div class="container">
         <div class="header">
             <h1>Stock Manager</h1>
-            <small>v0.2.3</small>
+            <small>v0.2.4</small>
         </div>
 
         <!-- Stats -->
@@ -438,7 +438,7 @@
         <!-- Necesitas comprar -->
         <div class="section" id="shopping-section">
             <div class="section-header" onclick="toggleSection('shopping-section')">
-                <h2>Necesitas comprar</h2>
+                <h2>Lista de la compra</h2>
                 <span class="toggle"></span>
             </div>
             <div class="section-body">
@@ -749,7 +749,7 @@
             }
 
             list.innerHTML = lowStock.map(p => {
-                const needed = p.min_stock - p.stock + 2;
+                const needed = p.min_stock - p.stock;
                 const exp = getExpiryInfo(p.expiry_date);
                 const expiryHtml = exp && (exp.cls !== 'expiry-ok')
                     ? ` <span class="expiry-warn">${exp.text}</span>` : '';
