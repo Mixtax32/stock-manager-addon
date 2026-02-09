@@ -33,3 +33,6 @@ class ProductUpdate(BaseModel):
     name: Optional[str] = None
     category: Optional[str] = None
     min_stock: Optional[int] = None
+
+class BatchUpdate(BaseModel):
+    expiry_date: Optional[str] = None

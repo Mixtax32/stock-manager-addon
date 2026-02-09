@@ -2,7 +2,7 @@ import aiosqlite
 import os
 from datetime import datetime, date
 from typing import List, Optional
-from .models import Product, ProductCreate, StockUpdate, ProductUpdate, Batch
+from .models import Product, ProductCreate, StockUpdate, ProductUpdate, Batch, BatchUpdate
 
 DATABASE_PATH = os.getenv('DATABASE_PATH', '/data/stock_manager/stock.db')
 
@@ -186,6 +186,29 @@ class Database:
                 await db.commit()
 
         return await self.get_product(barcode)
+
+    async def update_batch(self, batch_id: int, update: BatchUpdate) -> Optional[Batch]:
+        """Update a batch's expiry date"""
+        async with aiosqlite.connect(self.db_path) as db:
+            # Get batch to find its barcode
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT * FROM batches WHERE id = ?", (batch_id,)) as cursor:
+                row = await cursor.fetchone()
+                if not row:
+                    return None
+                barcode = row['barcode']
+
+            await db.execute(
+                "UPDATE batches SET expiry_date = ? WHERE id = ?",
+                (update.expiry_date, batch_id)
+            )
+            await self._sync_product_stock(db, barcode)
+            await db.commit()
+
+            # Return updated batch
+            async with db.execute("SELECT * FROM batches WHERE id = ?", (batch_id,)) as cursor:
+                row = await cursor.fetchone()
+                return Batch(**dict(row)) if row else None
 
     async def delete_product(self, barcode: str) -> bool:
         """Delete product and its batches"""
