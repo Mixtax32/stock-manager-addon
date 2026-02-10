@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stock Manager</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -469,6 +470,106 @@
         .search-result-item .sr-meta { color: #555; font-size: 12px; }
         .search-no-results { padding: 10px 12px; color: #555; font-size: 13px; }
 
+        /* Ticket scanner */
+        .ticket-progress {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 6px;
+            padding: 12px;
+            margin-top: 10px;
+            text-align: center;
+        }
+        .ticket-progress .tp-text { color: #888; font-size: 13px; margin-bottom: 8px; }
+        .ticket-progress .tp-bar {
+            height: 4px;
+            background: #222;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .ticket-progress .tp-fill {
+            height: 100%;
+            background: #4ade80;
+            border-radius: 2px;
+            transition: width 0.3s;
+        }
+
+        /* Ticket results panel */
+        .ticket-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: #0f0f0f;
+            z-index: 100;
+            overflow-y: auto;
+        }
+        .ticket-overlay.active { display: block; }
+        .ticket-panel {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 16px;
+        }
+        .ticket-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #222;
+            margin-bottom: 16px;
+        }
+        .ticket-header h2 { font-size: 18px; color: #fff; font-weight: 600; }
+        .ticket-section-title {
+            font-size: 13px;
+            color: #4ade80;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 8px 0;
+            margin-top: 8px;
+        }
+        .ticket-section-title.unmatched { color: #f59e0b; }
+        .ticket-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 0;
+            border-bottom: 1px solid #222;
+        }
+        .ticket-item:last-child { border-bottom: none; }
+        .ticket-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: #4ade80;
+            flex-shrink: 0;
+        }
+        .ticket-item .ti-info { flex: 1; min-width: 0; }
+        .ticket-item .ti-line { font-size: 13px; color: #888; }
+        .ticket-item .ti-match { font-size: 14px; color: #e0e0e0; font-weight: 500; }
+        .ticket-item .ti-qty {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+        .ticket-item .ti-qty input {
+            width: 45px;
+            background: #111;
+            border: 1px solid #333;
+            color: #fff;
+            padding: 4px 6px;
+            border-radius: 4px;
+            font-size: 13px;
+            text-align: center;
+        }
+        .ticket-item .ti-qty label { font-size: 11px; color: #666; }
+        .ticket-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid #222;
+        }
+        .ticket-actions .btn { flex: 1; }
+
         .hidden { display: none; }
 
         @media (max-width: 500px) {
@@ -481,7 +582,7 @@
     <div class="container">
         <div class="header">
             <h1>Stock Manager</h1>
-            <small>v0.2.7</small>
+            <small>v0.3.0</small>
         </div>
 
         <!-- Stats -->
@@ -524,10 +625,15 @@
                 </div>
                 <div id="search-results" class="search-results hidden"></div>
                 <div class="camera-row">
-                    <button class="btn btn-primary" id="start-scan" style="flex:1">Iniciar Cámara</button>
+                    <button class="btn btn-primary" id="start-scan" style="flex:1">Escanear código</button>
+                    <button class="btn btn-primary" id="start-ticket" style="flex:1">Leer ticket</button>
                     <button class="btn btn-remove hidden" id="stop-scan" style="flex:1">Detener</button>
                 </div>
                 <div id="scanner-container"></div>
+                <div id="ticket-progress" class="ticket-progress hidden">
+                    <div class="tp-text" id="ticket-status">Preparando cámara...</div>
+                    <div class="tp-bar"><div class="tp-fill" id="ticket-fill" style="width:0%"></div></div>
+                </div>
                 <div id="scanned-code" class="hidden"></div>
 
                 <div id="product-action" class="hidden">
@@ -611,11 +717,27 @@
         </div>
     </div>
 
+    <!-- Panel de resultados del ticket -->
+    <div class="ticket-overlay" id="ticket-panel">
+        <div class="ticket-panel">
+            <div class="ticket-header">
+                <h2>Ticket escaneado</h2>
+                <button class="panel-close" onclick="closeTicketPanel()">Cancelar</button>
+            </div>
+            <div id="ticket-matched"></div>
+            <div id="ticket-unmatched"></div>
+            <div class="ticket-actions">
+                <button class="btn btn-add" onclick="confirmTicketItems()">Añadir seleccionados</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const API_BASE = `${window.location.pathname.replace(/\/$/, '')}/api`;
         let html5QrCode;
         let products = [];
         let currentBarcode = null;
+        let ticketItems = [];
 
         window.onload = async function() {
             await loadProducts();
@@ -677,6 +799,7 @@
                     onScanSuccess
                 );
                 document.getElementById('start-scan').classList.add('hidden');
+                document.getElementById('start-ticket').classList.add('hidden');
                 document.getElementById('stop-scan').classList.remove('hidden');
             } catch (err) {
                 alert('Error cámara: ' + err.message);
@@ -687,10 +810,277 @@
             if (html5QrCode) {
                 html5QrCode.stop().then(() => {
                     document.getElementById('start-scan').classList.remove('hidden');
+                    document.getElementById('start-ticket').classList.remove('hidden');
                     document.getElementById('stop-scan').classList.add('hidden');
                 });
             }
         };
+
+        // Ticket scanner
+        document.getElementById('start-ticket').onclick = async function() {
+            try {
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error('Cámara no disponible. Se requiere HTTPS.');
+                }
+                // Open camera, take a photo, then run OCR
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } }
+                });
+                // Create video element to capture frame
+                const video = document.createElement('video');
+                video.srcObject = stream;
+                video.setAttribute('playsinline', 'true');
+                await video.play();
+
+                // Show video preview in scanner container
+                const container = document.getElementById('scanner-container');
+                container.innerHTML = '';
+                video.style.width = '100%';
+                video.style.borderRadius = '8px';
+                container.appendChild(video);
+
+                // Add capture button
+                const captureBtn = document.createElement('button');
+                captureBtn.className = 'btn btn-add';
+                captureBtn.style.cssText = 'width:100%;margin-top:8px;';
+                captureBtn.textContent = 'Capturar ticket';
+                container.appendChild(captureBtn);
+
+                document.getElementById('start-scan').classList.add('hidden');
+                document.getElementById('start-ticket').classList.add('hidden');
+                document.getElementById('stop-scan').classList.remove('hidden');
+
+                captureBtn.onclick = async function() {
+                    // Capture frame to canvas
+                    const canvas = document.createElement('canvas');
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    canvas.getContext('2d').drawImage(video, 0, 0);
+
+                    // Stop camera
+                    stream.getTracks().forEach(t => t.stop());
+                    container.innerHTML = '';
+                    document.getElementById('start-scan').classList.remove('hidden');
+                    document.getElementById('start-ticket').classList.remove('hidden');
+                    document.getElementById('stop-scan').classList.add('hidden');
+
+                    // Run OCR
+                    await processTicketImage(canvas);
+                };
+
+                // Override stop button to clean up
+                const origStop = document.getElementById('stop-scan').onclick;
+                document.getElementById('stop-scan').onclick = function() {
+                    stream.getTracks().forEach(t => t.stop());
+                    container.innerHTML = '';
+                    document.getElementById('start-scan').classList.remove('hidden');
+                    document.getElementById('start-ticket').classList.remove('hidden');
+                    document.getElementById('stop-scan').classList.add('hidden');
+                    document.getElementById('stop-scan').onclick = origStop;
+                };
+            } catch (err) {
+                alert('Error cámara: ' + err.message);
+            }
+        };
+
+        async function processTicketImage(canvas) {
+            const progress = document.getElementById('ticket-progress');
+            const statusEl = document.getElementById('ticket-status');
+            const fillEl = document.getElementById('ticket-fill');
+            progress.classList.remove('hidden');
+            statusEl.textContent = 'Leyendo ticket...';
+            fillEl.style.width = '10%';
+
+            try {
+                const result = await Tesseract.recognize(canvas, 'spa', {
+                    logger: m => {
+                        if (m.status === 'recognizing text') {
+                            const pct = Math.round(m.progress * 100);
+                            fillEl.style.width = pct + '%';
+                            statusEl.textContent = `Leyendo ticket... ${pct}%`;
+                        }
+                    }
+                });
+
+                progress.classList.add('hidden');
+                const text = result.data.text;
+                parseTicketText(text);
+            } catch (err) {
+                progress.classList.add('hidden');
+                alert('Error al leer ticket: ' + err.message);
+            }
+        }
+
+        function normalizeText(text) {
+            return text.toLowerCase()
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-z0-9\s]/g, '')
+                .trim();
+        }
+
+        function parseTicketText(text) {
+            const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 2);
+            ticketItems = [];
+
+            for (const line of lines) {
+                // Try to extract quantity from patterns like "2 x LECHE" or "LECHE  2"
+                let qty = 1;
+                let name = line;
+
+                // Pattern: "2 x Product" or "2x Product"
+                const qtyMatch = line.match(/^(\d+)\s*[xX]\s+(.+)/);
+                if (qtyMatch) {
+                    qty = parseInt(qtyMatch[1]);
+                    name = qtyMatch[2];
+                }
+
+                // Remove price patterns (1,99 € or 1.99)
+                name = name.replace(/\d+[,.]\d{2}\s*€?/g, '').trim();
+
+                // Skip lines that are too short or look like totals/headers
+                const normalized = normalizeText(name);
+                if (normalized.length < 3) continue;
+                if (/^(total|subtotal|iva|cambio|efectivo|tarjeta|visa|mastercard|fecha|hora|nif|cif|tel|ticket|factura|gracias)/.test(normalized)) continue;
+                if (/^\d+$/.test(normalized)) continue;
+
+                // Try to match against existing products
+                let bestMatch = null;
+                let bestScore = 0;
+                for (const p of products) {
+                    const score = similarityScore(normalized, normalizeText(p.name));
+                    if (score > bestScore && score >= 0.4) {
+                        bestScore = score;
+                        bestMatch = p;
+                    }
+                }
+
+                ticketItems.push({
+                    line: line,
+                    name: name,
+                    qty: qty,
+                    match: bestMatch,
+                    score: bestScore,
+                    checked: bestMatch !== null
+                });
+            }
+
+            showTicketResults();
+        }
+
+        function similarityScore(a, b) {
+            // Check if one contains the other
+            if (a.includes(b) || b.includes(a)) return 0.9;
+
+            // Word overlap
+            const wordsA = a.split(/\s+/).filter(w => w.length > 2);
+            const wordsB = b.split(/\s+/).filter(w => w.length > 2);
+            if (wordsA.length === 0 || wordsB.length === 0) return 0;
+
+            let matches = 0;
+            for (const wa of wordsA) {
+                for (const wb of wordsB) {
+                    if (wa.includes(wb) || wb.includes(wa)) { matches++; break; }
+                }
+            }
+            return matches / Math.max(wordsA.length, wordsB.length);
+        }
+
+        function showTicketResults() {
+            const matched = ticketItems.filter(t => t.match);
+            const unmatched = ticketItems.filter(t => !t.match);
+
+            let html = '';
+            if (matched.length > 0) {
+                html += '<div class="ticket-section-title">Productos reconocidos</div>';
+                matched.forEach((item, i) => {
+                    const idx = ticketItems.indexOf(item);
+                    html += `<div class="ticket-item">
+                        <input type="checkbox" id="ti-check-${idx}" ${item.checked ? 'checked' : ''}
+                            onchange="ticketItems[${idx}].checked = this.checked">
+                        <div class="ti-info">
+                            <div class="ti-match">${item.match.name}</div>
+                            <div class="ti-line">${item.line}</div>
+                        </div>
+                        <div class="ti-qty">
+                            <label>Uds</label>
+                            <input type="number" value="${item.qty}" min="1"
+                                onchange="ticketItems[${idx}].qty = parseInt(this.value)">
+                        </div>
+                    </div>`;
+                });
+            }
+
+            if (unmatched.length > 0) {
+                html += '<div class="ticket-section-title unmatched">No reconocidos</div>';
+                unmatched.forEach((item, i) => {
+                    const idx = ticketItems.indexOf(item);
+                    html += `<div class="ticket-item">
+                        <input type="checkbox" id="ti-check-${idx}"
+                            onchange="ticketItems[${idx}].checked = this.checked">
+                        <div class="ti-info">
+                            <div class="ti-line">${item.line}</div>
+                        </div>
+                        <div class="ti-qty">
+                            <label>Uds</label>
+                            <input type="number" value="${item.qty}" min="1"
+                                onchange="ticketItems[${idx}].qty = parseInt(this.value)">
+                        </div>
+                    </div>`;
+                });
+            }
+
+            if (ticketItems.length === 0) {
+                html = '<div style="color:#555;text-align:center;padding:20px;">No se han detectado productos en el ticket</div>';
+            }
+
+            document.getElementById('ticket-matched').innerHTML = matched.length > 0 ? html.split('No reconocidos')[0] : '';
+            document.getElementById('ticket-unmatched').innerHTML = unmatched.length > 0 ?
+                '<div class="ticket-section-title unmatched">No reconocidos</div>' +
+                html.split('No reconocidos').slice(1).join('') : '';
+
+            // Simpler approach: put all html in matched container
+            document.getElementById('ticket-matched').innerHTML = html;
+            document.getElementById('ticket-unmatched').innerHTML = '';
+
+            document.getElementById('ticket-panel').classList.add('active');
+        }
+
+        function closeTicketPanel() {
+            document.getElementById('ticket-panel').classList.remove('active');
+            ticketItems = [];
+        }
+
+        async function confirmTicketItems() {
+            const selected = ticketItems.filter(t => t.checked);
+            if (selected.length === 0) { alert('No hay productos seleccionados'); return; }
+
+            let added = 0;
+            let errors = 0;
+            for (const item of selected) {
+                try {
+                    if (item.match) {
+                        // Existing product: add stock to first batch
+                        const p = item.match;
+                        if (p.batches && p.batches.length > 0) {
+                            await apiCall(`/batches/${p.batches[0].id}/stock`, 'POST', { quantity: item.qty });
+                        } else {
+                            await apiCall(`/products/${p.barcode}/stock`, 'POST', { quantity: item.qty });
+                        }
+                        added++;
+                    }
+                    // Unmatched items that are checked - skip for now (user would need to create them manually)
+                } catch (e) {
+                    errors++;
+                }
+            }
+
+            await loadProducts();
+            closeTicketPanel();
+
+            if (errors > 0) {
+                alert(`${added} producto${added !== 1 ? 's' : ''} añadido${added !== 1 ? 's' : ''}. ${errors} error${errors !== 1 ? 'es' : ''}.`);
+            }
+        }
 
         function useManualBarcode() {
             const input = document.getElementById('manual-barcode').value.trim();
@@ -773,6 +1163,7 @@
             if (html5QrCode && html5QrCode.isScanning) {
                 html5QrCode.stop().then(() => {
                     document.getElementById('start-scan').classList.remove('hidden');
+                    document.getElementById('start-ticket').classList.remove('hidden');
                     document.getElementById('stop-scan').classList.add('hidden');
                 });
             }
