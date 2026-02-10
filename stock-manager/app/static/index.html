@@ -891,16 +891,24 @@
 
         async function quickAdd(barcode) {
             try {
-                await apiCall(`/products/${barcode}/stock`, 'POST', { quantity: 1 });
+                const product = products.find(p => p.barcode === barcode);
+                if (product && product.batches && product.batches.length > 0) {
+                    // Add to first batch (earliest expiry)
+                    await apiCall(`/batches/${product.batches[0].id}/stock`, 'POST', { quantity: 1 });
+                } else {
+                    // No batches yet, create one
+                    await apiCall(`/products/${barcode}/stock`, 'POST', { quantity: 1 });
+                }
                 await loadProducts();
             } catch (error) { console.error('Error:', error); }
         }
 
         async function quickRemove(barcode) {
             const product = products.find(p => p.barcode === barcode);
-            if (product && product.stock > 0) {
+            if (product && product.stock > 0 && product.batches && product.batches.length > 0) {
                 try {
-                    await apiCall(`/products/${barcode}/stock`, 'POST', { quantity: -1 });
+                    // Remove from first batch (earliest expiry - FIFO)
+                    await apiCall(`/batches/${product.batches[0].id}/stock`, 'POST', { quantity: -1 });
                     await loadProducts();
                 } catch (error) { console.error('Error:', error); }
             }
