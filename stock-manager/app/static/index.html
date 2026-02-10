@@ -918,32 +918,97 @@
                 .trim();
         }
 
+        function isJunkLine(line) {
+            const low = line.toLowerCase();
+            const norm = normalizeText(line);
+
+            // Too short
+            if (norm.length < 3) return true;
+
+            // Only numbers, codes, symbols
+            if (/^\d+$/.test(norm)) return true;
+            if (/^[\d\s\-\/\.\,\*\#]+$/.test(line.trim())) return true;
+
+            // Barcodes / EAN codes (long number sequences)
+            if (/\d{8,}/.test(line)) return true;
+
+            // Common receipt noise keywords
+            const junkPatterns = [
+                /^total/i, /^subtotal/i, /^iva\b/i, /^base\s*imp/i,
+                /^cambio/i, /^efectivo/i, /^tarjeta/i, /^visa/i, /^mastercard/i,
+                /^fecha/i, /^hora/i, /^\d{1,2}[\/:]\d{2}/, // time patterns
+                /^\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}/, // date patterns
+                /^nif/i, /^cif/i, /^n\.?i\.?f/i, /^c\.?i\.?f/i,
+                /^tel[eé]?f/i, /^fax/i, /^www\./i, /^http/i, /^@/,
+                /^ticket/i, /^factura/i, /^recibo/i, /^comprobante/i,
+                /^gracias/i, /^le\s+atiende/i, /^le\s+atendio/i,
+                /^caja\s*\d/i, /^op\.?\s*\d/i, /^operacion/i,
+                /^cliente/i, /^socio/i, /^n[uú]mero/i,
+                /^dto\.?/i, /^descuento/i, /^ahorro/i, /^oferta/i,
+                /^precio/i, /^p\.?v\.?p/i, /^importe/i,
+                /^devoluci[oó]n/i, /^entrega/i, /^pago/i,
+                /unidades/i, /^art[ií]culos?:\s*\d/i,
+                /^super/i, /^mercadona/i, /^carrefour/i, /^lidl/i, /^aldi/i,
+                /^dia\b/i, /^eroski/i, /^alcampo/i, /^hipercor/i, /^el\s*corte/i,
+                /^bonpreu/i, /^consum/i, /^caprabo/i, /^ahorram[aá]s/i,
+                /^avd?a?\./i, /^c\//i, /^calle\s/i, /^plaza\s/i, /^pol[ií]gono/i,
+                /^cp\s*\d/i, /^\d{5}\s+\w/, // postal code + city
+                /^reg\.?\s*mercantil/i, /^inscrita/i,
+                /^tpv/i, /^aut\.?\s*\d/i, /^ref\.?\s*\d/i,
+                /redondeo/i, /^saldo/i, /^puntos/i, /^cup[oó]n/i
+            ];
+            for (const pat of junkPatterns) {
+                if (pat.test(line.trim())) return true;
+            }
+
+            // Lines that are ALL CAPS and short with no price → likely header
+            if (line === line.toUpperCase() && norm.length < 15 && !/\d+[,.]\d{2}/.test(line)) {
+                // Could be store name or section header
+                const wordCount = norm.split(/\s+/).length;
+                if (wordCount <= 2) return true;
+            }
+
+            return false;
+        }
+
         function parseTicketText(text) {
-            const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 2);
+            const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 1);
             ticketItems = [];
 
+            // First pass: identify lines with prices (likely products)
+            const priceRegex = /(\d+[,.]\d{2})\s*€?\s*$/;
+            const qtyPriceRegex = /^(\d+)\s*[xX×]\s+(.+)/;
+            const leadingQtyRegex = /^(\d+)\s+(.{3,})/;
+
             for (const line of lines) {
-                // Try to extract quantity from patterns like "2 x LECHE" or "LECHE  2"
+                if (isJunkLine(line)) continue;
+
                 let qty = 1;
                 let name = line;
+                let hasPrice = priceRegex.test(line);
 
-                // Pattern: "2 x Product" or "2x Product"
-                const qtyMatch = line.match(/^(\d+)\s*[xX]\s+(.+)/);
+                // Extract quantity: "2 x LECHE ENTERA  1,78"
+                const qtyMatch = name.match(qtyPriceRegex);
                 if (qtyMatch) {
                     qty = parseInt(qtyMatch[1]);
                     name = qtyMatch[2];
                 }
 
-                // Remove price patterns (1,99 € or 1.99)
-                name = name.replace(/\d+[,.]\d{2}\s*€?/g, '').trim();
+                // Remove price from end
+                name = name.replace(/\s*\d+[,.]\d{2}\s*€?\s*$/, '').trim();
 
-                // Skip lines that are too short or look like totals/headers
+                // Remove trailing weight/unit patterns: "1,000 kg", "0,500 L"
+                name = name.replace(/\s+\d+[,.]\d{1,3}\s*(kg|g|l|ml|cl|ud|uds)\s*$/i, '').trim();
+
+                // Remove leading article code if present: "12345 LECHE" → "LECHE"
+                name = name.replace(/^\d{4,}\s+/, '').trim();
+
+                // Re-check after cleanup
                 const normalized = normalizeText(name);
                 if (normalized.length < 3) continue;
-                if (/^(total|subtotal|iva|cambio|efectivo|tarjeta|visa|mastercard|fecha|hora|nif|cif|tel|ticket|factura|gracias)/.test(normalized)) continue;
                 if (/^\d+$/.test(normalized)) continue;
 
-                // Try to match against existing products
+                // Skip if no price AND no match with products (likely not a product line)
                 let bestMatch = null;
                 let bestScore = 0;
                 for (const p of products) {
@@ -953,6 +1018,9 @@
                         bestMatch = p;
                     }
                 }
+
+                // Only include if: has a price, OR matches a known product
+                if (!hasPrice && !bestMatch) continue;
 
                 ticketItems.push({
                     line: line,
