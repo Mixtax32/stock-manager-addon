@@ -36,3 +36,6 @@ class ProductUpdate(BaseModel):
 
 class BatchUpdate(BaseModel):
     expiry_date: Optional[str] = None
+
+class BatchStockUpdate(BaseModel):
+    quantity: int

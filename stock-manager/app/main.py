@@ -8,7 +8,7 @@ import logging
 from typing import List
 
 from .database import db
-from .models import Product, ProductCreate, StockUpdate, ProductUpdate, Batch, BatchUpdate
+from .models import Product, ProductCreate, StockUpdate, ProductUpdate, Batch, BatchUpdate, BatchStockUpdate
 
 # Configure logging
 log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="Stock Manager API",
     description="API para gestión de inventario doméstico",
-    version="0.2.6"
+    version="0.2.7"
 )
 
 # CORS configuration for Home Assistant ingress
@@ -109,6 +109,14 @@ async def update_batch(batch_id: int, update: BatchUpdate):
     if not batch:
         raise HTTPException(status_code=404, detail="Batch not found")
     return batch
+
+@app.post("/api/batches/{batch_id}/stock", response_model=Product)
+async def update_batch_stock(batch_id: int, update: BatchStockUpdate):
+    """Add or remove stock from a specific batch"""
+    result = await db.update_batch_stock(batch_id, update)
+    if not result:
+        raise HTTPException(status_code=400, detail="Batch not found or insufficient stock")
+    return result
 
 @app.delete("/api/products/{barcode}", status_code=204)
 async def delete_product(barcode: str):

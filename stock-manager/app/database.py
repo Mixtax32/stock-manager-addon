@@ -2,7 +2,7 @@ import aiosqlite
 import os
 from datetime import datetime, date
 from typing import List, Optional
-from .models import Product, ProductCreate, StockUpdate, ProductUpdate, Batch, BatchUpdate
+from .models import Product, ProductCreate, StockUpdate, ProductUpdate, Batch, BatchUpdate, BatchStockUpdate
 
 DATABASE_PATH = os.getenv('DATABASE_PATH', '/data/stock_manager/stock.db')
 
@@ -209,6 +209,32 @@ class Database:
             async with db.execute("SELECT * FROM batches WHERE id = ?", (batch_id,)) as cursor:
                 row = await cursor.fetchone()
                 return Batch(**dict(row)) if row else None
+
+    async def update_batch_stock(self, batch_id: int, update: BatchStockUpdate) -> Optional[dict]:
+        """Add or remove stock from a specific batch"""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT * FROM batches WHERE id = ?", (batch_id,)) as cursor:
+                row = await cursor.fetchone()
+                if not row:
+                    return None
+                barcode = row['barcode']
+                current_qty = row['quantity']
+
+            new_qty = current_qty + update.quantity
+            if new_qty < 0:
+                return None  # Can't go negative
+
+            if new_qty == 0:
+                await db.execute("DELETE FROM batches WHERE id = ?", (batch_id,))
+            else:
+                await db.execute("UPDATE batches SET quantity = ? WHERE id = ?", (new_qty, batch_id))
+
+            await self._sync_product_stock(db, barcode)
+            await db.commit()
+
+        product = await self.get_product(barcode)
+        return product
 
     async def delete_product(self, barcode: str) -> bool:
         """Delete product and its batches"""
