@@ -404,6 +404,49 @@
         }
         .btn-manage:active { opacity: 0.7; }
 
+        /* Existing product view */
+        .existing-header {
+            background: #1a2e1a;
+            border: 1px solid #2d4a2d;
+            border-radius: 6px;
+            padding: 10px 12px;
+            margin-bottom: 10px;
+        }
+        .existing-header #existing-product-name { color: #4ade80; font-weight: 600; font-size: 15px; }
+        .existing-header #existing-product-stock { color: #888; font-size: 13px; margin-left: 8px; }
+        .existing-batch-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 0;
+            border-bottom: 1px solid #222;
+            font-size: 14px;
+        }
+        .existing-batch-row:last-child { border-bottom: none; }
+        .existing-batch-row .eb-info { flex: 1; min-width: 0; }
+        .existing-batch-row .eb-qty { color: #fff; font-weight: 600; min-width: 40px; }
+        .existing-batch-row .eb-expiry { color: #888; font-size: 13px; }
+        .new-batch-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 0;
+            margin-top: 4px;
+            border-top: 1px solid #333;
+        }
+        .new-batch-label { color: #666; font-size: 13px; font-weight: 600; }
+        .new-batch-row input[type="date"],
+        .new-batch-row input[type="number"] {
+            background: #111;
+            border: 1px solid #333;
+            color: #fff;
+            padding: 6px 8px;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        .new-batch-row input[type="date"]:focus,
+        .new-batch-row input[type="number"]:focus { outline: none; border-color: #555; }
+
         /* Search results */
         .search-results {
             background: #1a1a1a;
@@ -438,7 +481,7 @@
     <div class="container">
         <div class="header">
             <h1>Stock Manager</h1>
-            <small>v0.2.6</small>
+            <small>v0.2.7</small>
         </div>
 
         <!-- Stats -->
@@ -488,10 +531,21 @@
                 <div id="scanned-code" class="hidden"></div>
 
                 <div id="product-action" class="hidden">
-                    <div id="existing-product-info" class="hidden" style="background:#1a2e1a;border:1px solid #2d4a2d;border-radius:6px;padding:10px 12px;margin-bottom:10px;">
-                        <span id="existing-product-name" style="color:#4ade80;font-weight:600;font-size:15px;"></span>
-                        <span id="existing-product-stock" style="color:#888;font-size:13px;margin-left:8px;"></span>
+                    <!-- Existing product: batch-level controls -->
+                    <div id="existing-product-view" class="hidden">
+                        <div class="existing-header">
+                            <span id="existing-product-name"></span>
+                            <span id="existing-product-stock"></span>
+                        </div>
+                        <div id="existing-batches"></div>
+                        <div class="new-batch-row">
+                            <span class="new-batch-label">Nuevo lote</span>
+                            <input type="date" id="new-batch-expiry">
+                            <input type="number" id="new-batch-qty" value="1" min="1" style="width:50px;">
+                            <button class="btn-round add" onclick="addNewBatch()">+</button>
+                        </div>
                     </div>
+                    <!-- New product: full form -->
                     <div id="new-product-fields">
                         <div class="form-grid">
                             <div class="form-group full">
@@ -512,21 +566,18 @@
                                 <label>Stock Mínimo</label>
                                 <input type="number" id="min-stock" value="2" min="1">
                             </div>
+                            <div class="form-group">
+                                <label>Caducidad</label>
+                                <input type="date" id="expiry-date">
+                            </div>
+                            <div class="form-group">
+                                <label>Cantidad</label>
+                                <input type="number" id="quantity" value="1" min="1">
+                            </div>
                         </div>
-                    </div>
-                    <div class="form-grid" style="margin-top:8px;">
-                        <div class="form-group">
-                            <label>Caducidad</label>
-                            <input type="date" id="expiry-date">
+                        <div class="form-actions">
+                            <button class="btn btn-add" onclick="addStock()">Añadir</button>
                         </div>
-                        <div class="form-group">
-                            <label>Cantidad</label>
-                            <input type="number" id="quantity" value="1" min="1">
-                        </div>
-                    </div>
-                    <div class="form-actions">
-                        <button class="btn btn-add" onclick="addStock()">Añadir</button>
-                        <button class="btn btn-remove" onclick="removeStock()">Consumir</button>
                     </div>
                 </div>
             </div>
@@ -703,24 +754,21 @@
 
             const product = products.find(p => p.barcode === currentBarcode);
             if (product) {
-                // Existing product: show compact info, hide full form
-                document.getElementById('existing-product-info').classList.remove('hidden');
-                document.getElementById('existing-product-name').textContent = product.name;
-                document.getElementById('existing-product-stock').textContent = `(${product.stock} uds en stock)`;
+                // Existing product: show batch-level controls
+                document.getElementById('existing-product-view').classList.remove('hidden');
                 document.getElementById('new-product-fields').classList.add('hidden');
-                // Keep values in hidden fields for addStock()
-                document.getElementById('product-name').value = product.name;
-                document.getElementById('product-category').value = product.category;
-                document.getElementById('min-stock').value = product.min_stock;
+                document.getElementById('existing-product-name').textContent = product.name;
+                document.getElementById('existing-product-stock').textContent = `(${product.stock} uds)`;
+                renderExistingBatches(product);
             } else {
                 // New product: show full form
-                document.getElementById('existing-product-info').classList.add('hidden');
+                document.getElementById('existing-product-view').classList.add('hidden');
                 document.getElementById('new-product-fields').classList.remove('hidden');
                 document.getElementById('product-name').value = '';
                 document.getElementById('min-stock').value = 2;
+                document.getElementById('expiry-date').value = '';
+                document.getElementById('quantity').value = 1;
             }
-            document.getElementById('expiry-date').value = '';
-            document.getElementById('quantity').value = 1;
 
             if (html5QrCode && html5QrCode.isScanning) {
                 html5QrCode.stop().then(() => {
@@ -728,6 +776,72 @@
                     document.getElementById('stop-scan').classList.add('hidden');
                 });
             }
+        }
+
+        function renderExistingBatches(product) {
+            const container = document.getElementById('existing-batches');
+            if (!product.batches || product.batches.length === 0) {
+                container.innerHTML = '<div style="color:#555;font-size:13px;padding:6px 0;">Sin lotes</div>';
+                return;
+            }
+            container.innerHTML = product.batches.map(b => {
+                const exp = getExpiryInfo(b.expiry_date);
+                const expText = exp
+                    ? `<span class="${exp.cls}">${exp.text}</span>`
+                    : '<span style="color:#555">Sin caducidad</span>';
+                return `<div class="existing-batch-row">
+                    <div class="eb-info">
+                        <span class="eb-qty">${b.quantity} ud${b.quantity > 1 ? 's' : ''}</span>
+                        <span class="eb-expiry">${expText}</span>
+                    </div>
+                    <button class="btn-round remove" onclick="batchRemove(${b.id})">-</button>
+                    <button class="btn-round add" onclick="batchAdd(${b.id})">+</button>
+                </div>`;
+            }).join('');
+        }
+
+        async function batchAdd(batchId) {
+            try {
+                await apiCall(`/batches/${batchId}/stock`, 'POST', { quantity: 1 });
+                await loadProducts();
+                // Re-render the existing product view
+                const product = products.find(p => p.barcode === currentBarcode);
+                if (product) {
+                    document.getElementById('existing-product-stock').textContent = `(${product.stock} uds)`;
+                    renderExistingBatches(product);
+                }
+            } catch (e) { console.error('Error:', e); }
+        }
+
+        async function batchRemove(batchId) {
+            try {
+                await apiCall(`/batches/${batchId}/stock`, 'POST', { quantity: -1 });
+                await loadProducts();
+                const product = products.find(p => p.barcode === currentBarcode);
+                if (product) {
+                    document.getElementById('existing-product-stock').textContent = `(${product.stock} uds)`;
+                    renderExistingBatches(product);
+                }
+            } catch (e) { console.error('Error:', e); }
+        }
+
+        async function addNewBatch() {
+            if (!currentBarcode) return;
+            const expiryDate = document.getElementById('new-batch-expiry').value || null;
+            const quantity = parseInt(document.getElementById('new-batch-qty').value) || 1;
+            try {
+                await apiCall(`/products/${currentBarcode}/stock`, 'POST', {
+                    quantity, expiry_date: expiryDate
+                });
+                await loadProducts();
+                const product = products.find(p => p.barcode === currentBarcode);
+                if (product) {
+                    document.getElementById('existing-product-stock').textContent = `(${product.stock} uds)`;
+                    renderExistingBatches(product);
+                }
+                document.getElementById('new-batch-expiry').value = '';
+                document.getElementById('new-batch-qty').value = 1;
+            } catch (e) { console.error('Error:', e); }
         }
 
         async function addStock() {
@@ -755,27 +869,13 @@
             }
         }
 
-        async function removeStock() {
-            if (!currentBarcode) return;
-            const quantity = parseInt(document.getElementById('quantity').value);
-            const product = products.find(p => p.barcode === currentBarcode);
-            if (!product) { alert('Producto no encontrado'); return; }
-            if (product.stock < quantity) { alert('No hay suficiente stock'); return; }
-            try {
-                await apiCall(`/products/${currentBarcode}/stock`, 'POST', { quantity: -quantity });
-                await loadProducts();
-                resetScanner();
-            } catch (error) {
-                console.error('Error removing stock:', error);
-            }
-        }
 
         function resetScanner() {
             currentBarcode = null;
             document.getElementById('scanned-code').classList.add('hidden');
             document.getElementById('product-action').classList.add('hidden');
-            document.getElementById('quantity').value = 1;
-            document.getElementById('expiry-date').value = '';
+            document.getElementById('existing-product-view').classList.add('hidden');
+            document.getElementById('new-product-fields').classList.add('hidden');
         }
 
         async function deleteProduct(barcode) {
