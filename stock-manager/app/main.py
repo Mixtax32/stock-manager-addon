@@ -131,6 +131,16 @@ async def get_low_stock():
     """Get products with low stock"""
     return await db.get_low_stock_products()
 
+@app.get("/api/locations", response_model=List[str])
+async def get_locations():
+    """Get all product locations"""
+    return await db.get_all_locations()
+
+@app.get("/api/products/location/{location}", response_model=List[Product])
+async def get_products_by_location(location: str):
+    """Get all products at a specific location"""
+    return await db.get_products_by_location(location)
+
 @app.get("/api/stats")
 async def get_stats():
     """Get inventory statistics"""

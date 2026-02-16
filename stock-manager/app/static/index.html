@@ -572,6 +572,32 @@
 
         .hidden { display: none; }
 
+        /* Location filter */
+        .location-filter-container {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .location-filter-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .location-filter-select {
+            flex: 1;
+            min-width: 150px;
+            background: #111;
+            border: 1px solid #333;
+            color: #fff;
+            padding: 8px 10px;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .location-filter-select:focus { outline: none; border-color: #555; }
+        .location-filter-select option { background: #1a1a1a; }
+
         @media (max-width: 500px) {
             .form-grid { grid-template-columns: 1fr; }
             .form-grid .full { grid-column: 1; }
@@ -669,6 +695,10 @@
                                 </select>
                             </div>
                             <div class="form-group">
+                                <label>Ubicación</label>
+                                <input type="text" id="product-location" placeholder="Ej: Despensa, Nevera">
+                            </div>
+                            <div class="form-group">
                                 <label>Stock Mínimo</label>
                                 <input type="number" id="min-stock" value="2" min="1">
                             </div>
@@ -697,6 +727,7 @@
                 <span class="toggle" onclick="toggleSection('inventory-section')" style="margin-left:8px"></span>
             </div>
             <div class="section-body">
+                <div id="location-filter" style="margin-bottom:12px;"></div>
                 <div id="product-list"></div>
             </div>
         </div>
@@ -738,6 +769,8 @@
         let products = [];
         let currentBarcode = null;
         let ticketItems = [];
+        let filteredLocation = null;
+        let allLocations = [];
 
         window.onload = async function() {
             await loadProducts();
@@ -1270,6 +1303,7 @@
                 document.getElementById('existing-product-view').classList.add('hidden');
                 document.getElementById('new-product-fields').classList.remove('hidden');
                 document.getElementById('product-name').value = '';
+                document.getElementById('product-location').value = '';
                 document.getElementById('min-stock').value = 2;
                 document.getElementById('expiry-date').value = '';
                 document.getElementById('quantity').value = 1;
@@ -1354,6 +1388,7 @@
             if (!currentBarcode) return;
             const name = document.getElementById('product-name').value.trim();
             const category = document.getElementById('product-category').value;
+            const location = document.getElementById('product-location').value.trim() || null;
             const minStock = parseInt(document.getElementById('min-stock').value);
             const expiryDate = document.getElementById('expiry-date').value || null;
             const quantity = parseInt(document.getElementById('quantity').value);
@@ -1362,7 +1397,7 @@
                 const product = products.find(p => p.barcode === currentBarcode);
                 if (!product) {
                     await apiCall('/products', 'POST', {
-                        barcode: currentBarcode, name, category, min_stock: minStock
+                        barcode: currentBarcode, name, category, min_stock: minStock, location
                     });
                 }
                 await apiCall(`/products/${currentBarcode}/stock`, 'POST', {
@@ -1426,6 +1461,7 @@
             document.getElementById('total-products').textContent = stats.total_products;
             document.getElementById('total-items').textContent = stats.total_units;
             document.getElementById('low-stock-count').textContent = stats.low_stock_count;
+            await loadLocations();
             updateShoppingList();
             updateProductList();
         }
@@ -1464,12 +1500,19 @@
 
         function updateProductList() {
             const list = document.getElementById('product-list');
-            if (products.length === 0) {
-                list.innerHTML = '<div class="empty-state">Sin productos. Escanea para empezar.</div>';
+            let filteredProducts = products;
+
+            // Apply location filter
+            if (filteredLocation) {
+                filteredProducts = products.filter(p => p.location === filteredLocation);
+            }
+
+            if (filteredProducts.length === 0) {
+                list.innerHTML = '<div class="empty-state">Sin productos' + (filteredLocation ? ' en ' + filteredLocation : '') + '. Escanea para empezar.</div>';
                 return;
             }
 
-            products.sort((a, b) => {
+            filteredProducts.sort((a, b) => {
                 const aLow = a.stock < a.min_stock;
                 const bLow = b.stock < b.min_stock;
                 if (aLow && !bLow) return -1;
@@ -1477,7 +1520,7 @@
                 return a.name.localeCompare(b.name);
             });
 
-            list.innerHTML = products.map(p => {
+            list.innerHTML = filteredProducts.map(p => {
                 const isLow = p.stock < p.min_stock;
                 // Batch breakdown
                 let batchHtml = '';
@@ -1498,7 +1541,7 @@
                     <div class="product-top">
                         <div class="product-main">
                             <div class="name">${p.name}</div>
-                            <div class="meta">${p.category}</div>
+                            <div class="meta">${p.category}${p.location ? ' • ' + p.location : ''}</div>
                         </div>
                         <div class="product-stock">
                             <button class="btn-round remove" onclick="quickRemove('${p.barcode}')">-</button>
@@ -1511,6 +1554,44 @@
                 </div>`;
             }).join('');
         }
+
+        async function loadLocations() {
+            try {
+                allLocations = await apiCall('/locations');
+                updateLocationFilter();
+            } catch (error) {
+                console.error('Error loading locations:', error);
+                allLocations = [];
+            }
+        }
+
+        function updateLocationFilter() {
+            const filterContainer = document.getElementById('location-filter');
+
+            if (allLocations.length === 0) {
+                filterContainer.innerHTML = '';
+                return;
+            }
+
+            let html = `<div class="location-filter-container">
+                <span class="location-filter-label">Filtrar por ubicación:</span>
+                <select class="location-filter-select" onchange="setLocationFilter(this.value)">
+                    <option value="">Todas las ubicaciones</option>`;
+
+            allLocations.forEach(loc => {
+                const count = products.filter(p => p.location === loc).length;
+                html += `<option value="${loc}" ${filteredLocation === loc ? 'selected' : ''}>${loc} (${count})</option>`;
+            });
+
+            html += `</select></div>`;
+            filterContainer.innerHTML = html;
+        }
+
+        function setLocationFilter(location) {
+            filteredLocation = location || null;
+            updateProductList();
+        }
+
         // Management panel
         let pendingChanges = {};  // barcode -> { type: 'edit'|'delete', ... }
         let pendingBatchChanges = {}; // batchId -> { barcode, origExpiry, newExpiry, productName }
@@ -1523,7 +1604,7 @@
             originalData = {};
             originalBatchData = {};
             products.forEach(p => {
-                originalData[p.barcode] = { name: p.name, category: p.category, min_stock: p.min_stock };
+                originalData[p.barcode] = { name: p.name, category: p.category, min_stock: p.min_stock, location: p.location || '' };
                 if (p.batches) {
                     p.batches.forEach(b => {
                         originalBatchData[b.id] = b.expiry_date || '';
@@ -1587,10 +1668,12 @@
 
             const name = document.getElementById(`edit-name-${barcode}`).value.trim();
             const category = document.getElementById(`edit-cat-${barcode}`).value;
+            const location = document.getElementById(`edit-location-${barcode}`).value.trim();
             const minStock = parseInt(document.getElementById(`edit-min-${barcode}`).value);
 
             const changes = [];
             if (name !== orig.name) changes.push(`nombre: "${orig.name}" → "${name}"`);
+            if (location !== orig.location) changes.push(`ubicación: "${orig.location || 'ninguna'}" → "${location || 'ninguna'}"`);
             if (category !== orig.category) changes.push(`categoría: ${orig.category} → ${category}`);
             if (minStock !== orig.min_stock) changes.push(`stock mín: ${orig.min_stock} → ${minStock}`);
 
@@ -1598,7 +1681,7 @@
             if (changes.length > 0) {
                 pendingChanges[barcode] = {
                     type: 'edit', name: name || orig.name,
-                    data: { name, category, min_stock: minStock },
+                    data: { name, category, min_stock: minStock, location: location || null },
                     details: changes
                 };
                 card.classList.add('modified');
@@ -1737,6 +1820,11 @@
                         <div class="form-group">
                             <label>Nombre</label>
                             <input type="text" id="edit-name-${p.barcode}" value="${p.name}"
+                                oninput="checkProductChanges('${p.barcode}')" ${isDelete ? 'disabled' : ''}>
+                        </div>
+                        <div class="form-group">
+                            <label>Ubicación</label>
+                            <input type="text" id="edit-location-${p.barcode}" value="${p.location || ''}" placeholder="Ej: Despensa"
                                 oninput="checkProductChanges('${p.barcode}')" ${isDelete ? 'disabled' : ''}>
                         </div>
                         <div class="form-group">

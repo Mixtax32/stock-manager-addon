@@ -29,6 +29,8 @@ class Database:
                 columns = [row[1] for row in await cursor.fetchall()]
             if 'expiry_date' not in columns:
                 await db.execute("ALTER TABLE products ADD COLUMN expiry_date TEXT DEFAULT NULL")
+            if 'location' not in columns:
+                await db.execute("ALTER TABLE products ADD COLUMN location TEXT DEFAULT NULL")
 
             # Create batches table
             await db.execute("""
@@ -124,9 +126,9 @@ class Database:
         """Create new product"""
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(
-                """INSERT INTO products (barcode, name, category, stock, min_stock, last_updated)
-                   VALUES (?, ?, ?, 0, ?, ?)""",
-                (product.barcode, product.name, product.category, product.min_stock, datetime.now())
+                """INSERT INTO products (barcode, name, category, stock, min_stock, location, last_updated)
+                   VALUES (?, ?, ?, 0, ?, ?, ?)""",
+                (product.barcode, product.name, product.category, product.min_stock, product.location, datetime.now())
             )
             await db.commit()
         return await self.get_product(product.barcode)
@@ -172,6 +174,8 @@ class Database:
             updates['category'] = update.category
         if update.min_stock is not None:
             updates['min_stock'] = update.min_stock
+        if update.location is not None:
+            updates['location'] = update.location
 
         if updates:
             updates['last_updated'] = datetime.now()
@@ -259,6 +263,29 @@ class Database:
                 product = await self._build_product(db, dict(row))
                 products.append(product)
             return products
+
+    async def get_products_by_location(self, location: str) -> List[Product]:
+        """Get all products at a specific location"""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT * FROM products WHERE location = ? ORDER BY name", (location,)
+            ) as cursor:
+                rows = await cursor.fetchall()
+            products = []
+            for row in rows:
+                product = await self._build_product(db, dict(row))
+                products.append(product)
+            return products
+
+    async def get_all_locations(self) -> List[str]:
+        """Get all unique product locations"""
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute(
+                "SELECT DISTINCT location FROM products WHERE location IS NOT NULL ORDER BY location"
+            ) as cursor:
+                rows = await cursor.fetchall()
+                return [row[0] for row in rows]
 
     async def get_stats(self) -> dict:
         """Get inventory statistics"""
