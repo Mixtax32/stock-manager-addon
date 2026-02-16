@@ -1,22 +1,11 @@
 import cv2
 import numpy as np
-import easyocr
+import pytesseract
 import logging
 from io import BytesIO
 from PIL import Image
 
 logger = logging.getLogger(__name__)
-
-# Initialize EasyOCR reader for Spanish
-reader = None
-
-def get_reader():
-    """Lazy load EasyOCR reader"""
-    global reader
-    if reader is None:
-        logger.info("Initializing EasyOCR reader for Spanish...")
-        reader = easyocr.Reader(['es'], gpu=False)
-    return reader
 
 def preprocess_image(image_array: np.ndarray) -> np.ndarray:
     """
@@ -78,14 +67,13 @@ def extract_text_from_image(image_bytes: bytes) -> str:
         logger.info("Preprocessing image...")
         processed = preprocess_image(image_array)
 
-        # Extract text using EasyOCR
-        logger.info("Running EasyOCR...")
-        reader_instance = get_reader()
-        results = reader_instance.readtext(processed, detail=0)
-
-        # Join results with newlines
-        text = '\n'.join(results)
-        logger.info(f"Extracted {len(results)} lines of text")
+        # Extract text using Tesseract OCR
+        logger.info("Running Tesseract OCR...")
+        text = pytesseract.image_to_string(
+            processed, lang='spa', config='--psm 6'
+        ).strip()
+        lines = [l for l in text.split('\n') if l.strip()]
+        logger.info(f"Extracted {len(lines)} lines of text")
 
         return text
 
