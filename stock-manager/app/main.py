@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,6 +9,7 @@ from typing import List
 
 from .database import db
 from .models import Product, ProductCreate, StockUpdate, ProductUpdate, Batch, BatchUpdate, BatchStockUpdate
+from .ocr_service import extract_text_from_image, parse_ticket_items
 
 # Configure logging
 log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
@@ -58,6 +59,33 @@ async def read_root():
         "/app/app/static/index.html",
         headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
     )
+
+# OCR endpoint
+@app.post("/api/ocr/process")
+async def process_image_ocr(file: UploadFile = File(...)):
+    """
+    Process image using EasyOCR and return extracted text and parsed items
+    """
+    try:
+        logger.info(f"Processing OCR for file: {file.filename}")
+        image_bytes = await file.read()
+
+        # Extract text using EasyOCR with preprocessing
+        text = extract_text_from_image(image_bytes)
+
+        # Parse items from text
+        items = parse_ticket_items(text)
+
+        logger.info(f"OCR complete: extracted {len(items)} items")
+        return {
+            "success": True,
+            "text": text,
+            "items": items,
+            "item_count": len(items)
+        }
+    except Exception as e:
+        logger.error(f"OCR processing failed: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error in OCR processing: {str(e)}")
 
 # API endpoints
 @app.get("/api/products", response_model=List[Product])
