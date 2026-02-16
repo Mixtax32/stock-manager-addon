@@ -1061,15 +1061,24 @@
             const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 1);
             ticketItems = [];
 
-            // Price at end of line is the #1 signal that a line is a product
-            const priceRegex = /\d+[,.]\d{2}\s*€?\s*$/;
+            // Any price pattern anywhere in the line
+            const priceRegex = /\d+[,.]\d{2}/;
 
             for (const line of lines) {
-                if (isJunkLine(line)) continue;
+                // Skip obvious junk but be more permissive
+                const norm = normalizeText(line);
+                if (norm.length < 2) continue;
+                if (/^[\d\s\-\/\.\,\*\#\:\;\(\)\[\]]+$/.test(line.trim())) continue;
 
-                // STRICT: only consider lines that have a price
+                // Must have at least some letters
+                const letterCount = (line.match(/[a-zA-ZáéíóúñÁÉÍÓÚÑ]/g) || []).length;
+                if (letterCount < 2) continue;
+
+                // Check for price (main signal for product lines)
                 const hasPrice = priceRegex.test(line);
-                if (!hasPrice) continue;
+
+                // Skip known junk keywords
+                if (isJunkLine(line)) continue;
 
                 let qty = 1;
                 let name = line;
@@ -1081,37 +1090,32 @@
                     name = qtyMatch[2];
                 }
 
-                // Remove ALL prices (there can be multiple: unit price + total)
+                // Remove ALL prices
                 name = name.replace(/\d+[,.]\d{2}\s*€?/g, '').trim();
 
-                // Remove weight/unit: "1,000 kg", "0,500 L"
+                // Remove weight/unit
                 name = name.replace(/\d+[,.]\d{1,3}\s*(kg|g|l|ml|cl|ud|uds)\b/gi, '').trim();
 
-                // Remove leading article codes: "12345 LECHE"
+                // Remove leading article codes
                 name = name.replace(/^\d{3,}\s+/, '').trim();
 
-                // Remove stray symbols left over
+                // Remove stray symbols
                 name = name.replace(/^[\-\*\.\,\s]+/, '').replace(/[\-\*\.\,\s]+$/, '').trim();
 
-                const normalized = normalizeText(name);
-                if (normalized.length < 3) continue;
-                if (/^\d+$/.test(normalized)) continue;
-
-                // Double-check cleaned name isn't junk
-                if (isJunkLine(name)) continue;
+                if (name.length < 2) continue;
 
                 // Match against existing products
                 let bestMatch = null;
                 let bestScore = 0;
                 for (const p of products) {
-                    const score = similarityScore(normalized, normalizeText(p.name));
+                    const score = similarityScore(normalizeText(name), normalizeText(p.name));
                     if (score > bestScore && score >= 0.35) {
                         bestScore = score;
                         bestMatch = p;
                     }
                 }
 
-                // Avoid duplicate matches for the same product
+                // Merge duplicates for same matched product
                 if (bestMatch) {
                     const existing = ticketItems.find(t => t.match && t.match.barcode === bestMatch.barcode);
                     if (existing) {
@@ -1120,17 +1124,19 @@
                     }
                 }
 
+                // Include ALL detected lines (with or without match)
                 ticketItems.push({
                     line: line,
                     name: name,
                     qty: qty,
                     match: bestMatch,
                     score: bestScore,
-                    checked: bestMatch !== null
+                    checked: bestMatch !== null,
+                    hasPrice: hasPrice
                 });
             }
 
-            showTicketResults();
+            showTicketResults(text);
         }
 
         function similarityScore(a, b) {
@@ -1151,21 +1157,22 @@
             return matches / Math.max(wordsA.length, wordsB.length);
         }
 
-        function showTicketResults() {
+        function showTicketResults(rawText) {
             const matched = ticketItems.filter(t => t.match);
             const unmatched = ticketItems.filter(t => !t.match);
 
             let html = '';
+
             if (matched.length > 0) {
-                html += '<div class="ticket-section-title">Productos reconocidos</div>';
-                matched.forEach((item, i) => {
+                html += '<div class="ticket-section-title">Coinciden con tu inventario</div>';
+                matched.forEach(item => {
                     const idx = ticketItems.indexOf(item);
                     html += `<div class="ticket-item">
-                        <input type="checkbox" id="ti-check-${idx}" ${item.checked ? 'checked' : ''}
+                        <input type="checkbox" id="ti-check-${idx}" checked
                             onchange="ticketItems[${idx}].checked = this.checked">
                         <div class="ti-info">
                             <div class="ti-match">${item.match.name}</div>
-                            <div class="ti-line">${item.line}</div>
+                            <div class="ti-line">Ticket: ${item.name}</div>
                         </div>
                         <div class="ti-qty">
                             <label>Uds</label>
@@ -1177,13 +1184,14 @@
             }
 
             if (unmatched.length > 0) {
-                html += '<div class="ticket-section-title unmatched">No reconocidos</div>';
-                unmatched.forEach((item, i) => {
+                html += '<div class="ticket-section-title unmatched">Detectados en ticket (sin coincidencia)</div>';
+                unmatched.forEach(item => {
                     const idx = ticketItems.indexOf(item);
                     html += `<div class="ticket-item">
                         <input type="checkbox" id="ti-check-${idx}"
                             onchange="ticketItems[${idx}].checked = this.checked">
                         <div class="ti-info">
+                            <div class="ti-match" style="color:#f59e0b">${item.name}</div>
                             <div class="ti-line">${item.line}</div>
                         </div>
                         <div class="ti-qty">
@@ -1196,18 +1204,19 @@
             }
 
             if (ticketItems.length === 0) {
-                html = '<div style="color:#555;text-align:center;padding:20px;">No se han detectado productos en el ticket</div>';
+                html = '<div style="color:#555;text-align:center;padding:20px;">No se han detectado líneas de producto</div>';
             }
 
-            document.getElementById('ticket-matched').innerHTML = matched.length > 0 ? html.split('No reconocidos')[0] : '';
-            document.getElementById('ticket-unmatched').innerHTML = unmatched.length > 0 ?
-                '<div class="ticket-section-title unmatched">No reconocidos</div>' +
-                html.split('No reconocidos').slice(1).join('') : '';
+            // Raw OCR text for debugging
+            html += `<div style="margin-top:20px;padding-top:12px;border-top:1px solid #222;">
+                <div class="ticket-section-title" style="color:#555;cursor:pointer" onclick="this.nextElementSibling.classList.toggle('hidden')">
+                    Texto OCR (toca para ver)
+                </div>
+                <pre class="hidden" style="color:#555;font-size:11px;white-space:pre-wrap;word-break:break-all;background:#111;padding:10px;border-radius:6px;margin-top:6px;max-height:300px;overflow-y:auto">${rawText || 'Sin texto'}</pre>
+            </div>`;
 
-            // Simpler approach: put all html in matched container
             document.getElementById('ticket-matched').innerHTML = html;
             document.getElementById('ticket-unmatched').innerHTML = '';
-
             document.getElementById('ticket-panel').classList.add('active');
         }
 
