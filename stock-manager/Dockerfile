@@ -19,7 +19,9 @@ RUN apk add --no-cache \
     libjpeg-turbo-dev \
     zlib-dev \
     openblas-dev \
-    lapack-dev
+    lapack-dev \
+    tesseract-ocr \
+    tesseract-ocr-data-spa
 
 # Set working directory
 WORKDIR /app
