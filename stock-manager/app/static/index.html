@@ -681,7 +681,7 @@
     <div class="container">
         <div class="header">
             <h1>Stock Manager</h1>
-            <small>v0.3.6</small>
+            <small>v0.3.7</small>
         </div>
 
         <!-- Stats -->
@@ -1706,13 +1706,7 @@
                 return;
             }
 
-            filteredProducts.sort((a, b) => {
-                const aLow = a.stock < a.min_stock;
-                const bLow = b.stock < b.min_stock;
-                if (aLow && !bLow) return -1;
-                if (!aLow && bLow) return 1;
-                return a.name.localeCompare(b.name);
-            });
+            filteredProducts.sort((a, b) => a.name.localeCompare(b.name));
 
             list.innerHTML = filteredProducts.map(p => {
                 const isLow = p.stock < p.min_stock;
@@ -1741,7 +1735,10 @@
                             <button class="btn-round remove" onclick="quickRemove('${p.barcode}')">-</button>
                             <span class="stock-num ${isLow ? 'low' : ''}">${p.stock}</span>
                             <button class="btn-round add" onclick="quickAdd('${p.barcode}')">+</button>
-                            <button class="btn-del" onclick="deleteProduct('${p.barcode}')" title="Eliminar">&#x2715;</button>
+                            <div style="display:flex;flex-direction:column;gap:4px;">
+                                <button class="btn-del" onclick="deleteProduct('${p.barcode}')" title="Eliminar">&#x2715;</button>
+                                <button class="btn-del" onclick="openManagePanelForProduct('${p.name}')" title="Gestionar" style="font-size:12px;padding:2px 4px;">⚙</button>
+                            </div>
                         </div>
                     </div>
                     ${batchHtml}
@@ -1857,6 +1854,12 @@
             document.getElementById('manage-panel').classList.add('active');
             renderManageList();
             updateChangesUI();
+        }
+
+        function openManagePanelForProduct(productName) {
+            openManagePanel();
+            document.getElementById('manage-filter-name').value = productName;
+            updateManageFilter();
         }
 
         function tryClosePanel() {
