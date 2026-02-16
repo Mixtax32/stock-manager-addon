@@ -14,14 +14,20 @@ RUN apk add --no-cache \
     make \
     libsm \
     libxext \
-    libxrender-dev
+    libxrender-dev \
+    freetype-dev \
+    libjpeg-turbo-dev \
+    zlib-dev \
+    openblas-dev \
+    lapack-dev
 
 # Set working directory
 WORKDIR /app
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt .
-RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
+RUN pip3 install --upgrade pip setuptools wheel && \
+    pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 
 # Copy application
 COPY app/ ./app/
