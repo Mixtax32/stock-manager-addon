@@ -9,7 +9,12 @@ RUN apk add --no-cache \
     gcc \
     musl-dev \
     linux-headers \
-    sqlite
+    sqlite \
+    g++ \
+    make \
+    libsm \
+    libxext \
+    libxrender-dev
 
 # Set working directory
 WORKDIR /app
@@ -30,6 +35,6 @@ LABEL \
     io.hass.name="Stock Manager" \
     io.hass.description="Sistema de gestión de inventario doméstico" \
     io.hass.type="addon" \
-    io.hass.version="0.3.2"
+    io.hass.version="0.3.9"
 
 CMD [ "/run.sh" ]
