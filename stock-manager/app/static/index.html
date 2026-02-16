@@ -608,7 +608,7 @@
     <div class="container">
         <div class="header">
             <h1>Stock Manager</h1>
-            <small>v0.3.2</small>
+            <small>v0.3.3</small>
         </div>
 
         <!-- Stats -->
@@ -744,6 +744,33 @@
                 </div>
             </div>
             <div id="changes-container" class="hidden"></div>
+            <!-- Filters -->
+            <div style="background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+                <div style="font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">Filtros</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+                    <div class="form-group">
+                        <label>Buscar por nombre</label>
+                        <input type="text" id="manage-filter-name" placeholder="Nombre..." oninput="updateManageFilter()">
+                    </div>
+                    <div class="form-group">
+                        <label>Ubicación</label>
+                        <select id="manage-filter-location" onchange="updateManageFilter()">
+                            <option value="">Todas</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Categoría</label>
+                        <select id="manage-filter-category" onchange="updateManageFilter()">
+                            <option value="">Todas</option>
+                            <option value="Alimentos">Alimentos</option>
+                            <option value="Bebidas">Bebidas</option>
+                            <option value="Limpieza">Limpieza</option>
+                            <option value="Higiene">Higiene Personal</option>
+                            <option value="Otros">Otros</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
             <div id="manage-list"></div>
         </div>
     </div>
@@ -1342,25 +1369,49 @@
 
         async function batchAdd(batchId) {
             try {
-                await apiCall(`/batches/${batchId}/stock`, 'POST', { quantity: 1 });
+                const product = products.find(p => p.barcode === currentBarcode);
+                // If product has no batches, ask for expiry date
+                if (!product || !product.batches || product.batches.length === 0) {
+                    const expiryDate = prompt('Introduce la fecha de caducidad (YYYY-MM-DD) o deja vacío si no tiene:');
+                    if (expiryDate !== null) {
+                        await apiCall(`/products/${currentBarcode}/stock`, 'POST', { quantity: 1, expiry_date: expiryDate || null });
+                    }
+                } else {
+                    await apiCall(`/batches/${batchId}/stock`, 'POST', { quantity: 1 });
+                }
                 await loadProducts();
                 // Re-render the existing product view
-                const product = products.find(p => p.barcode === currentBarcode);
-                if (product) {
-                    document.getElementById('existing-product-stock').textContent = `(${product.stock} uds)`;
-                    renderExistingBatches(product);
+                const updatedProduct = products.find(p => p.barcode === currentBarcode);
+                if (updatedProduct) {
+                    document.getElementById('existing-product-stock').textContent = `(${updatedProduct.stock} uds)`;
+                    renderExistingBatches(updatedProduct);
                 }
             } catch (e) { console.error('Error:', e); }
         }
 
         async function batchRemove(batchId) {
             try {
-                await apiCall(`/batches/${batchId}/stock`, 'POST', { quantity: -1 });
-                await loadProducts();
                 const product = products.find(p => p.barcode === currentBarcode);
-                if (product) {
-                    document.getElementById('existing-product-stock').textContent = `(${product.stock} uds)`;
-                    renderExistingBatches(product);
+                // If product has no batches, ask for expiry date
+                if (!product || !product.batches || product.batches.length === 0) {
+                    const expiryDate = prompt('Introduce la fecha de caducidad (YYYY-MM-DD) o deja vacío si no tiene:');
+                    if (expiryDate !== null) {
+                        // Create a batch first, then remove from it
+                        await apiCall(`/products/${currentBarcode}/stock`, 'POST', { quantity: 1, expiry_date: expiryDate || null });
+                        await loadProducts();
+                        const updatedProduct = products.find(p => p.barcode === currentBarcode);
+                        if (updatedProduct && updatedProduct.batches && updatedProduct.batches.length > 0) {
+                            await apiCall(`/batches/${updatedProduct.batches[0].id}/stock`, 'POST', { quantity: -1 });
+                        }
+                    }
+                } else {
+                    await apiCall(`/batches/${batchId}/stock`, 'POST', { quantity: -1 });
+                }
+                await loadProducts();
+                const updatedProduct = products.find(p => p.barcode === currentBarcode);
+                if (updatedProduct) {
+                    document.getElementById('existing-product-stock').textContent = `(${updatedProduct.stock} uds)`;
+                    renderExistingBatches(updatedProduct);
                 }
             } catch (e) { console.error('Error:', e); }
         }
@@ -1592,6 +1643,43 @@
             updateProductList();
         }
 
+        // Batch management in manage panel
+        async function manageBatchStock(batchId, barcode, qty) {
+            try {
+                await apiCall(`/batches/${batchId}/stock`, 'POST', { quantity: qty });
+                await loadProducts();
+                const product = products.find(p => p.barcode === barcode);
+                if (product) {
+                    originalBatchData[batchId] = product.batches.find(b => b.id === batchId)?.expiry_date || '';
+                }
+                renderManageList();
+            } catch (e) { console.error('Error:', e); }
+        }
+
+        async function addBatchInManage(barcode) {
+            const dateInput = document.getElementById(`new-batch-date-${barcode}`);
+            const qtyInput = document.getElementById(`new-batch-qty-${barcode}`);
+
+            const expiryDate = dateInput.value || null;
+            const quantity = parseInt(qtyInput.value) || 1;
+
+            if (quantity <= 0) {
+                alert('La cantidad debe ser mayor a 0');
+                return;
+            }
+
+            try {
+                await apiCall(`/products/${barcode}/stock`, 'POST', {
+                    quantity: quantity,
+                    expiry_date: expiryDate
+                });
+                await loadProducts();
+                dateInput.value = '';
+                qtyInput.value = 1;
+                renderManageList();
+            } catch (e) { console.error('Error:', e); }
+        }
+
         // Management panel
         let pendingChanges = {};  // barcode -> { type: 'edit'|'delete', ... }
         let pendingBatchChanges = {}; // batchId -> { barcode, origExpiry, newExpiry, productName }
@@ -1603,6 +1691,8 @@
             pendingBatchChanges = {};
             originalData = {};
             originalBatchData = {};
+            manageFilter = { name: '', location: '', category: '' };
+
             products.forEach(p => {
                 originalData[p.barcode] = { name: p.name, category: p.category, min_stock: p.min_stock, location: p.location || '' };
                 if (p.batches) {
@@ -1611,6 +1701,16 @@
                     });
                 }
             });
+
+            // Populate filter dropdowns
+            const locSelect = document.getElementById('manage-filter-location');
+            const uniqueLocations = [...new Set(products.map(p => p.location).filter(l => l))];
+            locSelect.innerHTML = '<option value="">Todas</option>' +
+                uniqueLocations.map(loc => `<option value="${loc}">${loc}</option>`).join('');
+
+            document.getElementById('manage-filter-name').value = '';
+            document.getElementById('manage-filter-category').value = '';
+
             document.getElementById('manage-panel').classList.add('active');
             renderManageList();
             updateChangesUI();
@@ -1798,6 +1898,15 @@
             updateChangesUI();
         }
 
+        let manageFilter = { name: '', location: '', category: '' };
+
+        function updateManageFilter() {
+            manageFilter.name = document.getElementById('manage-filter-name').value.toLowerCase();
+            manageFilter.location = document.getElementById('manage-filter-location').value;
+            manageFilter.category = document.getElementById('manage-filter-category').value;
+            renderManageList();
+        }
+
         function renderManageList() {
             const list = document.getElementById('manage-list');
             if (products.length === 0) {
@@ -1805,7 +1914,25 @@
                 return;
             }
 
-            const sorted = [...products].sort((a, b) => a.name.localeCompare(b.name));
+            let filtered = [...products];
+
+            // Apply filters
+            if (manageFilter.name) {
+                filtered = filtered.filter(p => p.name.toLowerCase().includes(manageFilter.name));
+            }
+            if (manageFilter.location) {
+                filtered = filtered.filter(p => p.location === manageFilter.location);
+            }
+            if (manageFilter.category) {
+                filtered = filtered.filter(p => p.category === manageFilter.category);
+            }
+
+            const sorted = filtered.sort((a, b) => a.name.localeCompare(b.name));
+
+            if (sorted.length === 0) {
+                list.innerHTML = '<div class="empty-state">No hay productos que coincidan con los filtros.</div>';
+                return;
+            }
 
             list.innerHTML = sorted.map(p => {
                 const isDelete = pendingChanges[p.barcode] && pendingChanges[p.barcode].type === 'delete';
@@ -1846,18 +1973,36 @@
                     </div>
                     ${p.batches && p.batches.length > 0 ? `
                     <div class="edit-batch-list">
+                        <div style="font-size:12px;color:#666;margin-bottom:8px;font-weight:600;">Lotes (${p.batches.length})</div>
                         ${p.batches.map(b => {
                             const exp = getExpiryInfo(b.expiry_date);
-                            const expLabel = exp ? exp.text : 'Sin caducidad';
                             const isMod = pendingBatchChanges[b.id] ? 'batch-modified' : '';
                             return `<div class="edit-batch-row ${isMod}">
                                 <span class="batch-qty-label">${b.quantity} ud${b.quantity > 1 ? 's' : ''}</span>
                                 <input type="date" id="edit-batch-${b.id}" value="${b.expiry_date || ''}"
                                     onchange="checkBatchChange(${b.id}, '${p.barcode}')" ${isDelete ? 'disabled' : ''}>
+                                <button class="btn-round remove" style="width:24px;height:24px;font-size:12px;" onclick="manageBatchStock(${b.id}, '${p.barcode}', -1)" ${isDelete ? 'disabled' : ''}>−</button>
+                                <button class="btn-round add" style="width:24px;height:24px;font-size:12px;" onclick="manageBatchStock(${b.id}, '${p.barcode}', 1)" ${isDelete ? 'disabled' : ''}>+</button>
                                 <span style="font-size:11px;color:#555">${b.added_date ? 'Añadido: ' + b.added_date : ''}</span>
                             </div>`;
                         }).join('')}
-                    </div>` : ''}
+                        <div style="margin-top:8px;padding-top:8px;border-top:1px solid #333;">
+                            <div style="font-size:12px;color:#666;margin-bottom:6px;">Nuevo lote</div>
+                            <div style="display:flex;gap:6px;align-items:center;">
+                                <input type="date" id="new-batch-date-${p.barcode}" style="flex:1;background:#111;border:1px solid #333;color:#fff;padding:4px 6px;border-radius:4px;font-size:12px;">
+                                <input type="number" id="new-batch-qty-${p.barcode}" value="1" min="1" style="width:50px;background:#111;border:1px solid #333;color:#fff;padding:4px 6px;border-radius:4px;font-size:12px;">
+                                <button class="btn-round add" style="width:24px;height:24px;font-size:12px;" onclick="addBatchInManage('${p.barcode}')" ${isDelete ? 'disabled' : ''}>+</button>
+                            </div>
+                        </div>
+                    </div>` : `
+                    <div style="margin-top:8px;padding:8px;background:#111;border-radius:4px;border:1px solid #333;">
+                        <div style="font-size:12px;color:#666;margin-bottom:8px;">Sin lotes. Crear nuevo:</div>
+                        <div style="display:flex;gap:6px;align-items:center;">
+                            <input type="date" id="new-batch-date-${p.barcode}" style="flex:1;background:#000;border:1px solid #333;color:#fff;padding:4px 6px;border-radius:4px;font-size:12px;">
+                            <input type="number" id="new-batch-qty-${p.barcode}" value="1" min="1" style="width:50px;background:#000;border:1px solid #333;color:#fff;padding:4px 6px;border-radius:4px;font-size:12px;">
+                            <button class="btn-round add" style="width:24px;height:24px;font-size:12px;" onclick="addBatchInManage('${p.barcode}')" ${isDelete ? 'disabled' : ''}>+</button>
+                        </div>
+                    </div>`}
                     <div class="edit-actions">
                         ${isDelete
                             ? `<button class="btn-undo-sm" onclick="undoDelete('${p.barcode}')">Deshacer</button>`
