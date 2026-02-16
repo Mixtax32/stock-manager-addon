@@ -503,6 +503,79 @@
             overflow-y: auto;
         }
         .ticket-overlay.active { display: block; }
+
+        /* Date modal */
+        .date-modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 200;
+            justify-content: center;
+            align-items: center;
+        }
+        .date-modal-overlay.active {
+            display: flex;
+        }
+        .date-modal {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+        }
+        .date-modal h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 16px;
+        }
+        .date-modal-content {
+            margin-bottom: 20px;
+        }
+        .date-modal input[type="date"] {
+            width: 100%;
+            background: #111;
+            border: 1px solid #333;
+            color: #fff;
+            padding: 10px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        .date-modal input[type="date"]:focus {
+            outline: none;
+            border-color: #555;
+        }
+        .date-modal-buttons {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+        .date-modal-btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: none;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        .date-modal-btn.confirm {
+            background: #166534;
+            color: #4ade80;
+        }
+        .date-modal-btn.confirm:active {
+            opacity: 0.8;
+        }
+        .date-modal-btn.cancel {
+            background: #333;
+            color: #aaa;
+        }
+        .date-modal-btn.cancel:active {
+            opacity: 0.8;
+        }
         .ticket-panel {
             max-width: 800px;
             margin: 0 auto;
@@ -786,6 +859,20 @@
             <div id="ticket-unmatched"></div>
             <div class="ticket-actions">
                 <button class="btn btn-add" onclick="confirmTicketItems()">Añadir seleccionados</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de fecha de caducidad -->
+    <div class="date-modal-overlay" id="date-modal">
+        <div class="date-modal">
+            <h3>Fecha de caducidad</h3>
+            <div class="date-modal-content">
+                <input type="date" id="date-modal-input" placeholder="Selecciona una fecha">
+            </div>
+            <div class="date-modal-buttons">
+                <button class="date-modal-btn cancel" onclick="closeDateModal()">Cancelar</button>
+                <button class="date-modal-btn confirm" onclick="confirmDateModal()">Aceptar</button>
             </div>
         </div>
     </div>
@@ -1367,15 +1454,56 @@
             }).join('');
         }
 
+        // Date modal management
+        let dateModalCallback = null;
+
+        function openDateModal(callback) {
+            dateModalCallback = callback;
+            document.getElementById('date-modal-input').value = '';
+            document.getElementById('date-modal').classList.add('active');
+            document.getElementById('date-modal-input').focus();
+        }
+
+        function closeDateModal() {
+            document.getElementById('date-modal').classList.remove('active');
+            dateModalCallback = null;
+        }
+
+        function confirmDateModal() {
+            const date = document.getElementById('date-modal-input').value || null;
+            closeDateModal();
+            if (dateModalCallback) {
+                dateModalCallback(date);
+            }
+        }
+
+        // Allow pressing Enter to confirm date
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('date-modal-input')?.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    confirmDateModal();
+                }
+            });
+        });
+
         async function batchAdd(batchId) {
             try {
                 const product = products.find(p => p.barcode === currentBarcode);
                 // If product has no batches, ask for expiry date
                 if (!product || !product.batches || product.batches.length === 0) {
-                    const expiryDate = prompt('Introduce la fecha de caducidad (YYYY-MM-DD) o deja vacío si no tiene:');
-                    if (expiryDate !== null) {
-                        await apiCall(`/products/${currentBarcode}/stock`, 'POST', { quantity: 1, expiry_date: expiryDate || null });
-                    }
+                    return openDateModal(async (expiryDate) => {
+                        try {
+                            await apiCall(`/products/${currentBarcode}/stock`, 'POST', { quantity: 1, expiry_date: expiryDate });
+                            await loadProducts();
+                            const updatedProduct = products.find(p => p.barcode === currentBarcode);
+                            if (updatedProduct) {
+                                document.getElementById('existing-product-stock').textContent = `(${updatedProduct.stock} uds)`;
+                                renderExistingBatches(updatedProduct);
+                            }
+                        } catch (error) {
+                            console.error('Error adding stock:', error);
+                        }
+                    });
                 } else {
                     await apiCall(`/batches/${batchId}/stock`, 'POST', { quantity: 1 });
                 }
@@ -1394,16 +1522,25 @@
                 const product = products.find(p => p.barcode === currentBarcode);
                 // If product has no batches, ask for expiry date
                 if (!product || !product.batches || product.batches.length === 0) {
-                    const expiryDate = prompt('Introduce la fecha de caducidad (YYYY-MM-DD) o deja vacío si no tiene:');
-                    if (expiryDate !== null) {
-                        // Create a batch first, then remove from it
-                        await apiCall(`/products/${currentBarcode}/stock`, 'POST', { quantity: 1, expiry_date: expiryDate || null });
-                        await loadProducts();
-                        const updatedProduct = products.find(p => p.barcode === currentBarcode);
-                        if (updatedProduct && updatedProduct.batches && updatedProduct.batches.length > 0) {
-                            await apiCall(`/batches/${updatedProduct.batches[0].id}/stock`, 'POST', { quantity: -1 });
+                    return openDateModal(async (expiryDate) => {
+                        try {
+                            // Create a batch first, then remove from it
+                            await apiCall(`/products/${currentBarcode}/stock`, 'POST', { quantity: 1, expiry_date: expiryDate });
+                            await loadProducts();
+                            const updatedProduct = products.find(p => p.barcode === currentBarcode);
+                            if (updatedProduct && updatedProduct.batches && updatedProduct.batches.length > 0) {
+                                await apiCall(`/batches/${updatedProduct.batches[0].id}/stock`, 'POST', { quantity: -1 });
+                                await loadProducts();
+                                const reloadedProduct = products.find(p => p.barcode === currentBarcode);
+                                if (reloadedProduct) {
+                                    document.getElementById('existing-product-stock').textContent = `(${reloadedProduct.stock} uds)`;
+                                    renderExistingBatches(reloadedProduct);
+                                }
+                            }
+                        } catch (error) {
+                            console.error('Error removing stock:', error);
                         }
-                    }
+                    });
                 } else {
                     await apiCall(`/batches/${batchId}/stock`, 'POST', { quantity: -1 });
                 }
@@ -1487,13 +1624,16 @@
                 if (product && product.batches && product.batches.length > 0) {
                     // Add to first batch (earliest expiry)
                     await apiCall(`/batches/${product.batches[0].id}/stock`, 'POST', { quantity: 1 });
+                    await loadProducts();
                 } else {
                     // No batches yet, ask for expiry date
-                    const expiryDate = prompt('Fecha de caducidad (YYYY-MM-DD) o deja vacío si no tiene:');
-                    if (expiryDate === null) return;
-                    await apiCall(`/products/${barcode}/stock`, 'POST', { quantity: 1, expiry_date: expiryDate || null });
+                    return openDateModal(async (expiryDate) => {
+                        try {
+                            await apiCall(`/products/${barcode}/stock`, 'POST', { quantity: 1, expiry_date: expiryDate });
+                            await loadProducts();
+                        } catch (error) { console.error('Error:', error); }
+                    });
                 }
-                await loadProducts();
             } catch (error) { console.error('Error:', error); }
         }
 
