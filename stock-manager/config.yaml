@@ -1,5 +1,5 @@
 name: Stock Manager
-version: "0.3.7"
+version: "0.3.8"
 slug: stock_manager
 description: Sistema de gestión de inventario doméstico con escáner de códigos de barras
 url: https://github.com/Mixtax32/stock-manager-addon
@@ -19,6 +19,7 @@ panel_icon: mdi:package-variant
 panel_title: Stock Manager
 ingress: true
 ingress_port: 8099
+panel_admin: false
 startup: application
 boot: auto
 options:
