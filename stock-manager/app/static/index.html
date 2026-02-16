@@ -1488,8 +1488,10 @@
                     // Add to first batch (earliest expiry)
                     await apiCall(`/batches/${product.batches[0].id}/stock`, 'POST', { quantity: 1 });
                 } else {
-                    // No batches yet, create one
-                    await apiCall(`/products/${barcode}/stock`, 'POST', { quantity: 1 });
+                    // No batches yet, ask for expiry date
+                    const expiryDate = prompt('Fecha de caducidad (YYYY-MM-DD) o deja vacío si no tiene:');
+                    if (expiryDate === null) return;
+                    await apiCall(`/products/${barcode}/stock`, 'POST', { quantity: 1, expiry_date: expiryDate || null });
                 }
                 await loadProducts();
             } catch (error) { console.error('Error:', error); }
