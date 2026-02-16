@@ -21,7 +21,10 @@ RUN apk add --no-cache \
     openblas-dev \
     lapack-dev \
     tesseract-ocr \
-    tesseract-ocr-data-spa
+    tesseract-ocr-data-spa \
+    libxkbcommon \
+    libfontconfig \
+    libgomp
 
 # Set working directory
 WORKDIR /app

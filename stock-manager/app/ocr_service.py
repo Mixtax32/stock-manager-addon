@@ -7,6 +7,13 @@ from PIL import Image
 
 logger = logging.getLogger(__name__)
 
+# Verify tesseract is available
+try:
+    pytesseract.get_tesseract_version()
+    logger.info("Tesseract OCR is available")
+except Exception as e:
+    logger.warning(f"Tesseract OCR not found: {e}")
+
 def preprocess_image(image_array: np.ndarray) -> np.ndarray:
     """
     Preprocess image for better OCR accuracy:
