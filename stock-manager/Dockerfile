@@ -26,7 +26,7 @@ WORKDIR /app
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt .
-RUN pip3 install --upgrade pip setuptools wheel && \
+RUN pip3 install --break-system-packages --upgrade pip setuptools wheel && \
     pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 
 # Copy application
