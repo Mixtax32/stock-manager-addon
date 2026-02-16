@@ -23,7 +23,7 @@ RUN apk add --no-cache \
     tesseract-ocr \
     tesseract-ocr-data-spa \
     libxkbcommon \
-    libfontconfig \
+    fontconfig \
     libgomp
 
 # Set working directory
