@@ -1471,9 +1471,10 @@
 
         function confirmDateModal() {
             const date = document.getElementById('date-modal-input').value || null;
+            const callback = dateModalCallback;
             closeDateModal();
-            if (dateModalCallback) {
-                dateModalCallback(date);
+            if (callback) {
+                callback(date);
             }
         }
 
