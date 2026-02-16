@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stock Manager</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -681,7 +680,7 @@
     <div class="container">
         <div class="header">
             <h1>Stock Manager</h1>
-            <small>v0.3.8</small>
+            <small>v0.3.9</small>
         </div>
 
         <!-- Stats -->
@@ -1038,41 +1037,41 @@
             statusEl.textContent = 'Preparando imagen...';
             fillEl.style.width = '5%';
 
-            // Preprocess: grayscale + high contrast + threshold for better OCR
-            const ctx = canvas.getContext('2d');
-            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = imgData.data;
-            for (let i = 0; i < data.length; i += 4) {
-                // Grayscale
-                const gray = data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114;
-                // Increase contrast
-                const contrast = ((gray / 255 - 0.5) * 1.8 + 0.5) * 255;
-                // Threshold to B&W
-                const bw = contrast > 140 ? 255 : 0;
-                data[i] = data[i+1] = data[i+2] = bw;
-            }
-            ctx.putImageData(imgData, 0, 0);
-
-            statusEl.textContent = 'Leyendo ticket...';
-            fillEl.style.width = '10%';
-
             try {
-                const result = await Tesseract.recognize(canvas, 'spa', {
-                    logger: m => {
-                        if (m.status === 'recognizing text') {
-                            const pct = Math.round(m.progress * 100);
-                            fillEl.style.width = pct + '%';
-                            statusEl.textContent = `Leyendo ticket... ${pct}%`;
-                        }
-                    }
-                });
+                // Convert canvas to blob
+                canvas.toBlob(async (blob) => {
+                    const formData = new FormData();
+                    formData.append('file', blob, 'ticket.png');
 
-                progress.classList.add('hidden');
-                const text = result.data.text;
-                parseTicketText(text);
+                    statusEl.textContent = 'Enviando imagen al servidor...';
+                    fillEl.style.width = '20%';
+
+                    try {
+                        const response = await fetch('/api/ocr/process', {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        if (!response.ok) {
+                            const error = await response.json();
+                            throw new Error(error.detail || 'Error al procesar imagen');
+                        }
+
+                        fillEl.style.width = '60%';
+                        statusEl.textContent = 'Analizando ticket...';
+
+                        const result = await response.json();
+
+                        progress.classList.add('hidden');
+                        parseTicketText(result.text);
+                    } catch (err) {
+                        progress.classList.add('hidden');
+                        alert('Error al leer ticket: ' + err.message);
+                    }
+                }, 'image/png');
             } catch (err) {
                 progress.classList.add('hidden');
-                alert('Error al leer ticket: ' + err.message);
+                alert('Error al procesar imagen: ' + err.message);
             }
         }
 
