@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="Stock Manager API",
     description="API para gestión de inventario doméstico",
-    version="0.3.9"
+    version="0.4.0"
 )
 
 # CORS configuration for Home Assistant ingress
