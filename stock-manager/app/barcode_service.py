@@ -22,8 +22,12 @@ async def _search_open_food_facts(barcode: str, client: httpx.AsyncClient) -> Di
         response.raise_for_status()
 
         data = response.json()
+        logger.info(f"Open Food Facts full response for {barcode}: {data}")
+
         if data.get("status") == 1:
             product_data = data.get("product", {})
+            logger.info(f"Open Food Facts product data: {product_data}")
+
             return {
                 "found": True,
                 "name": product_data.get("product_name", ""),
@@ -33,10 +37,13 @@ async def _search_open_food_facts(barcode: str, client: httpx.AsyncClient) -> Di
                 "quantity": product_data.get("quantity", ""),
                 "source": "Open Food Facts"
             }
+        else:
+            logger.info(f"Open Food Facts status is not 1 for {barcode}: {data.get('status')}")
     except Exception as e:
         logger.debug(f"Open Food Facts lookup failed for {barcode}: {e}")
 
     return {"found": False}
+
 
 
 async def _search_open_product_facts(barcode: str, client: httpx.AsyncClient) -> Dict[str, Any]:
@@ -49,8 +56,12 @@ async def _search_open_product_facts(barcode: str, client: httpx.AsyncClient) ->
         response.raise_for_status()
 
         data = response.json()
+        logger.info(f"Open Product Facts full response for {barcode}: {data}")
+
         if data.get("status") == 1:
             product_data = data.get("product", {})
+            logger.info(f"Open Product Facts product data: {product_data}")
+
             return {
                 "found": True,
                 "name": product_data.get("product_name", ""),
@@ -60,6 +71,8 @@ async def _search_open_product_facts(barcode: str, client: httpx.AsyncClient) ->
                 "quantity": product_data.get("quantity", ""),
                 "source": "Open Product Facts"
             }
+        else:
+            logger.info(f"Open Product Facts status is not 1 for {barcode}: {data.get('status')}")
     except Exception as e:
         logger.debug(f"Open Product Facts lookup failed for {barcode}: {e}")
 
