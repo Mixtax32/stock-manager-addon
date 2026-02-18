@@ -4,6 +4,44 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
+def map_external_category_to_internal(external_category: str) -> str:
+    """
+    Maps external API categories to internal system categories.
+
+    Internal categories: Alimentos, Bebidas, Limpieza, Higiene, Otros
+
+    Args:
+        external_category: Category from Open Food/Beauty/Product Facts
+
+    Returns:
+        Internal category or 'Otros' if no match found
+    """
+    if not external_category:
+        return "Otros"
+
+    category_lower = external_category.lower()
+
+    # Mapping rules (order matters - more specific first)
+    mappings = {
+        "Higiene": ["higiene", "cosméticos", "cosmetic", "beauty", "personal care", "skincare", "hair", "body care", "belleza"],
+        "Bebidas": ["bebida", "drink", "beverage", "juice", "water", "soda", "café", "coffee", "tea", "té"],
+        "Limpieza": ["limpieza", "cleaning", "detergent", "soap", "hygiene", "disinfectant"],
+        "Alimentos": ["alimento", "food", "comida", "snack", "candy", "chocolate", "cereal", "pan", "bread"],
+    }
+
+    # Try to find a match
+    for internal_category, keywords in mappings.items():
+        for keyword in keywords:
+            if keyword in category_lower:
+                logger.info(f"Category mapping: '{external_category}' -> '{internal_category}' (matched: '{keyword}')")
+                return internal_category
+
+    # No match found - return 'Otros'
+    logger.info(f"Category mapping: '{external_category}' -> 'Otros' (no match)")
+    return "Otros"
+
+
 OPENFOODFACTS_API = "https://world.openfoodfacts.org/api/v2/product/{barcode}.json"
 OPENBEAUTYFACTS_API = "https://world.openbeautyfacts.org/api/v2/product/{barcode}.json"
 OPENPRODUCTFACTS_API = "https://world.openproductfacts.org/api/v2/product/{barcode}.json"
@@ -35,11 +73,14 @@ async def _search_open_food_facts(barcode: str, client: httpx.AsyncClient) -> Di
             product_data = data.get("product", {})
             logger.info(f"Open Food Facts product data: {product_data}")
 
+            external_category = product_data.get("categories", "")
+            mapped_category = map_external_category_to_internal(external_category)
+
             return {
                 "found": True,
                 "name": product_data.get("product_name", ""),
                 "brand": product_data.get("brands", ""),
-                "category": product_data.get("categories", ""),
+                "category": mapped_category,
                 "image_url": product_data.get("image_url", ""),
                 "quantity": product_data.get("quantity", ""),
                 "source": "Open Food Facts"
@@ -77,11 +118,14 @@ async def _search_open_beauty_facts(barcode: str, client: httpx.AsyncClient) -> 
             product_data = data.get("product", {})
             logger.info(f"Open Beauty Facts product data: {product_data}")
 
+            external_category = product_data.get("categories", "")
+            mapped_category = map_external_category_to_internal(external_category)
+
             return {
                 "found": True,
                 "name": product_data.get("product_name", ""),
                 "brand": product_data.get("brands", ""),
-                "category": product_data.get("categories", ""),
+                "category": mapped_category,
                 "image_url": product_data.get("image_url", ""),
                 "quantity": product_data.get("quantity", ""),
                 "source": "Open Beauty Facts"
@@ -119,11 +163,14 @@ async def _search_open_product_facts(barcode: str, client: httpx.AsyncClient) ->
             product_data = data.get("product", {})
             logger.info(f"Open Product Facts product data: {product_data}")
 
+            external_category = product_data.get("categories", "")
+            mapped_category = map_external_category_to_internal(external_category)
+
             return {
                 "found": True,
                 "name": product_data.get("product_name", ""),
                 "brand": product_data.get("brands", ""),
-                "category": product_data.get("categories", ""),
+                "category": mapped_category,
                 "image_url": product_data.get("image_url", ""),
                 "quantity": product_data.get("quantity", ""),
                 "source": "Open Product Facts"
