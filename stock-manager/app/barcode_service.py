@@ -5,6 +5,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 OPENFOODFACTS_API = "https://world.openfoodfacts.org/api/v2/product/{barcode}.json"
+OPENBEAUTYFACTS_API = "https://world.openbeautyfacts.org/api/v2/product/{barcode}.json"
 OPENPRODUCTFACTS_API = "https://world.openproductfacts.org/api/v2/product/{barcode}.json"
 
 HEADERS = {
@@ -51,6 +52,47 @@ async def _search_open_food_facts(barcode: str, client: httpx.AsyncClient) -> Di
     return {"found": False}
 
 
+async def _search_open_beauty_facts(barcode: str, client: httpx.AsyncClient) -> Dict[str, Any]:
+    """Search in Open Beauty Facts (for beauty and personal care products)"""
+    try:
+        url = OPENBEAUTYFACTS_API.format(barcode=barcode)
+        params = {"fields": "product_name,brands,categories,image_url,quantity"}
+
+        logger.info(f"Searching Open Beauty Facts for {barcode}...")
+        response = await client.get(url, headers=HEADERS, params=params, timeout=5.0)
+
+        logger.info(f"Open Beauty Facts HTTP status: {response.status_code} for {barcode}")
+
+        # Don't raise for 404 - product just not found
+        if response.status_code == 404:
+            logger.info(f"Open Beauty Facts: product not found (404) for {barcode}")
+            return {"found": False}
+
+        response.raise_for_status()
+
+        data = response.json()
+        logger.info(f"Open Beauty Facts full response for {barcode}: {data}")
+
+        if data.get("status") == 1:
+            product_data = data.get("product", {})
+            logger.info(f"Open Beauty Facts product data: {product_data}")
+
+            return {
+                "found": True,
+                "name": product_data.get("product_name", ""),
+                "brand": product_data.get("brands", ""),
+                "category": product_data.get("categories", ""),
+                "image_url": product_data.get("image_url", ""),
+                "quantity": product_data.get("quantity", ""),
+                "source": "Open Beauty Facts"
+            }
+        else:
+            logger.info(f"Open Beauty Facts status is not 1 for {barcode}: {data.get('status')}")
+    except Exception as e:
+        logger.debug(f"Open Beauty Facts lookup failed for {barcode}: {e}")
+
+    return {"found": False}
+
 
 async def _search_open_product_facts(barcode: str, client: httpx.AsyncClient) -> Dict[str, Any]:
     """Search in Open Product Facts (for non-food products)"""
@@ -58,7 +100,10 @@ async def _search_open_product_facts(barcode: str, client: httpx.AsyncClient) ->
         url = OPENPRODUCTFACTS_API.format(barcode=barcode)
         params = {"fields": "product_name,brands,categories,image_url,quantity"}
 
+        logger.info(f"Searching Open Product Facts for {barcode}...")
         response = await client.get(url, headers=HEADERS, params=params, timeout=5.0)
+
+        logger.info(f"Open Product Facts HTTP status: {response.status_code} for {barcode}")
 
         # Don't raise for 404 - product just not found
         if response.status_code == 404:
@@ -98,7 +143,8 @@ async def get_product_from_barcode(barcode: str) -> Dict[str, Any]:
 
     Tries in order:
     1. Open Food Facts (best for food)
-    2. Open Product Facts (for non-food products)
+    2. Open Beauty Facts (for beauty and personal care)
+    3. Open Product Facts (for other non-food products)
 
     Returns:
         A dict with 'found': true and product data if found, or 'found': false if not found.
@@ -111,7 +157,12 @@ async def get_product_from_barcode(barcode: str) -> Dict[str, Any]:
             if result["found"]:
                 return result
 
-            # Try Open Product Facts (better for non-food items)
+            # Try Open Beauty Facts (for beauty and personal care products)
+            result = await _search_open_beauty_facts(barcode, client)
+            if result["found"]:
+                return result
+
+            # Try Open Product Facts (better for other non-food items)
             result = await _search_open_product_facts(barcode, client)
             if result["found"]:
                 return result
