@@ -19,6 +19,12 @@ async def _search_open_food_facts(barcode: str, client: httpx.AsyncClient) -> Di
         params = {"fields": "product_name,brands,categories,image_url,quantity"}
 
         response = await client.get(url, headers=HEADERS, params=params, timeout=5.0)
+
+        # Don't raise for 404 - just continue to next source
+        if response.status_code == 404:
+            logger.info(f"Open Food Facts: product not found (404) for {barcode}")
+            return {"found": False}
+
         response.raise_for_status()
 
         data = response.json()
@@ -53,6 +59,12 @@ async def _search_open_product_facts(barcode: str, client: httpx.AsyncClient) ->
         params = {"fields": "product_name,brands,categories,image_url,quantity"}
 
         response = await client.get(url, headers=HEADERS, params=params, timeout=5.0)
+
+        # Don't raise for 404 - product just not found
+        if response.status_code == 404:
+            logger.info(f"Open Product Facts: product not found (404) for {barcode}")
+            return {"found": False}
+
         response.raise_for_status()
 
         data = response.json()
