@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,7 +8,11 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -31,8 +36,17 @@
             border-bottom: 1px solid #222;
             margin-bottom: 16px;
         }
-        .header h1 { font-size: 18px; color: #fff; font-weight: 600; }
-        .header small { color: #555; font-size: 12px; }
+
+        .header h1 {
+            font-size: 18px;
+            color: #fff;
+            font-weight: 600;
+        }
+
+        .header small {
+            color: #555;
+            font-size: 12px;
+        }
 
         /* Stats row */
         .stats {
@@ -40,6 +54,7 @@
             gap: 8px;
             margin-bottom: 16px;
         }
+
         .stat {
             flex: 1;
             background: #1a1a1a;
@@ -48,9 +63,23 @@
             padding: 12px;
             text-align: center;
         }
-        .stat-value { font-size: 24px; font-weight: 700; color: #fff; }
-        .stat-label { font-size: 11px; color: #666; text-transform: uppercase; margin-top: 2px; }
-        .stat.warning .stat-value { color: #f59e0b; }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            margin-top: 2px;
+        }
+
+        .stat.warning .stat-value {
+            color: #f59e0b;
+        }
 
         /* Sections */
         .section {
@@ -60,6 +89,7 @@
             margin-bottom: 12px;
             overflow: hidden;
         }
+
         .section-header {
             display: flex;
             justify-content: space-between;
@@ -68,12 +98,35 @@
             cursor: pointer;
             user-select: none;
         }
-        .section-header h2 { font-size: 14px; font-weight: 600; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; }
-        .section-header .toggle { color: #555; font-size: 12px; }
-        .section-body { padding: 0 16px 16px; }
-        .section.collapsed .section-body { display: none; }
-        .section.collapsed .toggle::after { content: 'mostrar'; }
-        .section:not(.collapsed) .toggle::after { content: 'ocultar'; }
+
+        .section-header h2 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #aaa;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .section-header .toggle {
+            color: #555;
+            font-size: 12px;
+        }
+
+        .section-body {
+            padding: 0 16px 16px;
+        }
+
+        .section.collapsed .section-body {
+            display: none;
+        }
+
+        .section.collapsed .toggle::after {
+            content: 'mostrar';
+        }
+
+        .section:not(.collapsed) .toggle::after {
+            content: 'ocultar';
+        }
 
         /* Shopping list */
         .shopping-item {
@@ -84,17 +137,38 @@
             border-bottom: 1px solid #222;
             font-size: 14px;
         }
-        .shopping-item:last-child { border-bottom: none; }
-        .shopping-item .name { color: #e0e0e0; }
-        .shopping-item .qty { color: #f59e0b; font-weight: 600; font-size: 13px; }
-        .shopping-item .expiry-warn { color: #ef4444; font-size: 12px; }
-        .shopping-empty { color: #444; font-size: 14px; padding: 8px 0; }
+
+        .shopping-item:last-child {
+            border-bottom: none;
+        }
+
+        .shopping-item .name {
+            color: #e0e0e0;
+        }
+
+        .shopping-item .qty {
+            color: #f59e0b;
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .shopping-item .expiry-warn {
+            color: #ef4444;
+            font-size: 12px;
+        }
+
+        .shopping-empty {
+            color: #444;
+            font-size: 14px;
+            padding: 8px 0;
+        }
 
         /* Scanner */
         .barcode-input {
             display: flex;
             gap: 8px;
         }
+
         .barcode-input input {
             flex: 1;
             background: #111;
@@ -104,8 +178,15 @@
             border-radius: 6px;
             font-size: 15px;
         }
-        .barcode-input input:focus { outline: none; border-color: #555; }
-        .barcode-input input::placeholder { color: #444; }
+
+        .barcode-input input:focus {
+            outline: none;
+            border-color: #555;
+        }
+
+        .barcode-input input::placeholder {
+            color: #444;
+        }
 
         .camera-row {
             display: flex;
@@ -131,21 +212,50 @@
             cursor: pointer;
             transition: opacity 0.2s;
         }
-        .btn:active { opacity: 0.7; }
-        .btn-primary { background: #333; color: #fff; }
-        .btn-add { background: #166534; color: #4ade80; }
-        .btn-remove { background: #7f1d1d; color: #f87171; }
+
+        .btn:active {
+            opacity: 0.7;
+        }
+
+        .btn-primary {
+            background: #333;
+            color: #fff;
+        }
+
+        .btn-add {
+            background: #166534;
+            color: #4ade80;
+        }
+
+        .btn-remove {
+            background: #7f1d1d;
+            color: #f87171;
+        }
 
         /* Product form */
-        #product-action { margin-top: 12px; }
+        #product-action {
+            margin-top: 12px;
+        }
+
         .form-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 10px;
         }
-        .form-grid .full { grid-column: 1 / -1; }
-        .form-group label { display: block; font-size: 12px; color: #666; margin-bottom: 4px; }
-        .form-group input, .form-group select {
+
+        .form-grid .full {
+            grid-column: 1 / -1;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+
+        .form-group input,
+        .form-group select {
             width: 100%;
             background: #111;
             border: 1px solid #333;
@@ -154,14 +264,26 @@
             border-radius: 6px;
             font-size: 14px;
         }
-        .form-group input:focus, .form-group select:focus { outline: none; border-color: #555; }
-        .form-group select option { background: #1a1a1a; }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #555;
+        }
+
+        .form-group select option {
+            background: #1a1a1a;
+        }
+
         .form-actions {
             display: flex;
             gap: 8px;
             margin-top: 10px;
         }
-        .form-actions .btn { flex: 1; }
+
+        .form-actions .btn {
+            flex: 1;
+        }
 
         #scanned-code {
             background: #1a2e1a;
@@ -180,22 +302,42 @@
             padding: 10px 0;
             border-bottom: 1px solid #222;
         }
-        .product-row:last-child { border-bottom: none; }
+
+        .product-row:last-child {
+            border-bottom: none;
+        }
+
         .product-top {
             display: flex;
             justify-content: space-between;
             align-items: center;
             gap: 8px;
         }
-        .product-main { flex: 1; min-width: 0; }
-        .product-main .name { font-size: 15px; color: #e0e0e0; font-weight: 500; }
-        .product-main .meta { font-size: 12px; color: #555; margin-top: 2px; }
+
+        .product-main {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .product-main .name {
+            font-size: 15px;
+            color: #e0e0e0;
+            font-weight: 500;
+        }
+
+        .product-main .meta {
+            font-size: 12px;
+            color: #555;
+            margin-top: 2px;
+        }
+
         .product-stock {
             display: flex;
             align-items: center;
             gap: 6px;
             flex-shrink: 0;
         }
+
         .stock-num {
             font-size: 18px;
             font-weight: 700;
@@ -203,7 +345,11 @@
             min-width: 28px;
             text-align: center;
         }
-        .stock-num.low { color: #f59e0b; }
+
+        .stock-num.low {
+            color: #f59e0b;
+        }
+
         .btn-round {
             width: 32px;
             height: 32px;
@@ -218,10 +364,26 @@
             justify-content: center;
             transition: opacity 0.2s;
         }
-        .btn-round:active { opacity: 0.6; }
-        .btn-round.add { border-color: #166534; color: #4ade80; }
-        .btn-round.remove { border-color: #7f1d1d; color: #f87171; }
-        .btn-round.lost { border-color: #614c2b; color: #d4a373; }
+
+        .btn-round:active {
+            opacity: 0.6;
+        }
+
+        .btn-round.add {
+            border-color: #166534;
+            color: #4ade80;
+        }
+
+        .btn-round.remove {
+            border-color: #7f1d1d;
+            color: #f87171;
+        }
+
+        .btn-round.lost {
+            border-color: #614c2b;
+            color: #d4a373;
+        }
+
         .btn-del {
             background: none;
             border: none;
@@ -230,7 +392,10 @@
             font-size: 14px;
             padding: 4px;
         }
-        .btn-del:hover { color: #ef4444; }
+
+        .btn-del:hover {
+            color: #ef4444;
+        }
 
         /* Batches */
         .batch-list {
@@ -238,6 +403,7 @@
             padding-left: 8px;
             border-left: 2px solid #222;
         }
+
         .batch-row {
             font-size: 12px;
             color: #555;
@@ -245,12 +411,31 @@
             display: flex;
             gap: 8px;
         }
-        .batch-row .batch-qty { color: #888; font-weight: 600; min-width: 40px; }
-        .batch-row .expiry-ok { color: #555; }
-        .batch-row .expiry-soon { color: #f59e0b; }
-        .batch-row .expiry-expired { color: #ef4444; }
 
-        .empty-state { color: #444; font-size: 14px; padding: 12px 0; text-align: center; }
+        .batch-row .batch-qty {
+            color: #888;
+            font-weight: 600;
+            min-width: 40px;
+        }
+
+        .batch-row .expiry-ok {
+            color: #555;
+        }
+
+        .batch-row .expiry-soon {
+            color: #f59e0b;
+        }
+
+        .batch-row .expiry-expired {
+            color: #ef4444;
+        }
+
+        .empty-state {
+            color: #444;
+            font-size: 14px;
+            padding: 12px 0;
+            text-align: center;
+        }
 
         /* Management panel */
         .panel-overlay {
@@ -261,12 +446,17 @@
             z-index: 100;
             overflow-y: auto;
         }
-        .panel-overlay.active { display: block; }
+
+        .panel-overlay.active {
+            display: block;
+        }
+
         .panel {
             max-width: 800px;
             margin: 0 auto;
             padding: 16px;
         }
+
         .panel-header {
             display: flex;
             justify-content: space-between;
@@ -275,8 +465,18 @@
             border-bottom: 1px solid #222;
             margin-bottom: 16px;
         }
-        .panel-header h2 { font-size: 18px; color: #fff; font-weight: 600; }
-        .panel-header-btns { display: flex; gap: 8px; }
+
+        .panel-header h2 {
+            font-size: 18px;
+            color: #fff;
+            font-weight: 600;
+        }
+
+        .panel-header-btns {
+            display: flex;
+            gap: 8px;
+        }
+
         .panel-close {
             background: none;
             border: 1px solid #333;
@@ -286,7 +486,11 @@
             border-radius: 6px;
             cursor: pointer;
         }
-        .panel-close:active { opacity: 0.7; }
+
+        .panel-close:active {
+            opacity: 0.7;
+        }
+
         .btn-save-all {
             background: #166534;
             border: none;
@@ -297,8 +501,16 @@
             border-radius: 6px;
             cursor: pointer;
         }
-        .btn-save-all:active { opacity: 0.7; }
-        .btn-save-all:disabled { background: #1a1a1a; color: #444; cursor: default; }
+
+        .btn-save-all:active {
+            opacity: 0.7;
+        }
+
+        .btn-save-all:disabled {
+            background: #1a1a1a;
+            color: #444;
+            cursor: default;
+        }
 
         /* Changes summary */
         .changes-summary {
@@ -308,13 +520,40 @@
             padding: 12px 14px;
             margin-bottom: 14px;
         }
-        .changes-summary.has-deletes { background: #2e1a1a; border-color: #4a2d2d; }
-        .changes-title { font-size: 13px; color: #4ade80; font-weight: 600; margin-bottom: 6px; }
-        .changes-summary.has-deletes .changes-title { color: #f59e0b; }
-        .change-item { font-size: 12px; color: #aaa; padding: 2px 0; }
-        .change-item .change-type { font-weight: 600; }
-        .change-item .change-type.edit { color: #60a5fa; }
-        .change-item .change-type.delete { color: #f87171; }
+
+        .changes-summary.has-deletes {
+            background: #2e1a1a;
+            border-color: #4a2d2d;
+        }
+
+        .changes-title {
+            font-size: 13px;
+            color: #4ade80;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+        .changes-summary.has-deletes .changes-title {
+            color: #f59e0b;
+        }
+
+        .change-item {
+            font-size: 12px;
+            color: #aaa;
+            padding: 2px 0;
+        }
+
+        .change-item .change-type {
+            font-weight: 600;
+        }
+
+        .change-item .change-type.edit {
+            color: #60a5fa;
+        }
+
+        .change-item .change-type.delete {
+            color: #f87171;
+        }
 
         /* Edit cards */
         .edit-card {
@@ -325,32 +564,56 @@
             margin-bottom: 10px;
             transition: border-color 0.2s;
         }
-        .edit-card.modified { border-color: #2563eb; }
-        .edit-card.to-delete { border-color: #991b1b; opacity: 0.5; }
+
+        .edit-card.modified {
+            border-color: #2563eb;
+        }
+
+        .edit-card.to-delete {
+            border-color: #991b1b;
+            opacity: 0.5;
+        }
+
         .edit-card-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 10px;
         }
-        .edit-card-header .name { font-size: 16px; font-weight: 600; color: #fff; }
-        .edit-card-header .barcode { font-size: 12px; color: #555; }
+
+        .edit-card-header .name {
+            font-size: 16px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .edit-card-header .barcode {
+            font-size: 12px;
+            color: #555;
+        }
+
         .edit-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 8px;
         }
+
         .edit-grid .form-group input,
         .edit-grid .form-group select {
             padding: 6px 8px;
             font-size: 13px;
         }
-        .edit-grid .form-group label { font-size: 11px; }
+
+        .edit-grid .form-group label {
+            font-size: 11px;
+        }
+
         .edit-actions {
             display: flex;
             gap: 8px;
             margin-top: 10px;
         }
+
         .btn-delete-sm {
             background: #7f1d1d;
             color: #f87171;
@@ -360,6 +623,7 @@
             border-radius: 6px;
             cursor: pointer;
         }
+
         .btn-undo-sm {
             background: #333;
             color: #aaa;
@@ -369,11 +633,13 @@
             border-radius: 6px;
             cursor: pointer;
         }
+
         .edit-batch-list {
             margin-top: 8px;
             padding-left: 8px;
             border-left: 2px solid #222;
         }
+
         .edit-batch-row {
             display: flex;
             align-items: center;
@@ -382,7 +648,12 @@
             font-size: 12px;
             color: #888;
         }
-        .edit-batch-row .batch-qty-label { min-width: 40px; font-weight: 600; }
+
+        .edit-batch-row .batch-qty-label {
+            min-width: 40px;
+            font-weight: 600;
+        }
+
         .edit-batch-row input[type="date"] {
             background: #111;
             border: 1px solid #333;
@@ -391,8 +662,16 @@
             border-radius: 4px;
             font-size: 12px;
         }
-        .edit-batch-row input[type="date"]:focus { outline: none; border-color: #555; }
-        .edit-batch-row.batch-modified input[type="date"] { border-color: #2563eb; }
+
+        .edit-batch-row input[type="date"]:focus {
+            outline: none;
+            border-color: #555;
+        }
+
+        .edit-batch-row.batch-modified input[type="date"] {
+            border-color: #2563eb;
+        }
+
         .btn-manage {
             background: none;
             border: 1px solid #333;
@@ -404,7 +683,10 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
-        .btn-manage:active { opacity: 0.7; }
+
+        .btn-manage:active {
+            opacity: 0.7;
+        }
 
         /* Existing product view */
         .existing-header {
@@ -414,8 +696,19 @@
             padding: 10px 12px;
             margin-bottom: 10px;
         }
-        .existing-header #existing-product-name { color: #4ade80; font-weight: 600; font-size: 15px; }
-        .existing-header #existing-product-stock { color: #888; font-size: 13px; margin-left: 8px; }
+
+        .existing-header #existing-product-name {
+            color: #4ade80;
+            font-weight: 600;
+            font-size: 15px;
+        }
+
+        .existing-header #existing-product-stock {
+            color: #888;
+            font-size: 13px;
+            margin-left: 8px;
+        }
+
         .existing-batch-row {
             display: flex;
             align-items: center;
@@ -424,10 +717,27 @@
             border-bottom: 1px solid #222;
             font-size: 14px;
         }
-        .existing-batch-row:last-child { border-bottom: none; }
-        .existing-batch-row .eb-info { flex: 1; min-width: 0; }
-        .existing-batch-row .eb-qty { color: #fff; font-weight: 600; min-width: 40px; }
-        .existing-batch-row .eb-expiry { color: #888; font-size: 13px; }
+
+        .existing-batch-row:last-child {
+            border-bottom: none;
+        }
+
+        .existing-batch-row .eb-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .existing-batch-row .eb-qty {
+            color: #fff;
+            font-weight: 600;
+            min-width: 40px;
+        }
+
+        .existing-batch-row .eb-expiry {
+            color: #888;
+            font-size: 13px;
+        }
+
         .new-batch-row {
             display: flex;
             align-items: center;
@@ -436,7 +746,13 @@
             margin-top: 4px;
             border-top: 1px solid #333;
         }
-        .new-batch-label { color: #666; font-size: 13px; font-weight: 600; }
+
+        .new-batch-label {
+            color: #666;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
         .new-batch-row input[type="date"],
         .new-batch-row input[type="number"] {
             background: #111;
@@ -446,8 +762,12 @@
             border-radius: 6px;
             font-size: 13px;
         }
+
         .new-batch-row input[type="date"]:focus,
-        .new-batch-row input[type="number"]:focus { outline: none; border-color: #555; }
+        .new-batch-row input[type="number"]:focus {
+            outline: none;
+            border-color: #555;
+        }
 
         /* Search results */
         .search-results {
@@ -457,6 +777,7 @@
             margin-top: 6px;
             overflow: hidden;
         }
+
         .search-result-item {
             padding: 10px 12px;
             cursor: pointer;
@@ -465,11 +786,30 @@
             justify-content: space-between;
             align-items: center;
         }
-        .search-result-item:last-child { border-bottom: none; }
-        .search-result-item:active { background: #252525; }
-        .search-result-item .sr-name { color: #e0e0e0; font-size: 14px; }
-        .search-result-item .sr-meta { color: #555; font-size: 12px; }
-        .search-no-results { padding: 10px 12px; color: #555; font-size: 13px; }
+
+        .search-result-item:last-child {
+            border-bottom: none;
+        }
+
+        .search-result-item:active {
+            background: #252525;
+        }
+
+        .search-result-item .sr-name {
+            color: #e0e0e0;
+            font-size: 14px;
+        }
+
+        .search-result-item .sr-meta {
+            color: #555;
+            font-size: 12px;
+        }
+
+        .search-no-results {
+            padding: 10px 12px;
+            color: #555;
+            font-size: 13px;
+        }
 
         /* Ticket scanner */
         .ticket-progress {
@@ -480,13 +820,20 @@
             margin-top: 10px;
             text-align: center;
         }
-        .ticket-progress .tp-text { color: #888; font-size: 13px; margin-bottom: 8px; }
+
+        .ticket-progress .tp-text {
+            color: #888;
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+
         .ticket-progress .tp-bar {
             height: 4px;
             background: #222;
             border-radius: 2px;
             overflow: hidden;
         }
+
         .ticket-progress .tp-fill {
             height: 100%;
             background: #4ade80;
@@ -503,7 +850,10 @@
             z-index: 100;
             overflow-y: auto;
         }
-        .ticket-overlay.active { display: block; }
+
+        .ticket-overlay.active {
+            display: block;
+        }
 
         /* Date modal */
         .date-modal-overlay {
@@ -515,9 +865,11 @@
             justify-content: center;
             align-items: center;
         }
+
         .date-modal-overlay.active {
             display: flex;
         }
+
         .date-modal {
             background: #1a1a1a;
             border: 1px solid #2a2a2a;
@@ -527,15 +879,18 @@
             width: 90%;
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
         }
+
         .date-modal h3 {
             font-size: 16px;
             font-weight: 600;
             color: #fff;
             margin-bottom: 16px;
         }
+
         .date-modal-content {
             margin-bottom: 20px;
         }
+
         .date-modal input[type="date"] {
             width: 100%;
             background: #111;
@@ -546,15 +901,18 @@
             font-size: 14px;
             box-sizing: border-box;
         }
+
         .date-modal input[type="date"]:focus {
             outline: none;
             border-color: #555;
         }
+
         .date-modal-buttons {
             display: flex;
             gap: 8px;
             justify-content: flex-end;
         }
+
         .date-modal-btn {
             padding: 8px 16px;
             border-radius: 6px;
@@ -563,25 +921,31 @@
             font-weight: 500;
             cursor: pointer;
         }
+
         .date-modal-btn.confirm {
             background: #166534;
             color: #4ade80;
         }
+
         .date-modal-btn.confirm:active {
             opacity: 0.8;
         }
+
         .date-modal-btn.cancel {
             background: #333;
             color: #aaa;
         }
+
         .date-modal-btn.cancel:active {
             opacity: 0.8;
         }
+
         .ticket-panel {
             max-width: 800px;
             margin: 0 auto;
             padding: 16px;
         }
+
         .ticket-header {
             display: flex;
             justify-content: space-between;
@@ -590,7 +954,13 @@
             border-bottom: 1px solid #222;
             margin-bottom: 16px;
         }
-        .ticket-header h2 { font-size: 18px; color: #fff; font-weight: 600; }
+
+        .ticket-header h2 {
+            font-size: 18px;
+            color: #fff;
+            font-weight: 600;
+        }
+
         .ticket-section-title {
             font-size: 13px;
             color: #4ade80;
@@ -600,7 +970,11 @@
             padding: 8px 0;
             margin-top: 8px;
         }
-        .ticket-section-title.unmatched { color: #f59e0b; }
+
+        .ticket-section-title.unmatched {
+            color: #f59e0b;
+        }
+
         .ticket-item {
             display: flex;
             align-items: center;
@@ -608,22 +982,41 @@
             padding: 10px 0;
             border-bottom: 1px solid #222;
         }
-        .ticket-item:last-child { border-bottom: none; }
+
+        .ticket-item:last-child {
+            border-bottom: none;
+        }
+
         .ticket-item input[type="checkbox"] {
             width: 18px;
             height: 18px;
             accent-color: #4ade80;
             flex-shrink: 0;
         }
-        .ticket-item .ti-info { flex: 1; min-width: 0; }
-        .ticket-item .ti-line { font-size: 13px; color: #888; }
-        .ticket-item .ti-match { font-size: 14px; color: #e0e0e0; font-weight: 500; }
+
+        .ticket-item .ti-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .ticket-item .ti-line {
+            font-size: 13px;
+            color: #888;
+        }
+
+        .ticket-item .ti-match {
+            font-size: 14px;
+            color: #e0e0e0;
+            font-weight: 500;
+        }
+
         .ticket-item .ti-qty {
             display: flex;
             align-items: center;
             gap: 4px;
             flex-shrink: 0;
         }
+
         .ticket-item .ti-qty input {
             width: 45px;
             background: #111;
@@ -634,7 +1027,12 @@
             font-size: 13px;
             text-align: center;
         }
-        .ticket-item .ti-qty label { font-size: 11px; color: #666; }
+
+        .ticket-item .ti-qty label {
+            font-size: 11px;
+            color: #666;
+        }
+
         .ticket-actions {
             display: flex;
             gap: 8px;
@@ -642,9 +1040,14 @@
             padding-top: 16px;
             border-top: 1px solid #222;
         }
-        .ticket-actions .btn { flex: 1; }
 
-        .hidden { display: none; }
+        .ticket-actions .btn {
+            flex: 1;
+        }
+
+        .hidden {
+            display: none;
+        }
 
         /* Location filter */
         .location-filter-container {
@@ -653,12 +1056,14 @@
             flex-wrap: wrap;
             align-items: center;
         }
+
         .location-filter-label {
             font-size: 12px;
             color: #666;
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
+
         .location-filter-select {
             flex: 1;
             min-width: 150px;
@@ -669,16 +1074,33 @@
             border-radius: 6px;
             font-size: 14px;
         }
-        .location-filter-select:focus { outline: none; border-color: #555; }
-        .location-filter-select option { background: #1a1a1a; }
+
+        .location-filter-select:focus {
+            outline: none;
+            border-color: #555;
+        }
+
+        .location-filter-select option {
+            background: #1a1a1a;
+        }
 
         @media (max-width: 500px) {
-            .form-grid { grid-template-columns: 1fr; }
-            .form-grid .full { grid-column: 1; }
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .form-grid .full {
+                grid-column: 1;
+            }
         }
 
         /* Date Picker Wheel */
-        .date-input-wrapper { position: relative; display: inline-block; width: 100%; }
+        .date-input-wrapper {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+
         .date-display-btn {
             background: #111;
             border: 1px solid #333;
@@ -691,7 +1113,10 @@
             text-align: center;
             font-family: inherit;
         }
-        .date-display-btn:active { opacity: 0.8; }
+
+        .date-display-btn:active {
+            opacity: 0.8;
+        }
 
         .date-picker-modal {
             display: none;
@@ -706,10 +1131,19 @@
             justify-content: center;
             animation: fadeIn 0.2s ease-out;
         }
-        .date-picker-modal.show { display: flex; }
+
+        .date-picker-modal.show {
+            display: flex;
+        }
+
         @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
         }
 
         .date-picker-container {
@@ -780,6 +1214,7 @@
             touch-action: none;
             cursor: grab;
         }
+
         .wheel-scroller:active {
             cursor: grabbing;
         }
@@ -791,6 +1226,7 @@
             width: 100%;
             transition: transform 0.1s ease-out;
         }
+
         .wheel-items.snapping {
             transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
@@ -848,6 +1284,7 @@
             letter-spacing: 0.5px;
             transition: all 0.2s ease-out;
         }
+
         .date-picker-btn:active {
             opacity: 0.7;
             transform: scale(0.98);
@@ -859,11 +1296,13 @@
             border-color: #2563eb;
             box-shadow: 0 0 20px rgba(37, 99, 235, 0.4);
         }
+
         .date-picker-btn.confirm:active {
             box-shadow: 0 0 10px rgba(37, 99, 235, 0.3);
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="header">
@@ -917,7 +1356,9 @@
                 <div id="scanner-container"></div>
                 <div id="ticket-progress" class="ticket-progress hidden">
                     <div class="tp-text" id="ticket-status">Preparando cámara...</div>
-                    <div class="tp-bar"><div class="tp-fill" id="ticket-fill" style="width:0%"></div></div>
+                    <div class="tp-bar">
+                        <div class="tp-fill" id="ticket-fill" style="width:0%"></div>
+                    </div>
                 </div>
                 <div id="scanned-code" class="hidden"></div>
 
@@ -998,18 +1439,23 @@
             <div class="panel-header">
                 <h2>Gestionar Inventario</h2>
                 <div class="panel-header-btns">
-                    <button class="btn-save-all" id="btn-save-all" disabled onclick="saveAllChanges()">Guardar todo</button>
+                    <button class="btn-save-all" id="btn-save-all" disabled onclick="saveAllChanges()">Guardar
+                        todo</button>
                     <button class="panel-close" onclick="tryClosePanel()">Volver</button>
                 </div>
             </div>
             <div id="changes-container" class="hidden"></div>
             <!-- Filters -->
-            <div style="background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px; padding: 12px; margin-bottom: 16px;">
-                <div style="font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">Filtros</div>
+            <div
+                style="background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+                <div
+                    style="font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">
+                    Filtros</div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
                     <div class="form-group">
                         <label>Buscar por nombre</label>
-                        <input type="text" id="manage-filter-name" placeholder="Nombre..." oninput="updateManageFilter()">
+                        <input type="text" id="manage-filter-name" placeholder="Nombre..."
+                            oninput="updateManageFilter()">
                     </div>
                     <div class="form-group">
                         <label>Ubicación</label>
@@ -1049,19 +1495,7 @@
         </div>
     </div>
 
-    <!-- Modal de fecha de caducidad -->
-    <div class="date-modal-overlay" id="date-modal">
-        <div class="date-modal">
-            <h3>Fecha de caducidad</h3>
-            <div class="date-modal-content">
-                <input type="date" id="date-modal-input" placeholder="Selecciona una fecha">
-            </div>
-            <div class="date-modal-buttons">
-                <button class="date-modal-btn cancel" onclick="closeDateModal()">Cancelar</button>
-                <button class="date-modal-btn confirm" onclick="confirmDateModal()">Aceptar</button>
-            </div>
-        </div>
-    </div>
+    <!-- Modal de fecha de caducidad (reemplazado por wheel picker) -->
 
     <script>
         const API_BASE = `${window.location.pathname.replace(/\/$/, '')}/api`;
@@ -1072,7 +1506,7 @@
         let filteredLocation = null;
         let allLocations = [];
 
-        window.onload = async function() {
+        window.onload = async function () {
             await loadProducts();
         };
 
@@ -1118,7 +1552,7 @@
         }
 
         // Scanner
-        document.getElementById('start-scan').onclick = async function() {
+        document.getElementById('start-scan').onclick = async function () {
             try {
                 if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                     throw new Error('Cámara no disponible. Se requiere HTTPS.');
@@ -1139,7 +1573,7 @@
             }
         };
 
-        document.getElementById('stop-scan').onclick = function() {
+        document.getElementById('stop-scan').onclick = function () {
             if (html5QrCode) {
                 html5QrCode.stop().then(() => {
                     document.getElementById('start-scan').classList.remove('hidden');
@@ -1150,7 +1584,7 @@
         };
 
         // Ticket scanner
-        document.getElementById('start-ticket').onclick = async function() {
+        document.getElementById('start-ticket').onclick = async function () {
             try {
                 if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                     throw new Error('Cámara no disponible. Se requiere HTTPS.');
@@ -1183,7 +1617,7 @@
                 document.getElementById('start-ticket').classList.add('hidden');
                 document.getElementById('stop-scan').classList.remove('hidden');
 
-                captureBtn.onclick = async function() {
+                captureBtn.onclick = async function () {
                     // Capture frame to canvas
                     const canvas = document.createElement('canvas');
                     canvas.width = video.videoWidth;
@@ -1203,7 +1637,7 @@
 
                 // Override stop button to clean up
                 const origStop = document.getElementById('stop-scan').onclick;
-                document.getElementById('stop-scan').onclick = function() {
+                document.getElementById('stop-scan').onclick = function () {
                     stream.getTracks().forEach(t => t.stop());
                     container.innerHTML = '';
                     document.getElementById('start-scan').classList.remove('hidden');
@@ -1230,12 +1664,12 @@
             const data = imgData.data;
             for (let i = 0; i < data.length; i += 4) {
                 // Grayscale
-                const gray = data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114;
+                const gray = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
                 // Increase contrast
                 const contrast = ((gray / 255 - 0.5) * 1.8 + 0.5) * 255;
                 // Threshold to B&W
                 const bw = contrast > 140 ? 255 : 0;
-                data[i] = data[i+1] = data[i+2] = bw;
+                data[i] = data[i + 1] = data[i + 2] = bw;
             }
             ctx.putImageData(imgData, 0, 0);
 
@@ -1685,38 +2119,31 @@
             }).join('');
         }
 
-        // Date modal management
+        // Date modal management — uses wheel picker
         let dateModalCallback = null;
 
         function openDateModal(callback) {
             dateModalCallback = callback;
-            document.getElementById('date-modal-input').value = '';
-            document.getElementById('date-modal').classList.add('active');
-            document.getElementById('date-modal-input').focus();
+            // Use the wheel picker instead of native date input
+            const today = new Date();
+            pickerState.year = today.getFullYear();
+            pickerState.month = today.getMonth() + 1;
+            pickerState.day = today.getDate();
+            pickerState.inputId = '__modal__';
+            updateWheelPosition('day', pickerState.day);
+            updateWheelPosition('month', pickerState.month);
+            updateWheelPosition('year', pickerState.year);
+            updateDatePreview();
+            document.getElementById('date-picker-modal').classList.add('show');
         }
 
         function closeDateModal() {
-            document.getElementById('date-modal').classList.remove('active');
+            if (pickerState.inputId === '__modal__') {
+                document.getElementById('date-picker-modal').classList.remove('show');
+                pickerState.inputId = null;
+            }
             dateModalCallback = null;
         }
-
-        function confirmDateModal() {
-            const date = document.getElementById('date-modal-input').value || null;
-            const callback = dateModalCallback;
-            closeDateModal();
-            if (callback) {
-                callback(date);
-            }
-        }
-
-        // Allow pressing Enter to confirm date
-        document.addEventListener('DOMContentLoaded', function() {
-            document.getElementById('date-modal-input')?.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    confirmDateModal();
-                }
-            });
-        });
 
         async function batchAdd(batchId) {
             try {
@@ -1904,7 +2331,7 @@
 
         function getExpiryInfo(expiryDate) {
             if (!expiryDate) return null;
-            const today = new Date(); today.setHours(0,0,0,0);
+            const today = new Date(); today.setHours(0, 0, 0, 0);
             const expiry = new Date(expiryDate + 'T00:00:00');
             const daysLeft = Math.ceil((expiry - today) / 86400000);
             if (daysLeft < 0) return { text: 'CADUCADO', cls: 'expiry-expired' };
@@ -2364,9 +2791,9 @@
                     <div class="edit-batch-list">
                         <div style="font-size:12px;color:#666;margin-bottom:8px;font-weight:600;">Lotes (${p.batches.length})</div>
                         ${p.batches.map(b => {
-                            const exp = getExpiryInfo(b.expiry_date);
-                            const isMod = pendingBatchChanges[b.id] ? 'batch-modified' : '';
-                            return `<div class="edit-batch-row ${isMod}">
+                    const exp = getExpiryInfo(b.expiry_date);
+                    const isMod = pendingBatchChanges[b.id] ? 'batch-modified' : '';
+                    return `<div class="edit-batch-row ${isMod}">
                                 <span class="batch-qty-label">${b.quantity} ud${b.quantity > 1 ? 's' : ''}</span>
                                 <input type="date" id="edit-batch-${b.id}" value="${b.expiry_date || ''}"
                                     onchange="checkBatchChange(${b.id}, '${p.barcode}')" ${isDelete ? 'disabled' : ''}>
@@ -2374,7 +2801,7 @@
                                 <button class="btn-round add" style="width:24px;height:24px;font-size:12px;" onclick="manageBatchStock(${b.id}, '${p.barcode}', 1)" ${isDelete ? 'disabled' : ''}>+</button>
                                 <span style="font-size:11px;color:#555">${b.added_date ? 'Añadido: ' + b.added_date : ''}</span>
                             </div>`;
-                        }).join('')}
+                }).join('')}
                         <div style="margin-top:8px;padding-top:8px;border-top:1px solid #333;">
                             <div style="font-size:12px;color:#666;margin-bottom:6px;">Nuevo lote</div>
                             <div style="display:flex;gap:6px;align-items:center;">
@@ -2394,12 +2821,14 @@
                     </div>`}
                     <div class="edit-actions">
                         ${isDelete
-                            ? `<button class="btn-undo-sm" onclick="undoDelete('${p.barcode}')">Deshacer</button>`
-                            : `<button class="btn-delete-sm" onclick="markForDelete('${p.barcode}')">Eliminar</button>`
-                        }
+                        ? `<button class="btn-undo-sm" onclick="undoDelete('${p.barcode}')">Deshacer</button>`
+                        : `<button class="btn-delete-sm" onclick="markForDelete('${p.barcode}')">Eliminar</button>`
+                    }
                     </div>
                 </div>`;
             }).join('');
+            // Wrap any new date inputs with the wheel picker
+            setTimeout(wrapDateInputsWithPicker, 0);
         }
 
         // ===== Date Picker Wheel Implementation =====
@@ -2606,17 +3035,35 @@
 
         function closeDatePicker() {
             document.getElementById('date-picker-modal').classList.remove('show');
+            if (pickerState.inputId === '__modal__') {
+                dateModalCallback = null;
+            }
             pickerState.inputId = null;
         }
 
         function confirmDatePicker() {
-            if (pickerState.inputId) {
+            const dateStr = `${pickerState.year}-${String(pickerState.month).padStart(2, '0')}-${String(pickerState.day).padStart(2, '0')}`;
+            if (pickerState.inputId === '__modal__') {
+                // Called from openDateModal — invoke callback
+                const callback = dateModalCallback;
+                dateModalCallback = null;
+                document.getElementById('date-picker-modal').classList.remove('show');
+                pickerState.inputId = null;
+                if (callback) callback(dateStr);
+            } else if (pickerState.inputId) {
                 const input = document.getElementById(pickerState.inputId);
-                const dateStr = `${pickerState.year}-${String(pickerState.month).padStart(2, '0')}-${String(pickerState.day).padStart(2, '0')}`;
-                input.value = dateStr;
-                input.dispatchEvent(new Event('change', { bubbles: true }));
+                if (input) {
+                    input.value = dateStr;
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                    // Update the display button text
+                    const wrapper = input.closest('.date-input-wrapper');
+                    if (wrapper) {
+                        const btn = wrapper.querySelector('.date-display-btn');
+                        if (btn) btn.textContent = dateStr;
+                    }
+                }
+                closeDatePicker();
             }
-            closeDatePicker();
         }
 
         // Replace date inputs with picker buttons
@@ -2656,13 +3103,6 @@
 
         // Wrap inputs on initial load
         window.addEventListener('load', wrapDateInputsWithPicker);
-
-        // Also wrap when products are dynamically added
-        const originalRenderProducts = window.renderProducts;
-        window.renderProducts = function() {
-            originalRenderProducts.call(this);
-            wrapDateInputsWithPicker();
-        };
     </script>
 
     <!-- Date Picker Modal -->
@@ -2700,4 +3140,5 @@
         </div>
     </div>
 </body>
+
 </html>
