@@ -221,6 +221,7 @@
         .btn-round:active { opacity: 0.6; }
         .btn-round.add { border-color: #166534; color: #4ade80; }
         .btn-round.remove { border-color: #7f1d1d; color: #f87171; }
+        .btn-round.lost { border-color: #614c2b; color: #d4a373; }
         .btn-del {
             background: none;
             border: none;
@@ -1398,7 +1399,7 @@
             document.getElementById('manual-barcode').value = '';
         }
 
-        function onScanSuccess(decodedText) {
+        async function onScanSuccess(decodedText) {
             currentBarcode = decodedText;
             document.getElementById('scanned-code').textContent = 'Código: ' + decodedText;
             document.getElementById('scanned-code').classList.remove('hidden');
@@ -1413,14 +1414,44 @@
                 document.getElementById('existing-product-stock').textContent = `(${product.stock} uds)`;
                 renderExistingBatches(product);
             } else {
-                // New product: show full form
+                // New product: try to fetch from Open Food Facts API
                 document.getElementById('existing-product-view').classList.add('hidden');
                 document.getElementById('new-product-fields').classList.remove('hidden');
+
+                // Initialize form fields
                 document.getElementById('product-name').value = '';
                 document.getElementById('product-location').value = '';
                 document.getElementById('min-stock').value = 2;
                 document.getElementById('expiry-date').value = '';
                 document.getElementById('quantity').value = 1;
+
+                // Try to lookup barcode from Open Food Facts
+                try {
+                    const barcodeData = await apiCall(`/barcode/${currentBarcode}`, 'GET');
+                    if (barcodeData && barcodeData.found) {
+                        // Pre-fill form with data from API
+                        document.getElementById('product-name').value = barcodeData.name || '';
+
+                        // Try to match category or set a default
+                        const apiCategory = barcodeData.category ? barcodeData.category.split(',')[0].trim() : '';
+                        const categorySelect = document.getElementById('product-category');
+                        const validCategories = ['Alimentos', 'Bebidas', 'Limpieza', 'Higiene', 'Otros'];
+                        if (validCategories.includes(apiCategory)) {
+                            categorySelect.value = apiCategory;
+                        } else if (apiCategory.toLowerCase().includes('bebida')) {
+                            categorySelect.value = 'Bebidas';
+                        } else if (apiCategory.toLowerCase().includes('limpieza')) {
+                            categorySelect.value = 'Limpieza';
+                        } else if (apiCategory.toLowerCase().includes('higiene') || apiCategory.toLowerCase().includes('personal')) {
+                            categorySelect.value = 'Higiene';
+                        } else {
+                            categorySelect.value = 'Alimentos';
+                        }
+                    }
+                } catch (e) {
+                    // If lookup fails, just proceed with empty form
+                    console.log('Barcode lookup failed, proceeding with empty form');
+                }
             }
 
             if (html5QrCode && html5QrCode.isScanning) {
@@ -1649,6 +1680,17 @@
             }
         }
 
+        async function quickLost(barcode) {
+            const product = products.find(p => p.barcode === barcode);
+            if (product && product.stock > 0) {
+                try {
+                    // Mark 1 unit as lost with traceability
+                    await apiCall(`/products/${barcode}/stock`, 'POST', { quantity: -1, reason: 'lost' });
+                    await loadProducts();
+                } catch (error) { console.error('Error:', error); }
+            }
+        }
+
         // UI
         async function updateUI() {
             const stats = await loadStats();
@@ -1733,6 +1775,7 @@
                         </div>
                         <div class="product-stock">
                             <button class="btn-round remove" onclick="quickRemove('${p.barcode}')">-</button>
+                            <button class="btn-round lost" onclick="quickLost('${p.barcode}')" title="Marcar como perdida">?</button>
                             <span class="stock-num ${isLow ? 'low' : ''}">${p.stock}</span>
                             <button class="btn-round add" onclick="quickAdd('${p.barcode}')">+</button>
                             <div style="display:flex;flex-direction:column;gap:4px;">

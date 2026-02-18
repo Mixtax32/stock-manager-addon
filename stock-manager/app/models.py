@@ -30,6 +30,7 @@ class ProductCreate(BaseModel):
 class StockUpdate(BaseModel):
     quantity: int
     expiry_date: Optional[str] = None
+    reason: Optional[str] = None  # "consumed", "lost", etc.
 
 class ProductUpdate(BaseModel):
     name: Optional[str] = None
