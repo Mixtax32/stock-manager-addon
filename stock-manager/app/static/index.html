@@ -1431,20 +1431,17 @@
                         // Pre-fill form with data from API
                         document.getElementById('product-name').value = barcodeData.name || '';
 
-                        // Try to match category or set a default
-                        const apiCategory = barcodeData.category ? barcodeData.category.split(',')[0].trim() : '';
+                        // Set category from API (already mapped by backend)
+                        const apiCategory = barcodeData.category || '';
+                        console.log('API category:', apiCategory);
                         const categorySelect = document.getElementById('product-category');
                         const validCategories = ['Alimentos', 'Bebidas', 'Limpieza', 'Higiene', 'Otros'];
+
                         if (validCategories.includes(apiCategory)) {
                             categorySelect.value = apiCategory;
-                        } else if (apiCategory.toLowerCase().includes('bebida')) {
-                            categorySelect.value = 'Bebidas';
-                        } else if (apiCategory.toLowerCase().includes('limpieza')) {
-                            categorySelect.value = 'Limpieza';
-                        } else if (apiCategory.toLowerCase().includes('higiene') || apiCategory.toLowerCase().includes('personal')) {
-                            categorySelect.value = 'Higiene';
                         } else {
-                            categorySelect.value = 'Alimentos';
+                            // Fallback to 'Otros' if category not recognized
+                            categorySelect.value = 'Otros';
                         }
                     }
                 } catch (e) {
