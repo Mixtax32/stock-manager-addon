@@ -58,7 +58,10 @@ async def _search_open_product_facts(barcode: str, client: httpx.AsyncClient) ->
         url = OPENPRODUCTFACTS_API.format(barcode=barcode)
         params = {"fields": "product_name,brands,categories,image_url,quantity"}
 
+        logger.info(f"Searching Open Product Facts for {barcode}...")
         response = await client.get(url, headers=HEADERS, params=params, timeout=5.0)
+
+        logger.info(f"Open Product Facts HTTP status: {response.status_code} for {barcode}")
 
         # Don't raise for 404 - product just not found
         if response.status_code == 404:
