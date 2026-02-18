@@ -6,7 +6,6 @@ logger = logging.getLogger(__name__)
 
 OPENFOODFACTS_API = "https://world.openfoodfacts.org/api/v2/product/{barcode}.json"
 OPENPRODUCTFACTS_API = "https://world.openproductfacts.org/api/v2/product/{barcode}.json"
-EAN_SEARCH_API = "https://api.ean-search.org/json"
 
 HEADERS = {
     "User-Agent": "StockManager-HomeAssistant/1.0"
@@ -67,67 +66,6 @@ async def _search_open_product_facts(barcode: str, client: httpx.AsyncClient) ->
     return {"found": False}
 
 
-async def _search_ean_search(barcode: str, client: httpx.AsyncClient) -> Dict[str, Any]:
-    """Search in EAN-Search.org API (free, no key required)"""
-    try:
-        params = {"code": barcode, "format": "json"}
-
-        response = await client.get(EAN_SEARCH_API, params=params, timeout=5.0)
-        response.raise_for_status()
-
-        data = response.json()
-        logger.info(f"EAN Search raw response for {barcode}: {data}")
-
-        # EAN Search returns productlist, not products
-        products = data.get("productlist", [])
-        logger.info(f"EAN Search productlist length: {len(products)}")
-
-        if products and len(products) > 0:
-            product = products[0]
-            logger.info(f"EAN Search product details: {product}")
-
-            # Extract manufacturer/brand info
-            brand = ""
-            manufacturer = product.get("manufacturer")
-            if manufacturer:
-                if isinstance(manufacturer, dict) and "titles" in manufacturer:
-                    brand = manufacturer["titles"][0] if manufacturer["titles"] else ""
-                elif isinstance(manufacturer, str):
-                    brand = manufacturer
-
-            # Extract category info
-            category = product.get("categoryName", "")
-            if not category and "categories" in product:
-                categories = product.get("categories", [])
-                if categories and len(categories) > 0:
-                    category = categories[0].get("title", "")
-
-            # Extract image
-            image_url = ""
-            images = product.get("images", [])
-            if images and len(images) > 0:
-                image_url = images[0]
-
-            # Extract name - this is critical
-            name = product.get("name", "")
-            logger.info(f"Extracted data - Name: '{name}', Brand: '{brand}', Category: '{category}'")
-
-            return {
-                "found": True,
-                "name": name,
-                "brand": brand,
-                "category": category,
-                "image_url": image_url,
-                "quantity": product.get("size", "") or product.get("quantity", ""),
-                "source": "EAN Search"
-            }
-        else:
-            logger.info(f"EAN Search: No products found for {barcode}")
-    except Exception as e:
-        logger.error(f"EAN Search lookup failed for {barcode}: {e}", exc_info=True)
-
-    return {"found": False}
-
 
 async def get_product_from_barcode(barcode: str) -> Dict[str, Any]:
     """
@@ -136,7 +74,6 @@ async def get_product_from_barcode(barcode: str) -> Dict[str, Any]:
     Tries in order:
     1. Open Food Facts (best for food)
     2. Open Product Facts (for non-food products)
-    3. EAN Search (general free database)
 
     Returns:
         A dict with 'found': true and product data if found, or 'found': false if not found.
@@ -151,11 +88,6 @@ async def get_product_from_barcode(barcode: str) -> Dict[str, Any]:
 
             # Try Open Product Facts (better for non-food items)
             result = await _search_open_product_facts(barcode, client)
-            if result["found"]:
-                return result
-
-            # Try EAN Search as last resort (free, general database)
-            result = await _search_ean_search(barcode, client)
             if result["found"]:
                 return result
 
