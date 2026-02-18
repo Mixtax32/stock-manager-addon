@@ -29,7 +29,6 @@ RUN chmod a+x /run.sh
 LABEL \
     io.hass.name="Stock Manager" \
     io.hass.description="Sistema de gestión de inventario doméstico" \
-    io.hass.type="addon" \
-    io.hass.version="0.4.0"
+    io.hass.type="addon"
 
 CMD [ "/run.sh" ]
