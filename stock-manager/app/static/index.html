@@ -1445,12 +1445,15 @@
                 // Try to lookup barcode from Open Food Facts
                 try {
                     const barcodeData = await apiCall(`/barcode/${currentBarcode}`, 'GET');
+                    console.log('Barcode data received:', barcodeData);
                     if (barcodeData && barcodeData.found) {
                         // Pre-fill form with data from API
+                        console.log('Product name:', barcodeData.name, 'Category:', barcodeData.category);
                         document.getElementById('product-name').value = barcodeData.name || '';
 
                         // Try to match category or set a default
                         const apiCategory = barcodeData.category ? barcodeData.category.split(',')[0].trim() : '';
+                        console.log('Parsed category:', apiCategory);
                         const categorySelect = document.getElementById('product-category');
                         const validCategories = ['Alimentos', 'Bebidas', 'Limpieza', 'Higiene', 'Otros'];
                         if (validCategories.includes(apiCategory)) {
@@ -1464,9 +1467,12 @@
                         } else {
                             categorySelect.value = 'Alimentos';
                         }
+                    } else {
+                        console.log('Barcode not found in API');
                     }
                 } catch (e) {
                     // If lookup fails, just proceed with empty form
+                    console.error('Barcode lookup error:', e);
                     console.log('Barcode lookup failed, proceeding with empty form');
                 }
                 // Remove loading message
