@@ -676,6 +676,192 @@
             .form-grid { grid-template-columns: 1fr; }
             .form-grid .full { grid-column: 1; }
         }
+
+        /* Date Picker Wheel */
+        .date-input-wrapper { position: relative; display: inline-block; width: 100%; }
+        .date-display-btn {
+            background: #111;
+            border: 1px solid #333;
+            color: #fff;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 13px;
+            cursor: pointer;
+            width: 100%;
+            text-align: center;
+            font-family: inherit;
+        }
+        .date-display-btn:active { opacity: 0.8; }
+
+        .date-picker-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.2s ease-out;
+        }
+        .date-picker-modal.show { display: flex; }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .date-picker-container {
+            background: linear-gradient(135deg, #0f172a 0%, #1a1a2e 100%);
+            border: 2px solid #2563eb;
+            border-radius: 20px;
+            padding: 24px;
+            width: 90%;
+            max-width: 360px;
+            box-shadow: 0 20px 60px rgba(37, 99, 235, 0.2), 0 0 30px rgba(37, 99, 235, 0.1);
+        }
+
+        .date-picker-title {
+            color: #2563eb;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-weight: 700;
+        }
+
+        .date-picker-preview {
+            background: rgba(37, 99, 235, 0.15);
+            border: 1px solid #2563eb;
+            border-radius: 12px;
+            padding: 14px;
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 20px;
+            font-weight: 700;
+            color: #2563eb;
+            letter-spacing: 0.5px;
+        }
+
+        .date-picker-wheels {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .picker-wheel {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex: 1;
+            max-width: 90px;
+        }
+
+        .picker-label {
+            color: #888;
+            font-size: 11px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        .wheel-scroller {
+            position: relative;
+            height: 160px;
+            width: 100%;
+            background: rgba(37, 99, 235, 0.05);
+            border: 2px solid #2563eb;
+            border-radius: 12px;
+            overflow: hidden;
+            touch-action: none;
+            cursor: grab;
+        }
+        .wheel-scroller:active {
+            cursor: grabbing;
+        }
+
+        .wheel-items {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            width: 100%;
+            transition: transform 0.1s ease-out;
+        }
+        .wheel-items.snapping {
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .wheel-item {
+            flex: 0 0 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #555;
+            font-size: 15px;
+            font-weight: 500;
+            user-select: none;
+            transition: all 0.15s ease-out;
+        }
+
+        .wheel-item.active {
+            color: #fff;
+            font-weight: 700;
+            font-size: 18px;
+            text-shadow: 0 0 10px rgba(37, 99, 235, 0.6);
+        }
+
+        .wheel-highlight {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 32px;
+            transform: translateY(-50%);
+            border-top: 2px solid #2563eb;
+            border-bottom: 2px solid #2563eb;
+            background: linear-gradient(to right, rgba(37, 99, 235, 0.2), rgba(37, 99, 235, 0.3), rgba(37, 99, 235, 0.2));
+            pointer-events: none;
+            box-shadow: inset 0 0 20px rgba(37, 99, 235, 0.15);
+        }
+
+        .date-picker-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+        }
+
+        .date-picker-btn {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #333;
+            background: rgba(20, 20, 30, 0.8);
+            color: #888;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            transition: all 0.2s ease-out;
+        }
+        .date-picker-btn:active {
+            opacity: 0.7;
+            transform: scale(0.98);
+        }
+
+        .date-picker-btn.confirm {
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            color: #fff;
+            border-color: #2563eb;
+            box-shadow: 0 0 20px rgba(37, 99, 235, 0.4);
+        }
+        .date-picker-btn.confirm:active {
+            box-shadow: 0 0 10px rgba(37, 99, 235, 0.3);
+        }
     </style>
 </head>
 <body>
@@ -1399,10 +1585,25 @@
         }
 
         async function onScanSuccess(decodedText) {
+            // Stop camera immediately to prevent duplicate detections
+            if (html5QrCode && html5QrCode.isScanning) {
+                await html5QrCode.stop();
+                document.getElementById('start-scan').classList.remove('hidden');
+                document.getElementById('start-ticket').classList.remove('hidden');
+                document.getElementById('stop-scan').classList.add('hidden');
+            }
+
             currentBarcode = decodedText;
             document.getElementById('scanned-code').textContent = 'Código: ' + decodedText;
             document.getElementById('scanned-code').classList.remove('hidden');
             document.getElementById('product-action').classList.remove('hidden');
+
+            // Show loading message while processing
+            const loadingMsg = document.createElement('div');
+            loadingMsg.id = 'barcode-loading';
+            loadingMsg.style.cssText = 'color:#888;text-align:center;padding:12px 0;font-size:13px;';
+            loadingMsg.textContent = 'Cargando información del producto...';
+            document.getElementById('product-action').insertBefore(loadingMsg, document.getElementById('product-action').firstChild);
 
             const product = products.find(p => p.barcode === currentBarcode);
             if (product) {
@@ -1412,6 +1613,9 @@
                 document.getElementById('existing-product-name').textContent = product.name;
                 document.getElementById('existing-product-stock').textContent = `(${product.stock} uds)`;
                 renderExistingBatches(product);
+                // Remove loading message
+                const loading = document.getElementById('barcode-loading');
+                if (loading) loading.remove();
             } else {
                 // New product: try to fetch from Open Food Facts API
                 document.getElementById('existing-product-view').classList.add('hidden');
@@ -1427,8 +1631,10 @@
                 // Try to lookup barcode from Open Food Facts
                 try {
                     const barcodeData = await apiCall(`/barcode/${currentBarcode}`, 'GET');
+                    console.log('Barcode data received:', barcodeData);
                     if (barcodeData && barcodeData.found) {
                         // Pre-fill form with data from API
+                        console.log('Product name:', barcodeData.name, 'Category:', barcodeData.category);
                         document.getElementById('product-name').value = barcodeData.name || '';
 
                         // Set category from API (already mapped by backend)
@@ -1443,19 +1649,17 @@
                             // Fallback to 'Otros' if category not recognized
                             categorySelect.value = 'Otros';
                         }
+                    } else {
+                        console.log('Barcode not found in API');
                     }
                 } catch (e) {
                     // If lookup fails, just proceed with empty form
+                    console.error('Barcode lookup error:', e);
                     console.log('Barcode lookup failed, proceeding with empty form');
                 }
-            }
-
-            if (html5QrCode && html5QrCode.isScanning) {
-                html5QrCode.stop().then(() => {
-                    document.getElementById('start-scan').classList.remove('hidden');
-                    document.getElementById('start-ticket').classList.remove('hidden');
-                    document.getElementById('stop-scan').classList.add('hidden');
-                });
+                // Remove loading message
+                const loading = document.getElementById('barcode-loading');
+                if (loading) loading.remove();
             }
         }
 
@@ -2197,6 +2401,303 @@
                 </div>`;
             }).join('');
         }
+
+        // ===== Date Picker Wheel Implementation =====
+        let pickerState = {
+            inputId: null,
+            year: new Date().getFullYear(),
+            month: new Date().getMonth() + 1,
+            day: new Date().getDate(),
+            touchStartY: {},
+            scrollOffset: {}
+        };
+
+        const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+        function initializeDatePicker() {
+            initializeWheel('day', 1, 31);
+            initializeWheel('month', 1, 12);
+            initializeWheel('year', new Date().getFullYear() - 5, new Date().getFullYear() + 10);
+            updateWheelPosition('day', pickerState.day);
+            updateWheelPosition('month', pickerState.month);
+            updateWheelPosition('year', pickerState.year);
+        }
+
+        function initializeWheel(type, min, max) {
+            const container = document.getElementById(`${type}-items`);
+            container.innerHTML = '';
+            for (let i = min; i <= max; i++) {
+                const item = document.createElement('div');
+                item.className = 'wheel-item';
+                if (type === 'month') {
+                    item.textContent = MONTHS[i - 1];
+                } else {
+                    item.textContent = String(i).padStart(2, '0');
+                }
+                item.dataset.value = i;
+                container.appendChild(item);
+            }
+            setupWheelScroller(type);
+        }
+
+        function setupWheelScroller(type) {
+            const scroller = document.getElementById(`${type}-wheel`);
+            const items = document.getElementById(`${type}-items`);
+            let startY = 0;
+            let currentOffset = 0;
+            let velocity = 0;
+            let lastY = 0;
+            let lastTime = 0;
+
+            function startDrag(y) {
+                startY = y;
+                lastY = y;
+                lastTime = Date.now();
+                currentOffset = pickerState.scrollOffset[type] || 0;
+                items.classList.remove('snapping');
+            }
+
+            function moveDrag(y) {
+                const now = Date.now();
+                const moveY = y - startY;
+                const newOffset = currentOffset + moveY;
+                pickerState.scrollOffset[type] = newOffset;
+                updateWheelScroll(type, newOffset);
+
+                // Calculate velocity for momentum
+                const timeDelta = now - lastTime;
+                if (timeDelta > 0) {
+                    velocity = (y - lastY) / timeDelta;
+                }
+                lastY = y;
+                lastTime = now;
+            }
+
+            function endDrag() {
+                items.classList.add('snapping');
+                // Apply momentum
+                if (Math.abs(velocity) > 0.5) {
+                    let currentPos = pickerState.scrollOffset[type];
+                    const friction = 0.95;
+                    const animate = () => {
+                        velocity *= friction;
+                        currentPos += velocity * 16; // 16ms per frame
+                        pickerState.scrollOffset[type] = currentPos;
+                        updateWheelScroll(type, currentPos);
+                        if (Math.abs(velocity) > 0.1) {
+                            requestAnimationFrame(animate);
+                        } else {
+                            snapToNearestValue(type);
+                        }
+                    };
+                    animate();
+                } else {
+                    snapToNearestValue(type);
+                }
+            }
+
+            scroller.addEventListener('touchstart', (e) => {
+                startDrag(e.touches[0].clientY);
+            });
+
+            scroller.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                moveDrag(e.touches[0].clientY);
+            });
+
+            scroller.addEventListener('touchend', endDrag);
+
+            // Mouse support for desktop testing
+            scroller.addEventListener('mousedown', (e) => {
+                startDrag(e.clientY);
+
+                const handleMouseMove = (moveE) => {
+                    moveDrag(moveE.clientY);
+                };
+
+                const handleMouseUp = () => {
+                    document.removeEventListener('mousemove', handleMouseMove);
+                    document.removeEventListener('mouseup', handleMouseUp);
+                    endDrag();
+                };
+
+                document.addEventListener('mousemove', handleMouseMove);
+                document.addEventListener('mouseup', handleMouseUp);
+            });
+        }
+
+        function updateWheelScroll(type, offset) {
+            const items = document.getElementById(`${type}-items`);
+            items.style.transform = `translateY(${offset}px)`;
+        }
+
+        function snapToNearestValue(type) {
+            const items = document.getElementById(`${type}-items`);
+            const children = items.querySelectorAll('.wheel-item');
+            let closestItem = children[0];
+            let closestDistance = Math.abs(-32);
+
+            children.forEach((item, index) => {
+                const offset = -index * 32;
+                const distance = Math.abs(pickerState.scrollOffset[type] - offset);
+                if (distance < closestDistance) {
+                    closestDistance = distance;
+                    closestItem = item;
+                }
+            });
+
+            const value = parseInt(closestItem.dataset.value);
+            updateWheelPosition(type, value);
+            updateDatePreview();
+        }
+
+        function updateWheelPosition(type, value) {
+            const items = document.getElementById(`${type}-items`);
+            const children = items.querySelectorAll('.wheel-item');
+            const index = Array.from(children).findIndex(item => parseInt(item.dataset.value) === value);
+
+            if (index !== -1) {
+                const offset = -index * 32;
+                pickerState.scrollOffset[type] = offset;
+                items.style.transform = `translateY(${offset}px)`;
+
+                children.forEach((item, i) => {
+                    item.classList.toggle('active', i === index);
+                });
+
+                pickerState[type] = value;
+                updateDatePreview();
+            }
+        }
+
+        function updateDatePreview() {
+            const preview = document.getElementById('date-preview');
+            if (preview) {
+                const day = String(pickerState.day).padStart(2, '0');
+                const month = MONTHS[pickerState.month - 1] || String(pickerState.month).padStart(2, '0');
+                const year = pickerState.year;
+                preview.textContent = `${day} ${month} ${year}`;
+            }
+        }
+
+        function openDatePicker(inputId) {
+            const input = document.getElementById(inputId);
+            pickerState.inputId = inputId;
+
+            if (input.value) {
+                const [year, month, day] = input.value.split('-').map(Number);
+                pickerState.year = year;
+                pickerState.month = month;
+                pickerState.day = day;
+            } else {
+                const today = new Date();
+                pickerState.year = today.getFullYear();
+                pickerState.month = today.getMonth() + 1;
+                pickerState.day = today.getDate();
+            }
+
+            updateWheelPosition('day', pickerState.day);
+            updateWheelPosition('month', pickerState.month);
+            updateWheelPosition('year', pickerState.year);
+            updateDatePreview();
+
+            document.getElementById('date-picker-modal').classList.add('show');
+        }
+
+        function closeDatePicker() {
+            document.getElementById('date-picker-modal').classList.remove('show');
+            pickerState.inputId = null;
+        }
+
+        function confirmDatePicker() {
+            if (pickerState.inputId) {
+                const input = document.getElementById(pickerState.inputId);
+                const dateStr = `${pickerState.year}-${String(pickerState.month).padStart(2, '0')}-${String(pickerState.day).padStart(2, '0')}`;
+                input.value = dateStr;
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            closeDatePicker();
+        }
+
+        // Replace date inputs with picker buttons
+        function wrapDateInputsWithPicker() {
+            const dateInputs = document.querySelectorAll('input[type="date"]');
+            dateInputs.forEach(input => {
+                if (input.parentElement.classList.contains('date-input-wrapper')) return;
+
+                const wrapper = document.createElement('div');
+                wrapper.className = 'date-input-wrapper';
+                const btn = document.createElement('button');
+                btn.className = 'date-display-btn';
+                btn.type = 'button';
+                btn.textContent = input.value ? input.value : 'Hoy';
+                btn.onclick = () => openDatePicker(input.id);
+
+                input.style.display = 'none';
+                input.id = input.id || `date-${Math.random().toString(36).substr(2, 9)}`;
+
+                const updateBtn = () => {
+                    btn.textContent = input.value ? input.value : 'Hoy';
+                };
+
+                input.addEventListener('change', updateBtn);
+
+                wrapper.appendChild(btn);
+                wrapper.appendChild(input);
+                input.parentElement.insertBefore(wrapper, input);
+                wrapper.appendChild(input);
+            });
+        }
+
+        // Initialize picker on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(initializeDatePicker, 100);
+        });
+
+        // Wrap inputs on initial load
+        window.addEventListener('load', wrapDateInputsWithPicker);
+
+        // Also wrap when products are dynamically added
+        const originalRenderProducts = window.renderProducts;
+        window.renderProducts = function() {
+            originalRenderProducts.call(this);
+            wrapDateInputsWithPicker();
+        };
     </script>
+
+    <!-- Date Picker Modal -->
+    <div id="date-picker-modal" class="date-picker-modal">
+        <div class="date-picker-container">
+            <div class="date-picker-title">📅 Selecciona la fecha de caducidad</div>
+            <div class="date-picker-preview" id="date-preview">18 Febrero 2026</div>
+            <div class="date-picker-wheels">
+                <div class="picker-wheel">
+                    <div class="picker-label">Día</div>
+                    <div class="wheel-scroller" id="day-wheel">
+                        <div class="wheel-highlight"></div>
+                        <div class="wheel-items" id="day-items"></div>
+                    </div>
+                </div>
+                <div class="picker-wheel">
+                    <div class="picker-label">Mes</div>
+                    <div class="wheel-scroller" id="month-wheel">
+                        <div class="wheel-highlight"></div>
+                        <div class="wheel-items" id="month-items"></div>
+                    </div>
+                </div>
+                <div class="picker-wheel">
+                    <div class="picker-label">Año</div>
+                    <div class="wheel-scroller" id="year-wheel">
+                        <div class="wheel-highlight"></div>
+                        <div class="wheel-items" id="year-items"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="date-picker-buttons">
+                <button class="date-picker-btn" onclick="closeDatePicker()">Cancelar</button>
+                <button class="date-picker-btn confirm" onclick="confirmDatePicker()">Aceptar</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
