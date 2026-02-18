@@ -76,19 +76,48 @@ async def _search_ean_search(barcode: str, client: httpx.AsyncClient) -> Dict[st
         response.raise_for_status()
 
         data = response.json()
-        if data.get("products") and len(data["products"]) > 0:
-            product = data["products"][0]
+
+        # EAN Search returns productlist, not products
+        products = data.get("productlist", [])
+        if products and len(products) > 0:
+            product = products[0]
+            logger.debug(f"EAN Search found product: {product}")
+
+            # Extract manufacturer/brand info
+            brand = ""
+            manufacturer = product.get("manufacturer")
+            if manufacturer:
+                if isinstance(manufacturer, dict) and "titles" in manufacturer:
+                    brand = manufacturer["titles"][0] if manufacturer["titles"] else ""
+                elif isinstance(manufacturer, str):
+                    brand = manufacturer
+
+            # Extract category info
+            category = product.get("categoryName", "")
+            if not category and "categories" in product:
+                categories = product.get("categories", [])
+                if categories and len(categories) > 0:
+                    category = categories[0].get("title", "")
+
+            # Extract image
+            image_url = ""
+            images = product.get("images", [])
+            if images and len(images) > 0:
+                image_url = images[0]
+
             return {
                 "found": True,
                 "name": product.get("name", ""),
-                "brand": product.get("brand", ""),
-                "category": product.get("category", "") or product.get("type", ""),
-                "image_url": product.get("image", ""),
-                "quantity": product.get("size", ""),
+                "brand": brand,
+                "category": category,
+                "image_url": image_url,
+                "quantity": product.get("size", "") or product.get("quantity", ""),
                 "source": "EAN Search"
             }
+        else:
+            logger.debug(f"EAN Search: No products found for {barcode}")
     except Exception as e:
-        logger.debug(f"EAN Search lookup failed for {barcode}: {e}")
+        logger.error(f"EAN Search lookup failed for {barcode}: {e}")
 
     return {"found": False}
 
