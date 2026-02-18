@@ -183,7 +183,6 @@ async def _search_open_product_facts(barcode: str, client: httpx.AsyncClient) ->
     return {"found": False}
 
 
-
 async def get_product_from_barcode(barcode: str) -> Dict[str, Any]:
     """
     Fetch product information from multiple sources with fallback.
