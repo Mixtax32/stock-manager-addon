@@ -76,12 +76,15 @@ async def _search_ean_search(barcode: str, client: httpx.AsyncClient) -> Dict[st
         response.raise_for_status()
 
         data = response.json()
+        logger.info(f"EAN Search raw response for {barcode}: {data}")
 
         # EAN Search returns productlist, not products
         products = data.get("productlist", [])
+        logger.info(f"EAN Search productlist length: {len(products)}")
+
         if products and len(products) > 0:
             product = products[0]
-            logger.debug(f"EAN Search found product: {product}")
+            logger.info(f"EAN Search product details: {product}")
 
             # Extract manufacturer/brand info
             brand = ""
@@ -105,9 +108,13 @@ async def _search_ean_search(barcode: str, client: httpx.AsyncClient) -> Dict[st
             if images and len(images) > 0:
                 image_url = images[0]
 
+            # Extract name - this is critical
+            name = product.get("name", "")
+            logger.info(f"Extracted data - Name: '{name}', Brand: '{brand}', Category: '{category}'")
+
             return {
                 "found": True,
-                "name": product.get("name", ""),
+                "name": name,
                 "brand": brand,
                 "category": category,
                 "image_url": image_url,
@@ -115,9 +122,9 @@ async def _search_ean_search(barcode: str, client: httpx.AsyncClient) -> Dict[st
                 "source": "EAN Search"
             }
         else:
-            logger.debug(f"EAN Search: No products found for {barcode}")
+            logger.info(f"EAN Search: No products found for {barcode}")
     except Exception as e:
-        logger.error(f"EAN Search lookup failed for {barcode}: {e}")
+        logger.error(f"EAN Search lookup failed for {barcode}: {e}", exc_info=True)
 
     return {"found": False}
 
