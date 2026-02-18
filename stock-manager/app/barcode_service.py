@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 
 OPENFOODFACTS_API = "https://world.openfoodfacts.org/api/v2/product/{barcode}.json"
 OPENPRODUCTFACTS_API = "https://world.openproductfacts.org/api/v2/product/{barcode}.json"
-BARCODE_LOOKUP_API = "https://api.barcodelookup.com/v3/products"
+EAN_SEARCH_API = "https://api.ean-search.org/json"
 
 HEADERS = {
     "User-Agent": "StockManager-HomeAssistant/1.0"
@@ -67,12 +67,12 @@ async def _search_open_product_facts(barcode: str, client: httpx.AsyncClient) ->
     return {"found": False}
 
 
-async def _search_barcode_lookup(barcode: str, client: httpx.AsyncClient) -> Dict[str, Any]:
-    """Search in Barcode Lookup API (free tier without key)"""
+async def _search_ean_search(barcode: str, client: httpx.AsyncClient) -> Dict[str, Any]:
+    """Search in EAN-Search.org API (free, no key required)"""
     try:
-        params = {"barcode": barcode}
+        params = {"code": barcode, "format": "json"}
 
-        response = await client.get(BARCODE_LOOKUP_API, params=params, timeout=5.0)
+        response = await client.get(EAN_SEARCH_API, params=params, timeout=5.0)
         response.raise_for_status()
 
         data = response.json()
@@ -80,15 +80,15 @@ async def _search_barcode_lookup(barcode: str, client: httpx.AsyncClient) -> Dic
             product = data["products"][0]
             return {
                 "found": True,
-                "name": product.get("title", "") or product.get("name", ""),
+                "name": product.get("name", ""),
                 "brand": product.get("brand", ""),
-                "category": product.get("category", ""),
+                "category": product.get("category", "") or product.get("type", ""),
                 "image_url": product.get("image", ""),
                 "quantity": product.get("size", ""),
-                "source": "Barcode Lookup"
+                "source": "EAN Search"
             }
     except Exception as e:
-        logger.debug(f"Barcode Lookup failed for {barcode}: {e}")
+        logger.debug(f"EAN Search lookup failed for {barcode}: {e}")
 
     return {"found": False}
 
@@ -100,7 +100,7 @@ async def get_product_from_barcode(barcode: str) -> Dict[str, Any]:
     Tries in order:
     1. Open Food Facts (best for food)
     2. Open Product Facts (for non-food products)
-    3. Barcode Lookup (general database)
+    3. EAN Search (general free database)
 
     Returns:
         A dict with 'found': true and product data if found, or 'found': false if not found.
@@ -118,8 +118,8 @@ async def get_product_from_barcode(barcode: str) -> Dict[str, Any]:
             if result["found"]:
                 return result
 
-            # Try Barcode Lookup as last resort
-            result = await _search_barcode_lookup(barcode, client)
+            # Try EAN Search as last resort (free, general database)
+            result = await _search_ean_search(barcode, client)
             if result["found"]:
                 return result
 
