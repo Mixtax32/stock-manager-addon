@@ -2977,11 +2977,17 @@
             });
 
             // Mouse wheel support
+            let wheelTimeout = null;
             scroller.addEventListener('wheel', (e) => {
                 e.preventDefault();
+
+                // Throttle wheel events to prevent skipping
+                if (wheelTimeout) return;
+                wheelTimeout = setTimeout(() => { wheelTimeout = null; }, 120);
+
                 items.classList.add('snapping');
 
-                // Determine direction and move one item (32px)
+                // Determine direction and move one item
                 const direction = e.deltaY > 0 ? -1 : 1;
                 const currentVal = pickerState[type];
                 const itemsList = Array.from(items.querySelectorAll('.wheel-item:not(.spacer)'));
