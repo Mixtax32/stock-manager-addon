@@ -1410,7 +1410,7 @@
                                 </div>
                                 <div class="form-group">
                                     <label>Cantidad</label>
-                                    <input type="number" id="new-batch-qty" value="1" min="1">
+                                    <input type="number" id="new-batch-qty" value="0" min="0">
                                 </div>
                             </div>
                             <div class="form-actions" style="margin-top: 12px;">
@@ -2105,6 +2105,8 @@
                 document.getElementById('min-stock').value = 2;
                 document.getElementById('expiry-date').value = '';
                 document.getElementById('quantity').value = 1;
+                document.getElementById('new-batch-qty').value = 0;
+                document.getElementById('new-batch-expiry').value = '';
 
                 // Try to lookup barcode from Open Food Facts
                 try {
