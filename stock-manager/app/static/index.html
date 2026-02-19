@@ -2990,8 +2990,8 @@
                 // Determine direction and steps based on deltaY magnitude
                 const direction = e.deltaY > 0 ? -1 : 1;
                 const absDelta = Math.abs(e.deltaY);
-                // Allow much bigger jumps for faster scrolling (max 12 steps)
-                const steps = absDelta > 30 ? Math.min(12, Math.ceil(absDelta / 40)) : 1;
+                // Standard notch is usually ~100. Scale jumps only for fast scrolls.
+                const steps = Math.max(1, Math.min(10, Math.floor(absDelta / 90)));
 
                 const currentVal = pickerState[type];
                 const itemsList = Array.from(items.querySelectorAll('.wheel-item:not(.spacer)'));
