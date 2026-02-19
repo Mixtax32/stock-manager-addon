@@ -44,6 +44,18 @@ class Database:
                 )
             """)
 
+            # Create movements table for tracking stock changes
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS movements (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    barcode TEXT NOT NULL,
+                    quantity_change INTEGER NOT NULL,
+                    reason TEXT DEFAULT 'consumed',
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (barcode) REFERENCES products(barcode) ON DELETE CASCADE
+                )
+            """)
+
             # Migration: create batch entries for existing products that have stock but no batches
             async with db.execute("""
                 SELECT barcode, stock, expiry_date FROM products
@@ -133,6 +145,13 @@ class Database:
             await db.commit()
         return await self.get_product(product.barcode)
 
+    async def _log_movement(self, db, barcode: str, quantity_change: int, reason: str = "consumed"):
+        """Log a stock movement for traceability"""
+        await db.execute(
+            "INSERT INTO movements (barcode, quantity_change, reason) VALUES (?, ?, ?)",
+            (barcode, quantity_change, reason)
+        )
+
     async def update_stock(self, barcode: str, update: StockUpdate) -> Optional[Product]:
         """Update product stock via batches"""
         async with aiosqlite.connect(self.db_path) as db:
@@ -157,6 +176,9 @@ class Database:
                         await db.execute("UPDATE batches SET quantity = ? WHERE id = ?", (new_qty, batch.id))
                     remaining -= consume
 
+            # Log movement with reason (default to "consumed" if not specified)
+            reason = update.reason or "consumed"
+            await self._log_movement(db, barcode, update.quantity, reason)
             await self._sync_product_stock(db, barcode)
             await db.commit()
         return await self.get_product(barcode)

@@ -9,6 +9,7 @@ from typing import List
 
 from .database import db
 from .models import Product, ProductCreate, StockUpdate, ProductUpdate, Batch, BatchUpdate, BatchStockUpdate
+from .barcode_service import get_product_from_barcode
 
 # Configure logging
 log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
@@ -21,8 +22,7 @@ logger = logging.getLogger(__name__)
 # Create FastAPI app
 app = FastAPI(
     title="Stock Manager API",
-    description="API para gestión de inventario doméstico",
-    version="0.3.9"
+    description="API para gestión de inventario doméstico"
 )
 
 # CORS configuration for Home Assistant ingress
@@ -72,6 +72,11 @@ async def get_product(barcode: str):
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     return product
+
+@app.get("/api/barcode/{barcode}")
+async def lookup_barcode(barcode: str):
+    """Lookup product from Open Food Facts API by barcode"""
+    return await get_product_from_barcode(barcode)
 
 @app.post("/api/products", response_model=Product, status_code=201)
 async def create_product(product: ProductCreate):

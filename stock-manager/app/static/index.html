@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,7 +8,11 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -31,8 +36,17 @@
             border-bottom: 1px solid #222;
             margin-bottom: 16px;
         }
-        .header h1 { font-size: 18px; color: #fff; font-weight: 600; }
-        .header small { color: #555; font-size: 12px; }
+
+        .header h1 {
+            font-size: 18px;
+            color: #fff;
+            font-weight: 600;
+        }
+
+        .header small {
+            color: #555;
+            font-size: 12px;
+        }
 
         /* Stats row */
         .stats {
@@ -40,6 +54,7 @@
             gap: 8px;
             margin-bottom: 16px;
         }
+
         .stat {
             flex: 1;
             background: #1a1a1a;
@@ -48,9 +63,23 @@
             padding: 12px;
             text-align: center;
         }
-        .stat-value { font-size: 24px; font-weight: 700; color: #fff; }
-        .stat-label { font-size: 11px; color: #666; text-transform: uppercase; margin-top: 2px; }
-        .stat.warning .stat-value { color: #f59e0b; }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            margin-top: 2px;
+        }
+
+        .stat.warning .stat-value {
+            color: #f59e0b;
+        }
 
         /* Sections */
         .section {
@@ -60,6 +89,7 @@
             margin-bottom: 12px;
             overflow: hidden;
         }
+
         .section-header {
             display: flex;
             justify-content: space-between;
@@ -68,14 +98,57 @@
             cursor: pointer;
             user-select: none;
         }
-        .section-header h2 { font-size: 14px; font-weight: 600; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; }
-        .section-header .toggle { color: #555; font-size: 12px; }
-        .section-body { padding: 0 16px 16px; }
-        .section.collapsed .section-body { display: none; }
-        .section.collapsed .toggle::after { content: 'mostrar'; }
-        .section:not(.collapsed) .toggle::after { content: 'ocultar'; }
+
+        .section-header h2 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #aaa;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .section-header .toggle {
+            color: #555;
+            font-size: 12px;
+        }
+
+        .section-body {
+            padding: 0 16px 16px;
+        }
+
+        .section.collapsed .section-body {
+            display: none;
+        }
+
+        .section.collapsed .toggle::after {
+            content: 'mostrar';
+        }
+
+        .section:not(.collapsed) .toggle::after {
+            content: 'ocultar';
+        }
 
         /* Shopping list */
+        .shopping-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .shopping-column {
+            min-width: 0;
+        }
+
+        .column-title {
+            font-size: 11px;
+            color: #555;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #222;
+            padding-bottom: 4px;
+        }
+
         .shopping-item {
             display: flex;
             justify-content: space-between;
@@ -84,17 +157,45 @@
             border-bottom: 1px solid #222;
             font-size: 14px;
         }
-        .shopping-item:last-child { border-bottom: none; }
-        .shopping-item .name { color: #e0e0e0; }
-        .shopping-item .qty { color: #f59e0b; font-weight: 600; font-size: 13px; }
-        .shopping-item .expiry-warn { color: #ef4444; font-size: 12px; }
-        .shopping-empty { color: #444; font-size: 14px; padding: 8px 0; }
+
+        .shopping-item:last-child {
+            border-bottom: none;
+        }
+
+        .shopping-item .name {
+            color: #e0e0e0;
+        }
+
+        .shopping-item .qty {
+            color: #f59e0b;
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .shopping-item .expiry-warn {
+            color: #ef4444;
+            font-size: 12px;
+        }
+
+        .shopping-empty {
+            color: #444;
+            font-size: 14px;
+            padding: 8px 0;
+        }
+
+        @media (max-width: 500px) {
+            .shopping-container {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+        }
 
         /* Scanner */
         .barcode-input {
             display: flex;
             gap: 8px;
         }
+
         .barcode-input input {
             flex: 1;
             background: #111;
@@ -104,8 +205,15 @@
             border-radius: 6px;
             font-size: 15px;
         }
-        .barcode-input input:focus { outline: none; border-color: #555; }
-        .barcode-input input::placeholder { color: #444; }
+
+        .barcode-input input:focus {
+            outline: none;
+            border-color: #555;
+        }
+
+        .barcode-input input::placeholder {
+            color: #444;
+        }
 
         .camera-row {
             display: flex;
@@ -119,6 +227,9 @@
             margin: 12px auto;
             border-radius: 8px;
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
 
         /* Buttons */
@@ -131,21 +242,50 @@
             cursor: pointer;
             transition: opacity 0.2s;
         }
-        .btn:active { opacity: 0.7; }
-        .btn-primary { background: #333; color: #fff; }
-        .btn-add { background: #166534; color: #4ade80; }
-        .btn-remove { background: #7f1d1d; color: #f87171; }
+
+        .btn:active {
+            opacity: 0.7;
+        }
+
+        .btn-primary {
+            background: #333;
+            color: #fff;
+        }
+
+        .btn-add {
+            background: #166534;
+            color: #4ade80;
+        }
+
+        .btn-remove {
+            background: #7f1d1d;
+            color: #f87171;
+        }
 
         /* Product form */
-        #product-action { margin-top: 12px; }
+        #product-action {
+            margin-top: 12px;
+        }
+
         .form-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 10px;
         }
-        .form-grid .full { grid-column: 1 / -1; }
-        .form-group label { display: block; font-size: 12px; color: #666; margin-bottom: 4px; }
-        .form-group input, .form-group select {
+
+        .form-grid .full {
+            grid-column: 1 / -1;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+
+        .form-group input,
+        .form-group select {
             width: 100%;
             background: #111;
             border: 1px solid #333;
@@ -154,14 +294,26 @@
             border-radius: 6px;
             font-size: 14px;
         }
-        .form-group input:focus, .form-group select:focus { outline: none; border-color: #555; }
-        .form-group select option { background: #1a1a1a; }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #555;
+        }
+
+        .form-group select option {
+            background: #1a1a1a;
+        }
+
         .form-actions {
             display: flex;
             gap: 8px;
             margin-top: 10px;
         }
-        .form-actions .btn { flex: 1; }
+
+        .form-actions .btn {
+            flex: 1;
+        }
 
         #scanned-code {
             background: #1a2e1a;
@@ -180,22 +332,42 @@
             padding: 10px 0;
             border-bottom: 1px solid #222;
         }
-        .product-row:last-child { border-bottom: none; }
+
+        .product-row:last-child {
+            border-bottom: none;
+        }
+
         .product-top {
             display: flex;
             justify-content: space-between;
             align-items: center;
             gap: 8px;
         }
-        .product-main { flex: 1; min-width: 0; }
-        .product-main .name { font-size: 15px; color: #e0e0e0; font-weight: 500; }
-        .product-main .meta { font-size: 12px; color: #555; margin-top: 2px; }
+
+        .product-main {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .product-main .name {
+            font-size: 15px;
+            color: #e0e0e0;
+            font-weight: 500;
+        }
+
+        .product-main .meta {
+            font-size: 12px;
+            color: #555;
+            margin-top: 2px;
+        }
+
         .product-stock {
             display: flex;
             align-items: center;
             gap: 6px;
             flex-shrink: 0;
         }
+
         .stock-num {
             font-size: 18px;
             font-weight: 700;
@@ -203,7 +375,11 @@
             min-width: 28px;
             text-align: center;
         }
-        .stock-num.low { color: #f59e0b; }
+
+        .stock-num.low {
+            color: #f59e0b;
+        }
+
         .btn-round {
             width: 32px;
             height: 32px;
@@ -218,9 +394,26 @@
             justify-content: center;
             transition: opacity 0.2s;
         }
-        .btn-round:active { opacity: 0.6; }
-        .btn-round.add { border-color: #166534; color: #4ade80; }
-        .btn-round.remove { border-color: #7f1d1d; color: #f87171; }
+
+        .btn-round:active {
+            opacity: 0.6;
+        }
+
+        .btn-round.add {
+            border-color: #166534;
+            color: #4ade80;
+        }
+
+        .btn-round.remove {
+            border-color: #7f1d1d;
+            color: #f87171;
+        }
+
+        .btn-round.lost {
+            border-color: #614c2b;
+            color: #d4a373;
+        }
+
         .btn-del {
             background: none;
             border: none;
@@ -229,7 +422,10 @@
             font-size: 14px;
             padding: 4px;
         }
-        .btn-del:hover { color: #ef4444; }
+
+        .btn-del:hover {
+            color: #ef4444;
+        }
 
         /* Batches */
         .batch-list {
@@ -237,6 +433,7 @@
             padding-left: 8px;
             border-left: 2px solid #222;
         }
+
         .batch-row {
             font-size: 12px;
             color: #555;
@@ -244,12 +441,31 @@
             display: flex;
             gap: 8px;
         }
-        .batch-row .batch-qty { color: #888; font-weight: 600; min-width: 40px; }
-        .batch-row .expiry-ok { color: #555; }
-        .batch-row .expiry-soon { color: #f59e0b; }
-        .batch-row .expiry-expired { color: #ef4444; }
 
-        .empty-state { color: #444; font-size: 14px; padding: 12px 0; text-align: center; }
+        .batch-row .batch-qty {
+            color: #888;
+            font-weight: 600;
+            min-width: 40px;
+        }
+
+        .batch-row .expiry-ok {
+            color: #555;
+        }
+
+        .batch-row .expiry-soon {
+            color: #f59e0b;
+        }
+
+        .batch-row .expiry-expired {
+            color: #ef4444;
+        }
+
+        .empty-state {
+            color: #444;
+            font-size: 14px;
+            padding: 12px 0;
+            text-align: center;
+        }
 
         /* Management panel */
         .panel-overlay {
@@ -260,12 +476,17 @@
             z-index: 100;
             overflow-y: auto;
         }
-        .panel-overlay.active { display: block; }
+
+        .panel-overlay.active {
+            display: block;
+        }
+
         .panel {
             max-width: 800px;
             margin: 0 auto;
             padding: 16px;
         }
+
         .panel-header {
             display: flex;
             justify-content: space-between;
@@ -274,8 +495,18 @@
             border-bottom: 1px solid #222;
             margin-bottom: 16px;
         }
-        .panel-header h2 { font-size: 18px; color: #fff; font-weight: 600; }
-        .panel-header-btns { display: flex; gap: 8px; }
+
+        .panel-header h2 {
+            font-size: 18px;
+            color: #fff;
+            font-weight: 600;
+        }
+
+        .panel-header-btns {
+            display: flex;
+            gap: 8px;
+        }
+
         .panel-close {
             background: none;
             border: 1px solid #333;
@@ -285,7 +516,11 @@
             border-radius: 6px;
             cursor: pointer;
         }
-        .panel-close:active { opacity: 0.7; }
+
+        .panel-close:active {
+            opacity: 0.7;
+        }
+
         .btn-save-all {
             background: #166534;
             border: none;
@@ -296,8 +531,16 @@
             border-radius: 6px;
             cursor: pointer;
         }
-        .btn-save-all:active { opacity: 0.7; }
-        .btn-save-all:disabled { background: #1a1a1a; color: #444; cursor: default; }
+
+        .btn-save-all:active {
+            opacity: 0.7;
+        }
+
+        .btn-save-all:disabled {
+            background: #1a1a1a;
+            color: #444;
+            cursor: default;
+        }
 
         /* Changes summary */
         .changes-summary {
@@ -307,13 +550,40 @@
             padding: 12px 14px;
             margin-bottom: 14px;
         }
-        .changes-summary.has-deletes { background: #2e1a1a; border-color: #4a2d2d; }
-        .changes-title { font-size: 13px; color: #4ade80; font-weight: 600; margin-bottom: 6px; }
-        .changes-summary.has-deletes .changes-title { color: #f59e0b; }
-        .change-item { font-size: 12px; color: #aaa; padding: 2px 0; }
-        .change-item .change-type { font-weight: 600; }
-        .change-item .change-type.edit { color: #60a5fa; }
-        .change-item .change-type.delete { color: #f87171; }
+
+        .changes-summary.has-deletes {
+            background: #2e1a1a;
+            border-color: #4a2d2d;
+        }
+
+        .changes-title {
+            font-size: 13px;
+            color: #4ade80;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+        .changes-summary.has-deletes .changes-title {
+            color: #f59e0b;
+        }
+
+        .change-item {
+            font-size: 12px;
+            color: #aaa;
+            padding: 2px 0;
+        }
+
+        .change-item .change-type {
+            font-weight: 600;
+        }
+
+        .change-item .change-type.edit {
+            color: #60a5fa;
+        }
+
+        .change-item .change-type.delete {
+            color: #f87171;
+        }
 
         /* Edit cards */
         .edit-card {
@@ -324,32 +594,56 @@
             margin-bottom: 10px;
             transition: border-color 0.2s;
         }
-        .edit-card.modified { border-color: #2563eb; }
-        .edit-card.to-delete { border-color: #991b1b; opacity: 0.5; }
+
+        .edit-card.modified {
+            border-color: #2563eb;
+        }
+
+        .edit-card.to-delete {
+            border-color: #991b1b;
+            opacity: 0.5;
+        }
+
         .edit-card-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 10px;
         }
-        .edit-card-header .name { font-size: 16px; font-weight: 600; color: #fff; }
-        .edit-card-header .barcode { font-size: 12px; color: #555; }
+
+        .edit-card-header .name {
+            font-size: 16px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .edit-card-header .barcode {
+            font-size: 12px;
+            color: #555;
+        }
+
         .edit-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 8px;
         }
+
         .edit-grid .form-group input,
         .edit-grid .form-group select {
             padding: 6px 8px;
             font-size: 13px;
         }
-        .edit-grid .form-group label { font-size: 11px; }
+
+        .edit-grid .form-group label {
+            font-size: 11px;
+        }
+
         .edit-actions {
             display: flex;
             gap: 8px;
             margin-top: 10px;
         }
+
         .btn-delete-sm {
             background: #7f1d1d;
             color: #f87171;
@@ -359,6 +653,7 @@
             border-radius: 6px;
             cursor: pointer;
         }
+
         .btn-undo-sm {
             background: #333;
             color: #aaa;
@@ -368,11 +663,13 @@
             border-radius: 6px;
             cursor: pointer;
         }
+
         .edit-batch-list {
             margin-top: 8px;
             padding-left: 8px;
             border-left: 2px solid #222;
         }
+
         .edit-batch-row {
             display: flex;
             align-items: center;
@@ -381,7 +678,12 @@
             font-size: 12px;
             color: #888;
         }
-        .edit-batch-row .batch-qty-label { min-width: 40px; font-weight: 600; }
+
+        .edit-batch-row .batch-qty-label {
+            min-width: 40px;
+            font-weight: 600;
+        }
+
         .edit-batch-row input[type="date"] {
             background: #111;
             border: 1px solid #333;
@@ -390,8 +692,16 @@
             border-radius: 4px;
             font-size: 12px;
         }
-        .edit-batch-row input[type="date"]:focus { outline: none; border-color: #555; }
-        .edit-batch-row.batch-modified input[type="date"] { border-color: #2563eb; }
+
+        .edit-batch-row input[type="date"]:focus {
+            outline: none;
+            border-color: #555;
+        }
+
+        .edit-batch-row.batch-modified input[type="date"] {
+            border-color: #2563eb;
+        }
+
         .btn-manage {
             background: none;
             border: 1px solid #333;
@@ -403,7 +713,10 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
-        .btn-manage:active { opacity: 0.7; }
+
+        .btn-manage:active {
+            opacity: 0.7;
+        }
 
         /* Existing product view */
         .existing-header {
@@ -413,8 +726,19 @@
             padding: 10px 12px;
             margin-bottom: 10px;
         }
-        .existing-header #existing-product-name { color: #4ade80; font-weight: 600; font-size: 15px; }
-        .existing-header #existing-product-stock { color: #888; font-size: 13px; margin-left: 8px; }
+
+        .existing-header #existing-product-name {
+            color: #4ade80;
+            font-weight: 600;
+            font-size: 15px;
+        }
+
+        .existing-header #existing-product-stock {
+            color: #888;
+            font-size: 13px;
+            margin-left: 8px;
+        }
+
         .existing-batch-row {
             display: flex;
             align-items: center;
@@ -423,10 +747,27 @@
             border-bottom: 1px solid #222;
             font-size: 14px;
         }
-        .existing-batch-row:last-child { border-bottom: none; }
-        .existing-batch-row .eb-info { flex: 1; min-width: 0; }
-        .existing-batch-row .eb-qty { color: #fff; font-weight: 600; min-width: 40px; }
-        .existing-batch-row .eb-expiry { color: #888; font-size: 13px; }
+
+        .existing-batch-row:last-child {
+            border-bottom: none;
+        }
+
+        .existing-batch-row .eb-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .existing-batch-row .eb-qty {
+            color: #fff;
+            font-weight: 600;
+            min-width: 40px;
+        }
+
+        .existing-batch-row .eb-expiry {
+            color: #888;
+            font-size: 13px;
+        }
+
         .new-batch-row {
             display: flex;
             align-items: center;
@@ -435,7 +776,13 @@
             margin-top: 4px;
             border-top: 1px solid #333;
         }
-        .new-batch-label { color: #666; font-size: 13px; font-weight: 600; }
+
+        .new-batch-label {
+            color: #666;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
         .new-batch-row input[type="date"],
         .new-batch-row input[type="number"] {
             background: #111;
@@ -445,8 +792,12 @@
             border-radius: 6px;
             font-size: 13px;
         }
+
         .new-batch-row input[type="date"]:focus,
-        .new-batch-row input[type="number"]:focus { outline: none; border-color: #555; }
+        .new-batch-row input[type="number"]:focus {
+            outline: none;
+            border-color: #555;
+        }
 
         /* Search results */
         .search-results {
@@ -456,6 +807,7 @@
             margin-top: 6px;
             overflow: hidden;
         }
+
         .search-result-item {
             padding: 10px 12px;
             cursor: pointer;
@@ -464,11 +816,30 @@
             justify-content: space-between;
             align-items: center;
         }
-        .search-result-item:last-child { border-bottom: none; }
-        .search-result-item:active { background: #252525; }
-        .search-result-item .sr-name { color: #e0e0e0; font-size: 14px; }
-        .search-result-item .sr-meta { color: #555; font-size: 12px; }
-        .search-no-results { padding: 10px 12px; color: #555; font-size: 13px; }
+
+        .search-result-item:last-child {
+            border-bottom: none;
+        }
+
+        .search-result-item:active {
+            background: #252525;
+        }
+
+        .search-result-item .sr-name {
+            color: #e0e0e0;
+            font-size: 14px;
+        }
+
+        .search-result-item .sr-meta {
+            color: #555;
+            font-size: 12px;
+        }
+
+        .search-no-results {
+            padding: 10px 12px;
+            color: #555;
+            font-size: 13px;
+        }
 
         /* Ticket scanner */
         .ticket-progress {
@@ -479,13 +850,20 @@
             margin-top: 10px;
             text-align: center;
         }
-        .ticket-progress .tp-text { color: #888; font-size: 13px; margin-bottom: 8px; }
+
+        .ticket-progress .tp-text {
+            color: #888;
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+
         .ticket-progress .tp-bar {
             height: 4px;
             background: #222;
             border-radius: 2px;
             overflow: hidden;
         }
+
         .ticket-progress .tp-fill {
             height: 100%;
             background: #4ade80;
@@ -502,7 +880,10 @@
             z-index: 100;
             overflow-y: auto;
         }
-        .ticket-overlay.active { display: block; }
+
+        .ticket-overlay.active {
+            display: block;
+        }
 
         /* Date modal */
         .date-modal-overlay {
@@ -514,9 +895,11 @@
             justify-content: center;
             align-items: center;
         }
+
         .date-modal-overlay.active {
             display: flex;
         }
+
         .date-modal {
             background: #1a1a1a;
             border: 1px solid #2a2a2a;
@@ -526,15 +909,18 @@
             width: 90%;
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
         }
+
         .date-modal h3 {
             font-size: 16px;
             font-weight: 600;
             color: #fff;
             margin-bottom: 16px;
         }
+
         .date-modal-content {
             margin-bottom: 20px;
         }
+
         .date-modal input[type="date"] {
             width: 100%;
             background: #111;
@@ -545,15 +931,18 @@
             font-size: 14px;
             box-sizing: border-box;
         }
+
         .date-modal input[type="date"]:focus {
             outline: none;
             border-color: #555;
         }
+
         .date-modal-buttons {
             display: flex;
             gap: 8px;
             justify-content: flex-end;
         }
+
         .date-modal-btn {
             padding: 8px 16px;
             border-radius: 6px;
@@ -562,25 +951,31 @@
             font-weight: 500;
             cursor: pointer;
         }
+
         .date-modal-btn.confirm {
             background: #166534;
             color: #4ade80;
         }
+
         .date-modal-btn.confirm:active {
             opacity: 0.8;
         }
+
         .date-modal-btn.cancel {
             background: #333;
             color: #aaa;
         }
+
         .date-modal-btn.cancel:active {
             opacity: 0.8;
         }
+
         .ticket-panel {
             max-width: 800px;
             margin: 0 auto;
             padding: 16px;
         }
+
         .ticket-header {
             display: flex;
             justify-content: space-between;
@@ -589,7 +984,13 @@
             border-bottom: 1px solid #222;
             margin-bottom: 16px;
         }
-        .ticket-header h2 { font-size: 18px; color: #fff; font-weight: 600; }
+
+        .ticket-header h2 {
+            font-size: 18px;
+            color: #fff;
+            font-weight: 600;
+        }
+
         .ticket-section-title {
             font-size: 13px;
             color: #4ade80;
@@ -599,7 +1000,11 @@
             padding: 8px 0;
             margin-top: 8px;
         }
-        .ticket-section-title.unmatched { color: #f59e0b; }
+
+        .ticket-section-title.unmatched {
+            color: #f59e0b;
+        }
+
         .ticket-item {
             display: flex;
             align-items: center;
@@ -607,22 +1012,41 @@
             padding: 10px 0;
             border-bottom: 1px solid #222;
         }
-        .ticket-item:last-child { border-bottom: none; }
+
+        .ticket-item:last-child {
+            border-bottom: none;
+        }
+
         .ticket-item input[type="checkbox"] {
             width: 18px;
             height: 18px;
             accent-color: #4ade80;
             flex-shrink: 0;
         }
-        .ticket-item .ti-info { flex: 1; min-width: 0; }
-        .ticket-item .ti-line { font-size: 13px; color: #888; }
-        .ticket-item .ti-match { font-size: 14px; color: #e0e0e0; font-weight: 500; }
+
+        .ticket-item .ti-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .ticket-item .ti-line {
+            font-size: 13px;
+            color: #888;
+        }
+
+        .ticket-item .ti-match {
+            font-size: 14px;
+            color: #e0e0e0;
+            font-weight: 500;
+        }
+
         .ticket-item .ti-qty {
             display: flex;
             align-items: center;
             gap: 4px;
             flex-shrink: 0;
         }
+
         .ticket-item .ti-qty input {
             width: 45px;
             background: #111;
@@ -633,7 +1057,12 @@
             font-size: 13px;
             text-align: center;
         }
-        .ticket-item .ti-qty label { font-size: 11px; color: #666; }
+
+        .ticket-item .ti-qty label {
+            font-size: 11px;
+            color: #666;
+        }
+
         .ticket-actions {
             display: flex;
             gap: 8px;
@@ -641,9 +1070,14 @@
             padding-top: 16px;
             border-top: 1px solid #222;
         }
-        .ticket-actions .btn { flex: 1; }
 
-        .hidden { display: none; }
+        .ticket-actions .btn {
+            flex: 1;
+        }
+
+        .hidden {
+            display: none;
+        }
 
         /* Location filter */
         .location-filter-container {
@@ -652,12 +1086,14 @@
             flex-wrap: wrap;
             align-items: center;
         }
+
         .location-filter-label {
             font-size: 12px;
             color: #666;
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
+
         .location-filter-select {
             flex: 1;
             min-width: 150px;
@@ -668,46 +1104,265 @@
             border-radius: 6px;
             font-size: 14px;
         }
-        .location-filter-select:focus { outline: none; border-color: #555; }
-        .location-filter-select option { background: #1a1a1a; }
+
+        .location-filter-select:focus {
+            outline: none;
+            border-color: #555;
+        }
+
+        .location-filter-select option {
+            background: #1a1a1a;
+        }
 
         @media (max-width: 500px) {
-            .form-grid { grid-template-columns: 1fr; }
-            .form-grid .full { grid-column: 1; }
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .form-grid .full {
+                grid-column: 1;
+            }
+        }
+
+        /* Date Picker Wheel */
+        .date-input-wrapper {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+
+        .date-display-btn {
+            background: #111;
+            border: 1px solid #333;
+            color: #fff;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 13px;
+            cursor: pointer;
+            width: 100%;
+            text-align: center;
+            font-family: inherit;
+        }
+
+        .date-display-btn:active {
+            opacity: 0.8;
+        }
+
+        .date-picker-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.2s ease-out;
+        }
+
+        .date-picker-modal.show {
+            display: flex;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        .date-picker-container {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 12px;
+            padding: 20px;
+            width: 90%;
+            max-width: 340px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+        }
+
+        .date-picker-title {
+            color: #555;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 14px;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .date-picker-preview {
+            background: #111;
+            border: 1px solid #2a2a2a;
+            border-radius: 8px;
+            padding: 10px 14px;
+            text-align: center;
+            margin-bottom: 16px;
+            font-size: 17px;
+            font-weight: 600;
+            color: #e0e0e0;
+            letter-spacing: 0.3px;
+        }
+
+        .date-picker-wheels {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .picker-wheel {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex: 1;
+            max-width: 90px;
+        }
+
+        .picker-label {
+            color: #888;
+            font-size: 11px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        .wheel-scroller {
+            position: relative;
+            height: 160px;
+            width: 100%;
+            background: #111;
+            border: 1px solid #2a2a2a;
+            border-radius: 8px;
+            overflow: hidden;
+            touch-action: none;
+            cursor: grab;
+        }
+
+        .wheel-scroller:active {
+            cursor: grabbing;
+        }
+
+        .wheel-items {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            transition: transform 0.1s ease-out;
+        }
+
+        .wheel-items.snapping {
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .wheel-item {
+            flex: 0 0 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #555;
+            font-size: 15px;
+            font-weight: 500;
+            user-select: none;
+            transition: all 0.15s ease-out;
+        }
+
+        .wheel-item.active {
+            color: #e0e0e0;
+            font-weight: 700;
+            font-size: 17px;
+        }
+
+        .wheel-highlight {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 32px;
+            transform: translateY(-50%);
+            border-top: 1px solid #444;
+            border-bottom: 1px solid #444;
+            background: rgba(255, 255, 255, 0.05);
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        .wheel-scroller::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to bottom,
+                    #111 0%,
+                    rgba(17, 17, 17, 0) 25%,
+                    rgba(17, 17, 17, 0) 75%,
+                    #111 100%);
+            pointer-events: none;
+            z-index: 3;
+        }
+
+        .wheel-item.spacer {
+            height: 32px;
+            pointer-events: none;
+        }
+
+        .date-picker-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .date-picker-btn {
+            flex: 1;
+            padding: 10px 16px;
+            border: 1px solid #333;
+            background: #222;
+            color: #888;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .date-picker-btn:active {
+            opacity: 0.7;
+        }
+
+        .date-picker-btn.confirm {
+            background: #166534;
+            color: #4ade80;
+            border-color: #166534;
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="header">
             <h1>Stock Manager</h1>
-            <small>v0.3.8</small>
         </div>
 
-        <!-- Stats -->
-        <div class="stats">
-            <div class="stat">
-                <div class="stat-value" id="total-products">0</div>
-                <div class="stat-label">Productos</div>
-            </div>
-            <div class="stat">
-                <div class="stat-value" id="total-items">0</div>
-                <div class="stat-label">Unidades</div>
-            </div>
-            <div class="stat warning">
-                <div class="stat-value" id="low-stock-count">0</div>
-                <div class="stat-label">Faltan</div>
-            </div>
-        </div>
-
-        <!-- Necesitas comprar -->
+        <!-- Estado del Stock -->
         <div class="section" id="shopping-section">
             <div class="section-header" onclick="toggleSection('shopping-section')">
-                <h2>Lista de la compra</h2>
+                <h2>Estado del Stock</h2>
                 <span class="toggle"></span>
             </div>
             <div class="section-body">
-                <div id="shopping-list"></div>
+                <div class="shopping-container">
+                    <div class="shopping-column">
+                        <h3 class="column-title">Caduca pronto</h3>
+                        <div id="expiring-soon-list"></div>
+                    </div>
+                    <div class="shopping-column">
+                        <h3 class="column-title">Lista de la compra</h3>
+                        <div id="shopping-list"></div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -731,23 +1386,40 @@
                 <div id="scanner-container"></div>
                 <div id="ticket-progress" class="ticket-progress hidden">
                     <div class="tp-text" id="ticket-status">Preparando cámara...</div>
-                    <div class="tp-bar"><div class="tp-fill" id="ticket-fill" style="width:0%"></div></div>
+                    <div class="tp-bar">
+                        <div class="tp-fill" id="ticket-fill" style="width:0%"></div>
+                    </div>
                 </div>
                 <div id="scanned-code" class="hidden"></div>
 
                 <div id="product-action" class="hidden">
-                    <!-- Existing product: batch-level controls -->
+                    <!-- Existing product: informative batches + new independent add form -->
                     <div id="existing-product-view" class="hidden">
                         <div class="existing-header">
                             <span id="existing-product-name"></span>
                             <span id="existing-product-stock"></span>
                         </div>
                         <div id="existing-batches"></div>
-                        <div class="new-batch-row">
-                            <span class="new-batch-label">Nuevo lote</span>
-                            <input type="date" id="new-batch-expiry">
-                            <input type="number" id="new-batch-qty" value="1" min="1" style="width:50px;">
-                            <button class="btn-round add" onclick="addNewBatch()">+</button>
+
+                        <div
+                            style="background: #222; padding: 12px; border-radius: 8px; border: 1px solid #333; margin-top: 15px;">
+                            <div
+                                style="font-size: 11px; color: #666; text-transform: uppercase; margin-bottom: 10px; font-weight: 700;">
+                                Añadir nuevas unidades</div>
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>Fecha caducidad</label>
+                                    <input type="date" id="new-batch-expiry">
+                                </div>
+                                <div class="form-group">
+                                    <label>Cantidad</label>
+                                    <input type="number" id="new-batch-qty" value="0" min="0">
+                                </div>
+                            </div>
+                            <div class="form-actions" style="margin-top: 12px;">
+                                <button class="btn btn-add" onclick="addNewBatch()">Aceptar</button>
+                                <button class="btn btn-primary" onclick="resetScanner()">Cancelar</button>
+                            </div>
                         </div>
                     </div>
                     <!-- New product: full form -->
@@ -812,18 +1484,23 @@
             <div class="panel-header">
                 <h2>Gestionar Inventario</h2>
                 <div class="panel-header-btns">
-                    <button class="btn-save-all" id="btn-save-all" disabled onclick="saveAllChanges()">Guardar todo</button>
+                    <button class="btn-save-all" id="btn-save-all" disabled onclick="saveAllChanges()">Guardar
+                        todo</button>
                     <button class="panel-close" onclick="tryClosePanel()">Volver</button>
                 </div>
             </div>
             <div id="changes-container" class="hidden"></div>
             <!-- Filters -->
-            <div style="background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px; padding: 12px; margin-bottom: 16px;">
-                <div style="font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">Filtros</div>
+            <div
+                style="background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+                <div
+                    style="font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">
+                    Filtros</div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
                     <div class="form-group">
                         <label>Buscar por nombre</label>
-                        <input type="text" id="manage-filter-name" placeholder="Nombre..." oninput="updateManageFilter()">
+                        <input type="text" id="manage-filter-name" placeholder="Nombre..."
+                            oninput="updateManageFilter()">
                     </div>
                     <div class="form-group">
                         <label>Ubicación</label>
@@ -863,19 +1540,7 @@
         </div>
     </div>
 
-    <!-- Modal de fecha de caducidad -->
-    <div class="date-modal-overlay" id="date-modal">
-        <div class="date-modal">
-            <h3>Fecha de caducidad</h3>
-            <div class="date-modal-content">
-                <input type="date" id="date-modal-input" placeholder="Selecciona una fecha">
-            </div>
-            <div class="date-modal-buttons">
-                <button class="date-modal-btn cancel" onclick="closeDateModal()">Cancelar</button>
-                <button class="date-modal-btn confirm" onclick="confirmDateModal()">Aceptar</button>
-            </div>
-        </div>
-    </div>
+    <!-- Modal de fecha de caducidad (reemplazado por wheel picker) -->
 
     <script>
         const API_BASE = `${window.location.pathname.replace(/\/$/, '')}/api`;
@@ -885,8 +1550,9 @@
         let ticketItems = [];
         let filteredLocation = null;
         let allLocations = [];
+        let scanSessionChanges = { batches: {}, newQty: 0, newExpiry: null };
 
-        window.onload = async function() {
+        window.onload = async function () {
             await loadProducts();
         };
 
@@ -932,7 +1598,7 @@
         }
 
         // Scanner
-        document.getElementById('start-scan').onclick = async function() {
+        document.getElementById('start-scan').onclick = async function () {
             try {
                 if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                     throw new Error('Cámara no disponible. Se requiere HTTPS.');
@@ -945,6 +1611,10 @@
                     { fps: 10, qrbox: { width: 250, height: 250 } },
                     onScanSuccess
                 );
+
+                // Centrar pantalla en el escáner
+                document.getElementById('scanner-container').scrollIntoView({ behavior: 'smooth', block: 'center' });
+
                 document.getElementById('start-scan').classList.add('hidden');
                 document.getElementById('start-ticket').classList.add('hidden');
                 document.getElementById('stop-scan').classList.remove('hidden');
@@ -953,7 +1623,7 @@
             }
         };
 
-        document.getElementById('stop-scan').onclick = function() {
+        document.getElementById('stop-scan').onclick = function () {
             if (html5QrCode) {
                 html5QrCode.stop().then(() => {
                     document.getElementById('start-scan').classList.remove('hidden');
@@ -964,7 +1634,7 @@
         };
 
         // Ticket scanner
-        document.getElementById('start-ticket').onclick = async function() {
+        document.getElementById('start-ticket').onclick = async function () {
             try {
                 if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                     throw new Error('Cámara no disponible. Se requiere HTTPS.');
@@ -997,7 +1667,10 @@
                 document.getElementById('start-ticket').classList.add('hidden');
                 document.getElementById('stop-scan').classList.remove('hidden');
 
-                captureBtn.onclick = async function() {
+                // Centrar pantalla en el escáner de ticket
+                container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                captureBtn.onclick = async function () {
                     // Capture frame to canvas
                     const canvas = document.createElement('canvas');
                     canvas.width = video.videoWidth;
@@ -1017,7 +1690,7 @@
 
                 // Override stop button to clean up
                 const origStop = document.getElementById('stop-scan').onclick;
-                document.getElementById('stop-scan').onclick = function() {
+                document.getElementById('stop-scan').onclick = function () {
                     stream.getTracks().forEach(t => t.stop());
                     container.innerHTML = '';
                     document.getElementById('start-scan').classList.remove('hidden');
@@ -1044,12 +1717,12 @@
             const data = imgData.data;
             for (let i = 0; i < data.length; i += 4) {
                 // Grayscale
-                const gray = data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114;
+                const gray = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
                 // Increase contrast
                 const contrast = ((gray / 255 - 0.5) * 1.8 + 0.5) * 255;
                 // Threshold to B&W
                 const bw = contrast > 140 ? 255 : 0;
-                data[i] = data[i+1] = data[i+2] = bw;
+                data[i] = data[i + 1] = data[i + 2] = bw;
             }
             ctx.putImageData(imgData, 0, 0);
 
@@ -1398,11 +2071,37 @@
             document.getElementById('manual-barcode').value = '';
         }
 
-        function onScanSuccess(decodedText) {
+        async function onScanSuccess(decodedText) {
+            // Stop camera immediately to prevent duplicate detections
+            if (html5QrCode && html5QrCode.isScanning) {
+                await html5QrCode.stop();
+                document.getElementById('start-scan').classList.remove('hidden');
+                document.getElementById('start-ticket').classList.remove('hidden');
+                document.getElementById('stop-scan').classList.add('hidden');
+            }
+
             currentBarcode = decodedText;
+            scanSessionChanges = { batches: {}, newQty: 0, newExpiry: null };
+
+            // Reset all form fields immediately on scan
+            document.getElementById('new-batch-qty').value = 0;
+            document.getElementById('new-batch-expiry').value = '';
+            document.getElementById('product-name').value = '';
+            document.getElementById('product-location').value = '';
+            document.getElementById('min-stock').value = 2;
+            document.getElementById('expiry-date').value = '';
+            document.getElementById('quantity').value = 1;
+
             document.getElementById('scanned-code').textContent = 'Código: ' + decodedText;
             document.getElementById('scanned-code').classList.remove('hidden');
             document.getElementById('product-action').classList.remove('hidden');
+
+            // Show loading message while processing
+            const loadingMsg = document.createElement('div');
+            loadingMsg.id = 'barcode-loading';
+            loadingMsg.style.cssText = 'color:#888;text-align:center;padding:12px 0;font-size:13px;';
+            loadingMsg.textContent = 'Cargando información del producto...';
+            document.getElementById('product-action').insertBefore(loadingMsg, document.getElementById('product-action').firstChild);
 
             const product = products.find(p => p.barcode === currentBarcode);
             if (product) {
@@ -1412,8 +2111,11 @@
                 document.getElementById('existing-product-name').textContent = product.name;
                 document.getElementById('existing-product-stock').textContent = `(${product.stock} uds)`;
                 renderExistingBatches(product);
+                // Remove loading message
+                const loading = document.getElementById('barcode-loading');
+                if (loading) loading.remove();
             } else {
-                // New product: show full form
+                // New product: reset and try to fetch from Open Food Facts API
                 document.getElementById('existing-product-view').classList.add('hidden');
                 document.getElementById('new-product-fields').classList.remove('hidden');
                 document.getElementById('product-name').value = '';
@@ -1421,156 +2123,154 @@
                 document.getElementById('min-stock').value = 2;
                 document.getElementById('expiry-date').value = '';
                 document.getElementById('quantity').value = 1;
-            }
 
-            if (html5QrCode && html5QrCode.isScanning) {
-                html5QrCode.stop().then(() => {
-                    document.getElementById('start-scan').classList.remove('hidden');
-                    document.getElementById('start-ticket').classList.remove('hidden');
-                    document.getElementById('stop-scan').classList.add('hidden');
-                });
+                // Try to lookup barcode from Open Food Facts
+                try {
+                    const barcodeData = await apiCall(`/barcode/${currentBarcode}`, 'GET');
+                    console.log('Barcode data received:', barcodeData);
+                    if (barcodeData && barcodeData.found) {
+                        // Pre-fill form with data from API
+                        console.log('Product name:', barcodeData.name, 'Category:', barcodeData.category);
+                        document.getElementById('product-name').value = barcodeData.name || '';
+
+                        // Set category from API (already mapped by backend)
+                        const apiCategory = barcodeData.category || '';
+                        console.log('API category:', apiCategory);
+                        const categorySelect = document.getElementById('product-category');
+                        const validCategories = ['Alimentos', 'Bebidas', 'Limpieza', 'Higiene', 'Otros'];
+
+                        if (validCategories.includes(apiCategory)) {
+                            categorySelect.value = apiCategory;
+                        } else {
+                            // Fallback to 'Otros' if category not recognized
+                            categorySelect.value = 'Otros';
+                        }
+                    } else {
+                        console.log('Barcode not found in API');
+                    }
+                } catch (e) {
+                    // If lookup fails, just proceed with empty form
+                    console.error('Barcode lookup error:', e);
+                    console.log('Barcode lookup failed, proceeding with empty form');
+                }
+                // Remove loading message
+                const loading = document.getElementById('barcode-loading');
+                if (loading) loading.remove();
             }
+            // Ensure any date inputs are wrapped with our custom picker
+            wrapDateInputsWithPicker();
         }
 
         function renderExistingBatches(product) {
             const container = document.getElementById('existing-batches');
             if (!product.batches || product.batches.length === 0) {
-                container.innerHTML = '<div style="color:#555;font-size:13px;padding:6px 0;">Sin lotes</div>';
+                container.innerHTML = '<div style="color:#555;font-size:13px;padding:6px 0;">Sin stock actualmente</div>';
                 return;
             }
             container.innerHTML = product.batches.map(b => {
+                const delta = scanSessionChanges.batches[b.id] || 0;
+                const finalQty = b.quantity + delta;
                 const exp = getExpiryInfo(b.expiry_date);
                 const expText = exp
                     ? `<span class="${exp.cls}">${exp.text}</span>`
                     : '<span style="color:#555">Sin caducidad</span>';
-                return `<div class="existing-batch-row">
+
+                return `<div class="existing-batch-row" style="border-bottom: 1px solid #222; padding: 8px 0; display: flex; justify-content: space-between; align-items: center;">
                     <div class="eb-info">
-                        <span class="eb-qty">${b.quantity} ud${b.quantity > 1 ? 's' : ''}</span>
+                        <span class="eb-qty" style="color: #fff; font-weight: 600;">
+                            ${finalQty} ud${finalQty !== 1 ? 's' : ''}
+                            ${delta !== 0 ? `<small style="color:${delta > 0 ? '#4ade80' : '#ef4444'}; margin-left:4px;">(${delta > 0 ? '+' : ''}${delta})</small>` : ''}
+                        </span>
                         <span class="eb-expiry">${expText}</span>
                     </div>
-                    <button class="btn-round remove" onclick="batchRemove(${b.id})">-</button>
-                    <button class="btn-round add" onclick="batchAdd(${b.id})">+</button>
+                    <div style="display: flex; gap: 6px;">
+                        <button class="btn-round remove" onclick="batchRemove(${b.id})">-</button>
+                        <button class="btn-round add" onclick="batchAdd(${b.id})">+</button>
+                    </div>
                 </div>`;
             }).join('');
         }
 
-        // Date modal management
+        // Date modal management — uses wheel picker
         let dateModalCallback = null;
 
         function openDateModal(callback) {
             dateModalCallback = callback;
-            document.getElementById('date-modal-input').value = '';
-            document.getElementById('date-modal').classList.add('active');
-            document.getElementById('date-modal-input').focus();
+            // Use the wheel picker instead of native date input
+            const today = new Date();
+            pickerState.year = today.getFullYear();
+            pickerState.month = today.getMonth() + 1;
+            pickerState.day = today.getDate();
+            pickerState.inputId = '__modal__';
+            updateWheelPosition('day', pickerState.day);
+            updateWheelPosition('month', pickerState.month);
+            updateWheelPosition('year', pickerState.year);
+            updateDatePreview();
+            document.getElementById('date-picker-modal').classList.add('show');
         }
 
         function closeDateModal() {
-            document.getElementById('date-modal').classList.remove('active');
+            if (pickerState.inputId === '__modal__') {
+                document.getElementById('date-picker-modal').classList.remove('show');
+                pickerState.inputId = null;
+            }
             dateModalCallback = null;
         }
 
-        function confirmDateModal() {
-            const date = document.getElementById('date-modal-input').value || null;
-            const callback = dateModalCallback;
-            closeDateModal();
-            if (callback) {
-                callback(date);
+        function batchAdd(batchId) {
+            scanSessionChanges.batches[batchId] = (scanSessionChanges.batches[batchId] || 0) + 1;
+            const product = products.find(p => p.barcode === currentBarcode);
+            renderExistingBatches(product);
+        }
+
+        function batchRemove(batchId) {
+            const product = products.find(p => p.barcode === currentBarcode);
+            const batch = product.batches.find(b => b.id === batchId);
+            const currentDelta = scanSessionChanges.batches[batchId] || 0;
+
+            // Don't allow total quantity to go below 0
+            if (batch.quantity + currentDelta > 0) {
+                scanSessionChanges.batches[batchId] = currentDelta - 1;
+                renderExistingBatches(product);
             }
-        }
-
-        // Allow pressing Enter to confirm date
-        document.addEventListener('DOMContentLoaded', function() {
-            document.getElementById('date-modal-input')?.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    confirmDateModal();
-                }
-            });
-        });
-
-        async function batchAdd(batchId) {
-            try {
-                const product = products.find(p => p.barcode === currentBarcode);
-                // If product has no batches, ask for expiry date
-                if (!product || !product.batches || product.batches.length === 0) {
-                    return openDateModal(async (expiryDate) => {
-                        try {
-                            await apiCall(`/products/${currentBarcode}/stock`, 'POST', { quantity: 1, expiry_date: expiryDate });
-                            await loadProducts();
-                            const updatedProduct = products.find(p => p.barcode === currentBarcode);
-                            if (updatedProduct) {
-                                document.getElementById('existing-product-stock').textContent = `(${updatedProduct.stock} uds)`;
-                                renderExistingBatches(updatedProduct);
-                            }
-                        } catch (error) {
-                            console.error('Error adding stock:', error);
-                        }
-                    });
-                } else {
-                    await apiCall(`/batches/${batchId}/stock`, 'POST', { quantity: 1 });
-                }
-                await loadProducts();
-                // Re-render the existing product view
-                const updatedProduct = products.find(p => p.barcode === currentBarcode);
-                if (updatedProduct) {
-                    document.getElementById('existing-product-stock').textContent = `(${updatedProduct.stock} uds)`;
-                    renderExistingBatches(updatedProduct);
-                }
-            } catch (e) { console.error('Error:', e); }
-        }
-
-        async function batchRemove(batchId) {
-            try {
-                const product = products.find(p => p.barcode === currentBarcode);
-                // If product has no batches, ask for expiry date
-                if (!product || !product.batches || product.batches.length === 0) {
-                    return openDateModal(async (expiryDate) => {
-                        try {
-                            // Create a batch first, then remove from it
-                            await apiCall(`/products/${currentBarcode}/stock`, 'POST', { quantity: 1, expiry_date: expiryDate });
-                            await loadProducts();
-                            const updatedProduct = products.find(p => p.barcode === currentBarcode);
-                            if (updatedProduct && updatedProduct.batches && updatedProduct.batches.length > 0) {
-                                await apiCall(`/batches/${updatedProduct.batches[0].id}/stock`, 'POST', { quantity: -1 });
-                                await loadProducts();
-                                const reloadedProduct = products.find(p => p.barcode === currentBarcode);
-                                if (reloadedProduct) {
-                                    document.getElementById('existing-product-stock').textContent = `(${reloadedProduct.stock} uds)`;
-                                    renderExistingBatches(reloadedProduct);
-                                }
-                            }
-                        } catch (error) {
-                            console.error('Error removing stock:', error);
-                        }
-                    });
-                } else {
-                    await apiCall(`/batches/${batchId}/stock`, 'POST', { quantity: -1 });
-                }
-                await loadProducts();
-                const updatedProduct = products.find(p => p.barcode === currentBarcode);
-                if (updatedProduct) {
-                    document.getElementById('existing-product-stock').textContent = `(${updatedProduct.stock} uds)`;
-                    renderExistingBatches(updatedProduct);
-                }
-            } catch (e) { console.error('Error:', e); }
         }
 
         async function addNewBatch() {
             if (!currentBarcode) return;
             const expiryDate = document.getElementById('new-batch-expiry').value || null;
-            const quantity = parseInt(document.getElementById('new-batch-qty').value) || 1;
+            const quantityVal = document.getElementById('new-batch-qty').value;
+            const quantity = parseInt(quantityVal) || 0;
+
+            console.log('--- ACEPTAR SCAN ---');
+            console.log('Barcode:', currentBarcode);
+            console.log('Pending Deltas:', scanSessionChanges.batches);
+            console.log('New Batch Qty Input:', quantityVal, '-> parsed:', quantity);
+
             try {
-                await apiCall(`/products/${currentBarcode}/stock`, 'POST', {
-                    quantity, expiry_date: expiryDate
-                });
-                await loadProducts();
-                const product = products.find(p => p.barcode === currentBarcode);
-                if (product) {
-                    document.getElementById('existing-product-stock').textContent = `(${product.stock} uds)`;
-                    renderExistingBatches(product);
+                // 1. Apply batch deltas (updates existing batches)
+                for (const [batchId, delta] of Object.entries(scanSessionChanges.batches)) {
+                    if (delta !== 0) {
+                        console.log('Enviando delta:', delta, 'para lote ID:', batchId);
+                        await apiCall(`/batches/${batchId}/stock`, 'POST', { quantity: delta });
+                    }
                 }
-                document.getElementById('new-batch-expiry').value = '';
-                document.getElementById('new-batch-qty').value = 1;
-            } catch (e) { console.error('Error:', e); }
+
+                // 2. Apply new stock entry if quantity > 0 (creates a NEW batch)
+                if (quantity > 0) {
+                    console.log('Enviando nueva entrada de stock:', quantity, 'con caducidad:', expiryDate);
+                    await apiCall(`/products/${currentBarcode}/stock`, 'POST', {
+                        quantity, expiry_date: expiryDate
+                    });
+                } else {
+                    console.log('No se crea lote nuevo porque quantity es <= 0');
+                }
+
+                await loadProducts();
+                resetScanner();
+            } catch (e) {
+                console.error('Error al procesar cambios:', e);
+                alert('No se pudieron guardar los cambios. Revisa la conexión.');
+            }
         }
 
         async function addStock() {
@@ -1602,6 +2302,10 @@
 
         function resetScanner() {
             currentBarcode = null;
+            scanSessionChanges = { batches: {}, newQty: 0, newExpiry: null };
+            // Reset all scanner-related UI
+            document.getElementById('new-batch-qty').value = 0;
+            document.getElementById('new-batch-expiry').value = '';
             document.getElementById('scanned-code').classList.add('hidden');
             document.getElementById('product-action').classList.add('hidden');
             document.getElementById('existing-product-view').classList.add('hidden');
@@ -1649,12 +2353,19 @@
             }
         }
 
+        async function quickLost(barcode) {
+            const product = products.find(p => p.barcode === barcode);
+            if (product && product.stock > 0) {
+                try {
+                    // Mark 1 unit as lost with traceability
+                    await apiCall(`/products/${barcode}/stock`, 'POST', { quantity: -1, reason: 'lost' });
+                    await loadProducts();
+                } catch (error) { console.error('Error:', error); }
+            }
+        }
+
         // UI
         async function updateUI() {
-            const stats = await loadStats();
-            document.getElementById('total-products').textContent = stats.total_products;
-            document.getElementById('total-items').textContent = stats.total_units;
-            document.getElementById('low-stock-count').textContent = stats.low_stock_count;
             await loadLocations();
             updateShoppingList();
             updateProductList();
@@ -1662,7 +2373,7 @@
 
         function getExpiryInfo(expiryDate) {
             if (!expiryDate) return null;
-            const today = new Date(); today.setHours(0,0,0,0);
+            const today = new Date(); today.setHours(0, 0, 0, 0);
             const expiry = new Date(expiryDate + 'T00:00:00');
             const daysLeft = Math.ceil((expiry - today) / 86400000);
             if (daysLeft < 0) return { text: 'CADUCADO', cls: 'expiry-expired' };
@@ -1672,24 +2383,61 @@
         }
 
         function updateShoppingList() {
-            const list = document.getElementById('shopping-list');
-            const lowStock = products.filter(p => p.stock < p.min_stock);
+            const shoppingListEl = document.getElementById('shopping-list');
+            const expiringListEl = document.getElementById('expiring-soon-list');
+
+            // 1. Shopping List (Low Stock)
+            const lowStock = products.filter(p => (p.min_stock !== null && p.stock < p.min_stock));
 
             if (lowStock.length === 0) {
-                list.innerHTML = '<div class="shopping-empty">Todo en orden</div>';
-                return;
+                shoppingListEl.innerHTML = '<div class="shopping-empty">Todo en orden</div>';
+            } else {
+                shoppingListEl.innerHTML = lowStock.map(p => {
+                    const needed = p.min_stock - p.stock;
+                    return `<div class="shopping-item">
+                        <span class="name">${p.name}</span>
+                        <span class="qty">${needed} uds</span>
+                    </div>`;
+                }).join('');
             }
 
-            list.innerHTML = lowStock.map(p => {
-                const needed = p.min_stock - p.stock;
-                const exp = getExpiryInfo(p.expiry_date);
-                const expiryHtml = exp && (exp.cls !== 'expiry-ok')
-                    ? ` <span class="expiry-warn">${exp.text}</span>` : '';
-                return `<div class="shopping-item">
-                    <span class="name">${p.name}${expiryHtml}</span>
-                    <span class="qty">${needed} uds</span>
-                </div>`;
-            }).join('');
+            // 2. Expiring Soon (Next 7 days)
+            const today = new Date(); today.setHours(0, 0, 0, 0);
+            const nextWeek = new Date(today);
+            nextWeek.setDate(today.getDate() + 7);
+
+            const expiringSoon = [];
+            products.forEach(p => {
+                if (p.batches) {
+                    p.batches.forEach(b => {
+                        if (b.expiry_date) {
+                            const exp = new Date(b.expiry_date + 'T00:00:00');
+                            // Only include if expiring between today and next week
+                            if (exp >= today && exp <= nextWeek) {
+                                expiringSoon.push({
+                                    name: p.name,
+                                    expiry_date: b.expiry_date,
+                                    quantity: b.quantity
+                                });
+                            }
+                        }
+                    });
+                }
+            });
+
+            if (expiringSoon.length === 0) {
+                expiringListEl.innerHTML = '<div class="shopping-empty">Nada caduca pronto</div>';
+            } else {
+                // Sort by date (earliest first)
+                expiringSoon.sort((a, b) => a.expiry_date.localeCompare(b.expiry_date));
+                expiringListEl.innerHTML = expiringSoon.map(item => {
+                    const exp = getExpiryInfo(item.expiry_date);
+                    return `<div class="shopping-item">
+                        <span class="name">${item.name} (${item.quantity} ud)</span>
+                        <span class="${exp.cls}">${exp.text}</span>
+                    </div>`;
+                }).join('');
+            }
         }
 
         function updateProductList() {
@@ -1733,6 +2481,7 @@
                         </div>
                         <div class="product-stock">
                             <button class="btn-round remove" onclick="quickRemove('${p.barcode}')">-</button>
+                            <button class="btn-round lost" onclick="quickLost('${p.barcode}')" title="Marcar como perdida">?</button>
                             <span class="stock-num ${isLow ? 'low' : ''}">${p.stock}</span>
                             <button class="btn-round add" onclick="quickAdd('${p.barcode}')">+</button>
                             <div style="display:flex;flex-direction:column;gap:4px;">
@@ -2121,9 +2870,9 @@
                     <div class="edit-batch-list">
                         <div style="font-size:12px;color:#666;margin-bottom:8px;font-weight:600;">Lotes (${p.batches.length})</div>
                         ${p.batches.map(b => {
-                            const exp = getExpiryInfo(b.expiry_date);
-                            const isMod = pendingBatchChanges[b.id] ? 'batch-modified' : '';
-                            return `<div class="edit-batch-row ${isMod}">
+                    const exp = getExpiryInfo(b.expiry_date);
+                    const isMod = pendingBatchChanges[b.id] ? 'batch-modified' : '';
+                    return `<div class="edit-batch-row ${isMod}">
                                 <span class="batch-qty-label">${b.quantity} ud${b.quantity > 1 ? 's' : ''}</span>
                                 <input type="date" id="edit-batch-${b.id}" value="${b.expiry_date || ''}"
                                     onchange="checkBatchChange(${b.id}, '${p.barcode}')" ${isDelete ? 'disabled' : ''}>
@@ -2131,7 +2880,7 @@
                                 <button class="btn-round add" style="width:24px;height:24px;font-size:12px;" onclick="manageBatchStock(${b.id}, '${p.barcode}', 1)" ${isDelete ? 'disabled' : ''}>+</button>
                                 <span style="font-size:11px;color:#555">${b.added_date ? 'Añadido: ' + b.added_date : ''}</span>
                             </div>`;
-                        }).join('')}
+                }).join('')}
                         <div style="margin-top:8px;padding-top:8px;border-top:1px solid #333;">
                             <div style="font-size:12px;color:#666;margin-bottom:6px;">Nuevo lote</div>
                             <div style="display:flex;gap:6px;align-items:center;">
@@ -2151,13 +2900,398 @@
                     </div>`}
                     <div class="edit-actions">
                         ${isDelete
-                            ? `<button class="btn-undo-sm" onclick="undoDelete('${p.barcode}')">Deshacer</button>`
-                            : `<button class="btn-delete-sm" onclick="markForDelete('${p.barcode}')">Eliminar</button>`
-                        }
+                        ? `<button class="btn-undo-sm" onclick="undoDelete('${p.barcode}')">Deshacer</button>`
+                        : `<button class="btn-delete-sm" onclick="markForDelete('${p.barcode}')">Eliminar</button>`
+                    }
                     </div>
                 </div>`;
             }).join('');
+            // Wrap any new date inputs with the wheel picker
+            setTimeout(wrapDateInputsWithPicker, 0);
         }
+
+        // ===== Date Picker Wheel Implementation =====
+        let pickerState = {
+            inputId: null,
+            year: new Date().getFullYear(),
+            month: new Date().getMonth() + 1,
+            day: new Date().getDate(),
+            touchStartY: {},
+            scrollOffset: {}
+        };
+
+        const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+        function initializeDatePicker() {
+            const daysCount = getDaysInMonth(pickerState.month, pickerState.year);
+            initializeWheel('day', 1, daysCount);
+            initializeWheel('month', 1, 12);
+            initializeWheel('year', new Date().getFullYear() - 5, 2099);
+            updateWheelPosition('day', pickerState.day);
+            updateWheelPosition('month', pickerState.month);
+            updateWheelPosition('year', pickerState.year);
+        }
+
+        function getDaysInMonth(month, year) {
+            return new Date(year, month, 0).getDate();
+        }
+
+        function initializeWheel(type, min, max) {
+            const container = document.getElementById(`${type}-items`);
+            container.innerHTML = '';
+
+            // Spacers for centering
+            container.appendChild(Object.assign(document.createElement('div'), { className: 'wheel-item spacer' }));
+            container.appendChild(Object.assign(document.createElement('div'), { className: 'wheel-item spacer' }));
+
+            for (let i = min; i <= max; i++) {
+                const item = document.createElement('div');
+                item.className = 'wheel-item';
+                item.textContent = String(i).padStart(2, '0');
+                item.dataset.value = i;
+                item.onclick = (e) => {
+                    const val = parseInt(e.currentTarget.dataset.value);
+                    updateWheelPosition(type, val);
+                    updateDatePreview();
+                };
+                container.appendChild(item);
+            }
+
+            container.appendChild(Object.assign(document.createElement('div'), { className: 'wheel-item spacer' }));
+            container.appendChild(Object.assign(document.createElement('div'), { className: 'wheel-item spacer' }));
+
+            setupWheelScroller(type);
+        }
+
+        function setupWheelScroller(type) {
+            const scroller = document.getElementById(`${type}-wheel`);
+            const items = document.getElementById(`${type}-items`);
+            let startY = 0;
+            let currentOffset = 0;
+            let velocity = 0;
+            let lastY = 0;
+            let lastTime = 0;
+
+            function startDrag(y) {
+                startY = y;
+                lastY = y;
+                lastTime = Date.now();
+                currentOffset = pickerState.scrollOffset[type] || 0;
+                items.classList.remove('snapping');
+            }
+
+            function moveDrag(y) {
+                const now = Date.now();
+                const moveY = y - startY;
+                const newOffset = currentOffset + moveY;
+                pickerState.scrollOffset[type] = newOffset;
+                updateWheelScroll(type, newOffset);
+
+                // Calculate velocity for momentum
+                const timeDelta = now - lastTime;
+                if (timeDelta > 0) {
+                    velocity = (y - lastY) / timeDelta;
+                }
+                lastY = y;
+                lastTime = now;
+            }
+
+            function endDrag() {
+                items.classList.add('snapping');
+                // Apply momentum
+                if (Math.abs(velocity) > 0.5) {
+                    let currentPos = pickerState.scrollOffset[type];
+                    const friction = 0.95;
+                    const animate = () => {
+                        velocity *= friction;
+                        currentPos += velocity * 16; // 16ms per frame
+                        pickerState.scrollOffset[type] = currentPos;
+                        updateWheelScroll(type, currentPos);
+                        if (Math.abs(velocity) > 0.1) {
+                            requestAnimationFrame(animate);
+                        } else {
+                            snapToNearestValue(type);
+                        }
+                    };
+                    animate();
+                } else {
+                    snapToNearestValue(type);
+                }
+            }
+
+            scroller.addEventListener('touchstart', (e) => {
+                startDrag(e.touches[0].clientY);
+            });
+
+            scroller.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                moveDrag(e.touches[0].clientY);
+            });
+
+            scroller.addEventListener('touchend', endDrag);
+
+            // Mouse support for desktop testing
+            scroller.addEventListener('mousedown', (e) => {
+                startDrag(e.clientY);
+
+                const handleMouseMove = (moveE) => {
+                    moveDrag(moveE.clientY);
+                };
+
+                const handleMouseUp = () => {
+                    document.removeEventListener('mousemove', handleMouseMove);
+                    document.removeEventListener('mouseup', handleMouseUp);
+                    endDrag();
+                };
+
+                document.addEventListener('mousemove', handleMouseMove);
+                document.addEventListener('mouseup', handleMouseUp);
+            });
+
+            // Mouse wheel support
+            let wheelTimeout = null;
+            scroller.addEventListener('wheel', (e) => {
+                e.preventDefault();
+
+                // Reduced throttle for more fluidity
+                if (wheelTimeout) return;
+                wheelTimeout = setTimeout(() => { wheelTimeout = null; }, 50);
+
+                items.classList.add('snapping');
+
+                // Determine direction and steps based on deltaY magnitude
+                const direction = e.deltaY > 0 ? -1 : 1;
+                const absDelta = Math.abs(e.deltaY);
+
+                // If delta is small (normal notch), move 1 step. 
+                // If it's a fast scroll, jump much more aggressively (up to 15 steps).
+                let steps = 1;
+                if (absDelta > 150) {
+                    steps = Math.min(15, Math.floor(absDelta / 30));
+                }
+
+                const currentVal = pickerState[type];
+                const itemsList = Array.from(items.querySelectorAll('.wheel-item:not(.spacer)'));
+                const currentIndex = itemsList.findIndex(item => parseInt(item.dataset.value) === currentVal);
+
+                let nextIndex = currentIndex - (direction * steps);
+                // Clamp index
+                nextIndex = Math.max(0, Math.min(itemsList.length - 1, nextIndex));
+
+                const nextVal = parseInt(itemsList[nextIndex].dataset.value);
+                updateWheelPosition(type, nextVal);
+            }, { passive: false });
+        }
+
+        function updateWheelScroll(type, offset) {
+            const items = document.getElementById(`${type}-items`);
+            items.style.transform = `translateY(${offset}px)`;
+        }
+
+        function snapToNearestValue(type) {
+            const items = document.getElementById(`${type}-items`);
+            const children = items.querySelectorAll('.wheel-item:not(.spacer)');
+            let closestItem = children[0];
+            let closestDistance = Infinity;
+
+            const allItems = Array.from(items.querySelectorAll('.wheel-item'));
+
+            children.forEach((item) => {
+                const domIndex = allItems.indexOf(item);
+                const targetOffset = 64 - domIndex * 32;
+                const distance = Math.abs(pickerState.scrollOffset[type] - targetOffset);
+                if (distance < closestDistance) {
+                    closestDistance = distance;
+                    closestItem = item;
+                }
+            });
+
+            const value = parseInt(closestItem.dataset.value);
+            updateWheelPosition(type, value);
+            updateDatePreview();
+        }
+
+        function updateWheelPosition(type, value) {
+            const items = document.getElementById(`${type}-items`);
+            const children = Array.from(items.querySelectorAll('.wheel-item'));
+            const targetIndex = children.findIndex(item => item.dataset.value == value);
+
+            if (targetIndex !== -1) {
+                const offset = 64 - targetIndex * 32;
+                pickerState.scrollOffset[type] = offset;
+                items.style.transform = `translateY(${offset}px)`;
+
+                children.forEach((item, i) => {
+                    item.classList.toggle('active', i === targetIndex);
+                });
+
+                pickerState[type] = value;
+
+                // If month or year changed, update days in month
+                if (type === 'month' || type === 'year') {
+                    const maxDays = getDaysInMonth(pickerState.month, pickerState.year);
+                    const dayContainer = document.getElementById('day-items');
+                    const currentDays = dayContainer.querySelectorAll('.wheel-item:not(.spacer)').length;
+
+                    if (maxDays !== currentDays) {
+                        initializeWheel('day', 1, maxDays);
+                        // If current day is now out of range, cap it
+                        if (pickerState.day > maxDays) {
+                            pickerState.day = maxDays;
+                        }
+                        updateWheelPosition('day', pickerState.day);
+                    }
+                }
+
+                updateDatePreview();
+            }
+        }
+
+        function updateDatePreview() {
+            const preview = document.getElementById('date-preview');
+            if (preview) {
+                const day = String(pickerState.day).padStart(2, '0');
+                const month = String(pickerState.month).padStart(2, '0');
+                const year = pickerState.year;
+                preview.textContent = `${day} / ${month} / ${year}`;
+            }
+        }
+
+        function openDatePicker(inputId) {
+            const input = document.getElementById(inputId);
+            pickerState.inputId = inputId;
+
+            if (input.value) {
+                const [year, month, day] = input.value.split('-').map(Number);
+                pickerState.year = year;
+                pickerState.month = month;
+                pickerState.day = day;
+            } else {
+                const today = new Date();
+                pickerState.year = today.getFullYear();
+                pickerState.month = today.getMonth() + 1;
+                pickerState.day = today.getDate();
+            }
+
+            updateWheelPosition('day', pickerState.day);
+            updateWheelPosition('month', pickerState.month);
+            updateWheelPosition('year', pickerState.year);
+            updateDatePreview();
+
+            document.getElementById('date-picker-modal').classList.add('show');
+        }
+
+        function closeDatePicker() {
+            document.getElementById('date-picker-modal').classList.remove('show');
+            if (pickerState.inputId === '__modal__') {
+                dateModalCallback = null;
+            }
+            pickerState.inputId = null;
+        }
+
+        function confirmDatePicker() {
+            const dateStr = `${pickerState.year}-${String(pickerState.month).padStart(2, '0')}-${String(pickerState.day).padStart(2, '0')}`;
+            if (pickerState.inputId === '__modal__') {
+                // Called from openDateModal — invoke callback
+                const callback = dateModalCallback;
+                dateModalCallback = null;
+                document.getElementById('date-picker-modal').classList.remove('show');
+                pickerState.inputId = null;
+                if (callback) callback(dateStr);
+            } else if (pickerState.inputId) {
+                const input = document.getElementById(pickerState.inputId);
+                if (input) {
+                    input.value = dateStr;
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                    // Update the display button text
+                    const wrapper = input.closest('.date-input-wrapper');
+                    if (wrapper) {
+                        const btn = wrapper.querySelector('.date-display-btn');
+                        if (btn) btn.textContent = dateStr;
+                    }
+                }
+                closeDatePicker();
+            }
+        }
+
+        // Replace date inputs with picker buttons
+        function wrapDateInputsWithPicker() {
+            const dateInputs = document.querySelectorAll('input[type="date"]');
+            dateInputs.forEach(input => {
+                if (!input.parentElement || input.parentElement.classList.contains('date-input-wrapper')) return;
+
+                const parent = input.parentElement;
+                const wrapper = document.createElement('div');
+                wrapper.className = 'date-input-wrapper';
+
+                const btn = document.createElement('button');
+                btn.className = 'date-display-btn';
+                btn.type = 'button';
+                btn.textContent = input.value ? input.value : 'Hoy';
+                btn.onclick = (e) => {
+                    e.preventDefault();
+                    openDatePicker(input.id);
+                };
+
+                input.style.display = 'none';
+                input.id = input.id || `date-${Math.random().toString(36).substr(2, 9)}`;
+
+                const updateBtn = () => {
+                    btn.textContent = input.value ? input.value : 'Hoy';
+                };
+
+                input.addEventListener('change', updateBtn);
+
+                // Correct insertion order
+                parent.insertBefore(wrapper, input);
+                wrapper.appendChild(btn);
+                wrapper.appendChild(input);
+            });
+        }
+
+        // Initialize picker on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(initializeDatePicker, 100);
+        });
+
+        // Wrap inputs on initial load
+        window.addEventListener('load', wrapDateInputsWithPicker);
     </script>
+
+    <!-- Date Picker Modal -->
+    <div id="date-picker-modal" class="date-picker-modal">
+        <div class="date-picker-container">
+            <div class="date-picker-title">📅 Selecciona la fecha de caducidad</div>
+            <div class="date-picker-preview" id="date-preview">18 Febrero 2026</div>
+            <div class="date-picker-wheels">
+                <div class="picker-wheel">
+                    <div class="picker-label">Día</div>
+                    <div class="wheel-scroller" id="day-wheel">
+                        <div class="wheel-highlight"></div>
+                        <div class="wheel-items" id="day-items"></div>
+                    </div>
+                </div>
+                <div class="picker-wheel">
+                    <div class="picker-label">Mes</div>
+                    <div class="wheel-scroller" id="month-wheel">
+                        <div class="wheel-highlight"></div>
+                        <div class="wheel-items" id="month-items"></div>
+                    </div>
+                </div>
+                <div class="picker-wheel">
+                    <div class="picker-label">Año</div>
+                    <div class="wheel-scroller" id="year-wheel">
+                        <div class="wheel-highlight"></div>
+                        <div class="wheel-items" id="year-items"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="date-picker-buttons">
+                <button class="date-picker-btn" onclick="closeDatePicker()">Cancelar</button>
+                <button class="date-picker-btn confirm" onclick="confirmDatePicker()">Aceptar</button>
+            </div>
+        </div>
+    </div>
 </body>
+
 </html>
