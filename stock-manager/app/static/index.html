@@ -2152,10 +2152,14 @@
                 const expText = exp
                     ? `<span class="${exp.cls}">${exp.text}</span>`
                     : '<span style="color:#555">Sin caducidad</span>';
-                return `<div class="existing-batch-row" style="border-bottom: 1px solid #222; padding: 6px 0;">
+                return `<div class="existing-batch-row" style="border-bottom: 1px solid #222; padding: 8px 0; display: flex; justify-content: space-between; align-items: center;">
                     <div class="eb-info">
-                        <span class="eb-qty" style="color: #888;">${b.quantity} ud${b.quantity > 1 ? 's' : ''}</span>
+                        <span class="eb-qty" style="color: #fff; font-weight: 600;">${b.quantity} ud${b.quantity > 1 ? 's' : ''}</span>
                         <span class="eb-expiry">${expText}</span>
+                    </div>
+                    <div style="display: flex; gap: 6px;">
+                        <button class="btn-round remove" onclick="batchRemove(${b.id})">-</button>
+                        <button class="btn-round add" onclick="batchAdd(${b.id})">+</button>
                     </div>
                 </div>`;
             }).join('');
