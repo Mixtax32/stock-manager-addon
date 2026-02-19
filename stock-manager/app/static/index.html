@@ -2851,12 +2851,17 @@
         const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
         function initializeDatePicker() {
-            initializeWheel('day', 1, 31);
+            const daysCount = getDaysInMonth(pickerState.month, pickerState.year);
+            initializeWheel('day', 1, daysCount);
             initializeWheel('month', 1, 12);
             initializeWheel('year', new Date().getFullYear() - 5, new Date().getFullYear() + 10);
             updateWheelPosition('day', pickerState.day);
             updateWheelPosition('month', pickerState.month);
             updateWheelPosition('year', pickerState.year);
+        }
+
+        function getDaysInMonth(month, year) {
+            return new Date(year, month, 0).getDate();
         }
 
         function initializeWheel(type, min, max) {
@@ -2870,11 +2875,7 @@
             for (let i = min; i <= max; i++) {
                 const item = document.createElement('div');
                 item.className = 'wheel-item';
-                if (type === 'month') {
-                    item.textContent = MONTHS[i - 1];
-                } else {
-                    item.textContent = String(i).padStart(2, '0');
-                }
+                item.textContent = String(i).padStart(2, '0');
                 item.dataset.value = i;
                 item.onclick = (e) => {
                     const val = parseInt(e.currentTarget.dataset.value);
@@ -3019,6 +3020,23 @@
                 });
 
                 pickerState[type] = value;
+
+                // If month or year changed, update days in month
+                if (type === 'month' || type === 'year') {
+                    const maxDays = getDaysInMonth(pickerState.month, pickerState.year);
+                    const dayContainer = document.getElementById('day-items');
+                    const currentDays = dayContainer.querySelectorAll('.wheel-item:not(.spacer)').length;
+
+                    if (maxDays !== currentDays) {
+                        initializeWheel('day', 1, maxDays);
+                        // If current day is now out of range, cap it
+                        if (pickerState.day > maxDays) {
+                            pickerState.day = maxDays;
+                        }
+                        updateWheelPosition('day', pickerState.day);
+                    }
+                }
+
                 updateDatePreview();
             }
         }
@@ -3027,9 +3045,9 @@
             const preview = document.getElementById('date-preview');
             if (preview) {
                 const day = String(pickerState.day).padStart(2, '0');
-                const month = MONTHS[pickerState.month - 1] || String(pickerState.month).padStart(2, '0');
+                const month = String(pickerState.month).padStart(2, '0');
                 const year = pickerState.year;
-                preview.textContent = `${day} ${month} ${year}`;
+                preview.textContent = `${day} / ${month} / ${year}`;
             }
         }
 
