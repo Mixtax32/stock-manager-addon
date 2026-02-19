@@ -227,6 +227,9 @@
             margin: 12px auto;
             border-radius: 8px;
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
 
         /* Buttons */
@@ -1608,6 +1611,10 @@
                     { fps: 10, qrbox: { width: 250, height: 250 } },
                     onScanSuccess
                 );
+
+                // Centrar pantalla en el escáner
+                document.getElementById('scanner-container').scrollIntoView({ behavior: 'smooth', block: 'center' });
+
                 document.getElementById('start-scan').classList.add('hidden');
                 document.getElementById('start-ticket').classList.add('hidden');
                 document.getElementById('stop-scan').classList.remove('hidden');
@@ -1659,6 +1666,9 @@
                 document.getElementById('start-scan').classList.add('hidden');
                 document.getElementById('start-ticket').classList.add('hidden');
                 document.getElementById('stop-scan').classList.remove('hidden');
+
+                // Centrar pantalla en el escáner de ticket
+                container.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
                 captureBtn.onclick = async function () {
                     // Capture frame to canvas
