@@ -1547,6 +1547,7 @@
         let ticketItems = [];
         let filteredLocation = null;
         let allLocations = [];
+        let scanSessionChanges = { batches: {}, newQty: 0, newExpiry: null };
 
         window.onload = async function () {
             await loadProducts();
@@ -2070,6 +2071,7 @@
             }
 
             currentBarcode = decodedText;
+            scanSessionChanges = { batches: {}, newQty: 0, newExpiry: null };
             document.getElementById('scanned-code').textContent = 'Código: ' + decodedText;
             document.getElementById('scanned-code').classList.remove('hidden');
             document.getElementById('product-action').classList.remove('hidden');
@@ -2148,13 +2150,19 @@
                 return;
             }
             container.innerHTML = product.batches.map(b => {
+                const delta = scanSessionChanges.batches[b.id] || 0;
+                const finalQty = b.quantity + delta;
                 const exp = getExpiryInfo(b.expiry_date);
                 const expText = exp
                     ? `<span class="${exp.cls}">${exp.text}</span>`
                     : '<span style="color:#555">Sin caducidad</span>';
+
                 return `<div class="existing-batch-row" style="border-bottom: 1px solid #222; padding: 8px 0; display: flex; justify-content: space-between; align-items: center;">
                     <div class="eb-info">
-                        <span class="eb-qty" style="color: #fff; font-weight: 600;">${b.quantity} ud${b.quantity > 1 ? 's' : ''}</span>
+                        <span class="eb-qty" style="color: #fff; font-weight: 600;">
+                            ${finalQty} ud${finalQty !== 1 ? 's' : ''}
+                            ${delta !== 0 ? `<small style="color:${delta > 0 ? '#4ade80' : '#ef4444'}; margin-left:4px;">(${delta > 0 ? '+' : ''}${delta})</small>` : ''}
+                        </span>
                         <span class="eb-expiry">${expText}</span>
                     </div>
                     <div style="display: flex; gap: 6px;">
@@ -2191,84 +2199,50 @@
             dateModalCallback = null;
         }
 
-        async function batchAdd(batchId) {
-            try {
-                const product = products.find(p => p.barcode === currentBarcode);
-                // If product has no batches, ask for expiry date
-                if (!product || !product.batches || product.batches.length === 0) {
-                    return openDateModal(async (expiryDate) => {
-                        try {
-                            await apiCall(`/products/${currentBarcode}/stock`, 'POST', { quantity: 1, expiry_date: expiryDate });
-                            await loadProducts();
-                            const updatedProduct = products.find(p => p.barcode === currentBarcode);
-                            if (updatedProduct) {
-                                document.getElementById('existing-product-stock').textContent = `(${updatedProduct.stock} uds)`;
-                                renderExistingBatches(updatedProduct);
-                            }
-                        } catch (error) {
-                            console.error('Error adding stock:', error);
-                        }
-                    });
-                } else {
-                    await apiCall(`/batches/${batchId}/stock`, 'POST', { quantity: 1 });
-                }
-                await loadProducts();
-                // Re-render the existing product view
-                const updatedProduct = products.find(p => p.barcode === currentBarcode);
-                if (updatedProduct) {
-                    document.getElementById('existing-product-stock').textContent = `(${updatedProduct.stock} uds)`;
-                    renderExistingBatches(updatedProduct);
-                }
-            } catch (e) { console.error('Error:', e); }
+        function batchAdd(batchId) {
+            scanSessionChanges.batches[batchId] = (scanSessionChanges.batches[batchId] || 0) + 1;
+            const product = products.find(p => p.barcode === currentBarcode);
+            renderExistingBatches(product);
         }
 
-        async function batchRemove(batchId) {
-            try {
-                const product = products.find(p => p.barcode === currentBarcode);
-                // If product has no batches, ask for expiry date
-                if (!product || !product.batches || product.batches.length === 0) {
-                    return openDateModal(async (expiryDate) => {
-                        try {
-                            // Create a batch first, then remove from it
-                            await apiCall(`/products/${currentBarcode}/stock`, 'POST', { quantity: 1, expiry_date: expiryDate });
-                            await loadProducts();
-                            const updatedProduct = products.find(p => p.barcode === currentBarcode);
-                            if (updatedProduct && updatedProduct.batches && updatedProduct.batches.length > 0) {
-                                await apiCall(`/batches/${updatedProduct.batches[0].id}/stock`, 'POST', { quantity: -1 });
-                                await loadProducts();
-                                const reloadedProduct = products.find(p => p.barcode === currentBarcode);
-                                if (reloadedProduct) {
-                                    document.getElementById('existing-product-stock').textContent = `(${reloadedProduct.stock} uds)`;
-                                    renderExistingBatches(reloadedProduct);
-                                }
-                            }
-                        } catch (error) {
-                            console.error('Error removing stock:', error);
-                        }
-                    });
-                } else {
-                    await apiCall(`/batches/${batchId}/stock`, 'POST', { quantity: -1 });
-                }
-                await loadProducts();
-                const updatedProduct = products.find(p => p.barcode === currentBarcode);
-                if (updatedProduct) {
-                    document.getElementById('existing-product-stock').textContent = `(${updatedProduct.stock} uds)`;
-                    renderExistingBatches(updatedProduct);
-                }
-            } catch (e) { console.error('Error:', e); }
+        function batchRemove(batchId) {
+            const product = products.find(p => p.barcode === currentBarcode);
+            const batch = product.batches.find(b => b.id === batchId);
+            const currentDelta = scanSessionChanges.batches[batchId] || 0;
+
+            // Don't allow total quantity to go below 0
+            if (batch.quantity + currentDelta > 0) {
+                scanSessionChanges.batches[batchId] = currentDelta - 1;
+                renderExistingBatches(product);
+            }
         }
 
         async function addNewBatch() {
             if (!currentBarcode) return;
             const expiryDate = document.getElementById('new-batch-expiry').value || null;
-            const quantity = parseInt(document.getElementById('new-batch-qty').value) || 1;
+            const quantity = parseInt(document.getElementById('new-batch-qty').value) || 0;
+
             try {
-                await apiCall(`/products/${currentBarcode}/stock`, 'POST', {
-                    quantity, expiry_date: expiryDate
-                });
+                // 1. Apply batch deltas
+                for (const [batchId, delta] of Object.entries(scanSessionChanges.batches)) {
+                    if (delta !== 0) {
+                        await apiCall(`/batches/${batchId}/stock`, 'POST', { quantity: delta });
+                    }
+                }
+
+                // 2. Apply new stock entry if quantity > 0
+                if (quantity > 0) {
+                    await apiCall(`/products/${currentBarcode}/stock`, 'POST', {
+                        quantity, expiry_date: expiryDate
+                    });
+                }
+
                 await loadProducts();
                 resetScanner();
-            } catch (e) { console.error('Error:', e); }
+            } catch (e) {
+                console.error('Error applying changes:', e);
+                alert('Ocurrió un error al guardar los cambios');
+            }
         }
 
         async function addStock() {
@@ -2300,6 +2274,7 @@
 
         function resetScanner() {
             currentBarcode = null;
+            scanSessionChanges = { batches: {}, newQty: 0, newExpiry: null };
             document.getElementById('scanned-code').classList.add('hidden');
             document.getElementById('product-action').classList.add('hidden');
             document.getElementById('existing-product-view').classList.add('hidden');
