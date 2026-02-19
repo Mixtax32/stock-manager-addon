@@ -2854,7 +2854,7 @@
             const daysCount = getDaysInMonth(pickerState.month, pickerState.year);
             initializeWheel('day', 1, daysCount);
             initializeWheel('month', 1, 12);
-            initializeWheel('year', new Date().getFullYear() - 5, new Date().getFullYear() + 10);
+            initializeWheel('year', new Date().getFullYear() - 5, new Date().getFullYear() + 20);
             updateWheelPosition('day', pickerState.day);
             updateWheelPosition('month', pickerState.month);
             updateWheelPosition('year', pickerState.year);
@@ -2981,23 +2981,28 @@
             scroller.addEventListener('wheel', (e) => {
                 e.preventDefault();
 
-                // Throttle wheel events to prevent skipping
+                // Reduced throttle for more fluidity
                 if (wheelTimeout) return;
-                wheelTimeout = setTimeout(() => { wheelTimeout = null; }, 120);
+                wheelTimeout = setTimeout(() => { wheelTimeout = null; }, 50);
 
                 items.classList.add('snapping');
 
-                // Determine direction and move one item
+                // Determine direction and steps based on deltaY magnitude
                 const direction = e.deltaY > 0 ? -1 : 1;
+                const absDelta = Math.abs(e.deltaY);
+                // Allow bigger jumps for faster scrolling
+                const steps = absDelta > 100 ? Math.min(3, Math.ceil(absDelta / 100)) : 1;
+
                 const currentVal = pickerState[type];
                 const itemsList = Array.from(items.querySelectorAll('.wheel-item:not(.spacer)'));
                 const currentIndex = itemsList.findIndex(item => parseInt(item.dataset.value) === currentVal);
 
-                let nextIndex = currentIndex - direction;
-                if (nextIndex >= 0 && nextIndex < itemsList.length) {
-                    const nextVal = parseInt(itemsList[nextIndex].dataset.value);
-                    updateWheelPosition(type, nextVal);
-                }
+                let nextIndex = currentIndex - (direction * steps);
+                // Clamp index
+                nextIndex = Math.max(0, Math.min(itemsList.length - 1, nextIndex));
+
+                const nextVal = parseInt(itemsList[nextIndex].dataset.value);
+                updateWheelPosition(type, nextVal);
             }, { passive: false });
         }
 
