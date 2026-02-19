@@ -1390,18 +1390,33 @@
                 <div id="scanned-code" class="hidden"></div>
 
                 <div id="product-action" class="hidden">
-                    <!-- Existing product: batch-level controls -->
+                    <!-- Existing product: informative batches + new independent add form -->
                     <div id="existing-product-view" class="hidden">
                         <div class="existing-header">
                             <span id="existing-product-name"></span>
                             <span id="existing-product-stock"></span>
                         </div>
                         <div id="existing-batches"></div>
-                        <div class="new-batch-row">
-                            <span class="new-batch-label">Nuevo lote</span>
-                            <input type="date" id="new-batch-expiry">
-                            <input type="number" id="new-batch-qty" value="1" min="1" style="width:50px;">
-                            <button class="btn-round add" onclick="addNewBatch()">+</button>
+
+                        <div
+                            style="background: #222; padding: 12px; border-radius: 8px; border: 1px solid #333; margin-top: 15px;">
+                            <div
+                                style="font-size: 11px; color: #666; text-transform: uppercase; margin-bottom: 10px; font-weight: 700;">
+                                Añadir nuevas unidades</div>
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>Fecha caducidad</label>
+                                    <input type="date" id="new-batch-expiry">
+                                </div>
+                                <div class="form-group">
+                                    <label>Cantidad</label>
+                                    <input type="number" id="new-batch-qty" value="1" min="1">
+                                </div>
+                            </div>
+                            <div class="form-actions" style="margin-top: 12px;">
+                                <button class="btn btn-add" onclick="addNewBatch()">Aceptar</button>
+                                <button class="btn btn-primary" onclick="resetScanner()">Cancelar</button>
+                            </div>
                         </div>
                     </div>
                     <!-- New product: full form -->
@@ -2129,7 +2144,7 @@
         function renderExistingBatches(product) {
             const container = document.getElementById('existing-batches');
             if (!product.batches || product.batches.length === 0) {
-                container.innerHTML = '<div style="color:#555;font-size:13px;padding:6px 0;">Sin lotes</div>';
+                container.innerHTML = '<div style="color:#555;font-size:13px;padding:6px 0;">Sin stock actualmente</div>';
                 return;
             }
             container.innerHTML = product.batches.map(b => {
@@ -2137,13 +2152,11 @@
                 const expText = exp
                     ? `<span class="${exp.cls}">${exp.text}</span>`
                     : '<span style="color:#555">Sin caducidad</span>';
-                return `<div class="existing-batch-row">
+                return `<div class="existing-batch-row" style="border-bottom: 1px solid #222; padding: 6px 0;">
                     <div class="eb-info">
-                        <span class="eb-qty">${b.quantity} ud${b.quantity > 1 ? 's' : ''}</span>
+                        <span class="eb-qty" style="color: #888;">${b.quantity} ud${b.quantity > 1 ? 's' : ''}</span>
                         <span class="eb-expiry">${expText}</span>
                     </div>
-                    <button class="btn-round remove" onclick="batchRemove(${b.id})">-</button>
-                    <button class="btn-round add" onclick="batchAdd(${b.id})">+</button>
                 </div>`;
             }).join('');
         }
@@ -2250,13 +2263,7 @@
                     quantity, expiry_date: expiryDate
                 });
                 await loadProducts();
-                const product = products.find(p => p.barcode === currentBarcode);
-                if (product) {
-                    document.getElementById('existing-product-stock').textContent = `(${product.stock} uds)`;
-                    renderExistingBatches(product);
-                }
-                document.getElementById('new-batch-expiry').value = '';
-                document.getElementById('new-batch-qty').value = 1;
+                resetScanner();
             } catch (e) { console.error('Error:', e); }
         }
 
