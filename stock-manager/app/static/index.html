@@ -2102,6 +2102,8 @@
                 const loading = document.getElementById('barcode-loading');
                 if (loading) loading.remove();
             }
+            // Ensure any date inputs are wrapped with our custom picker
+            wrapDateInputsWithPicker();
         }
 
         function renderExistingBatches(product) {
@@ -3146,15 +3148,20 @@
         function wrapDateInputsWithPicker() {
             const dateInputs = document.querySelectorAll('input[type="date"]');
             dateInputs.forEach(input => {
-                if (input.parentElement.classList.contains('date-input-wrapper')) return;
+                if (!input.parentElement || input.parentElement.classList.contains('date-input-wrapper')) return;
 
+                const parent = input.parentElement;
                 const wrapper = document.createElement('div');
                 wrapper.className = 'date-input-wrapper';
+
                 const btn = document.createElement('button');
                 btn.className = 'date-display-btn';
                 btn.type = 'button';
                 btn.textContent = input.value ? input.value : 'Hoy';
-                btn.onclick = () => openDatePicker(input.id);
+                btn.onclick = (e) => {
+                    e.preventDefault();
+                    openDatePicker(input.id);
+                };
 
                 input.style.display = 'none';
                 input.id = input.id || `date-${Math.random().toString(36).substr(2, 9)}`;
@@ -3165,9 +3172,9 @@
 
                 input.addEventListener('change', updateBtn);
 
+                // Correct insertion order
+                parent.insertBefore(wrapper, input);
                 wrapper.appendChild(btn);
-                wrapper.appendChild(input);
-                input.parentElement.insertBefore(wrapper, input);
                 wrapper.appendChild(input);
             });
         }
