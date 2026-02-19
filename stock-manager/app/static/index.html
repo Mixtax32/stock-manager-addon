@@ -1222,7 +1222,6 @@
         .wheel-items {
             display: flex;
             flex-direction: column;
-            height: 100%;
             width: 100%;
             transition: transform 0.1s ease-out;
         }
@@ -1256,9 +1255,28 @@
             right: 0;
             height: 32px;
             transform: translateY(-50%);
-            border-top: 1px solid #333;
-            border-bottom: 1px solid #333;
-            background: #1e1e1e;
+            border-top: 1px solid #444;
+            border-bottom: 1px solid #444;
+            background: rgba(255, 255, 255, 0.05);
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        .wheel-scroller::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to bottom,
+                    #111 0%,
+                    rgba(17, 17, 17, 0) 25%,
+                    rgba(17, 17, 17, 0) 75%,
+                    #111 100%);
+            pointer-events: none;
+            z-index: 3;
+        }
+
+        .wheel-item.spacer {
+            height: 32px;
             pointer-events: none;
         }
 
@@ -2844,6 +2862,11 @@
         function initializeWheel(type, min, max) {
             const container = document.getElementById(`${type}-items`);
             container.innerHTML = '';
+
+            // Spacers for centering
+            container.appendChild(Object.assign(document.createElement('div'), { className: 'wheel-item spacer' }));
+            container.appendChild(Object.assign(document.createElement('div'), { className: 'wheel-item spacer' }));
+
             for (let i = min; i <= max; i++) {
                 const item = document.createElement('div');
                 item.className = 'wheel-item';
@@ -2853,8 +2876,17 @@
                     item.textContent = String(i).padStart(2, '0');
                 }
                 item.dataset.value = i;
+                item.onclick = (e) => {
+                    const val = parseInt(e.currentTarget.dataset.value);
+                    updateWheelPosition(type, val);
+                    updateDatePreview();
+                };
                 container.appendChild(item);
             }
+
+            container.appendChild(Object.assign(document.createElement('div'), { className: 'wheel-item spacer' }));
+            container.appendChild(Object.assign(document.createElement('div'), { className: 'wheel-item spacer' }));
+
             setupWheelScroller(type);
         }
 
@@ -2951,13 +2983,16 @@
 
         function snapToNearestValue(type) {
             const items = document.getElementById(`${type}-items`);
-            const children = items.querySelectorAll('.wheel-item');
+            const children = items.querySelectorAll('.wheel-item:not(.spacer)');
             let closestItem = children[0];
-            let closestDistance = Math.abs(-32);
+            let closestDistance = Infinity;
 
-            children.forEach((item, index) => {
-                const offset = -index * 32;
-                const distance = Math.abs(pickerState.scrollOffset[type] - offset);
+            const allItems = Array.from(items.querySelectorAll('.wheel-item'));
+
+            children.forEach((item) => {
+                const domIndex = allItems.indexOf(item);
+                const targetOffset = 64 - domIndex * 32;
+                const distance = Math.abs(pickerState.scrollOffset[type] - targetOffset);
                 if (distance < closestDistance) {
                     closestDistance = distance;
                     closestItem = item;
@@ -2971,16 +3006,16 @@
 
         function updateWheelPosition(type, value) {
             const items = document.getElementById(`${type}-items`);
-            const children = items.querySelectorAll('.wheel-item');
-            const index = Array.from(children).findIndex(item => parseInt(item.dataset.value) === value);
+            const children = Array.from(items.querySelectorAll('.wheel-item'));
+            const targetIndex = children.findIndex(item => item.dataset.value == value);
 
-            if (index !== -1) {
-                const offset = -index * 32;
+            if (targetIndex !== -1) {
+                const offset = 64 - targetIndex * 32;
                 pickerState.scrollOffset[type] = offset;
                 items.style.transform = `translateY(${offset}px)`;
 
                 children.forEach((item, i) => {
-                    item.classList.toggle('active', i === index);
+                    item.classList.toggle('active', i === targetIndex);
                 });
 
                 pickerState[type] = value;
