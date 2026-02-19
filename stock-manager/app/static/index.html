@@ -2072,6 +2072,16 @@
 
             currentBarcode = decodedText;
             scanSessionChanges = { batches: {}, newQty: 0, newExpiry: null };
+
+            // Reset all form fields immediately on scan
+            document.getElementById('new-batch-qty').value = 0;
+            document.getElementById('new-batch-expiry').value = '';
+            document.getElementById('product-name').value = '';
+            document.getElementById('product-location').value = '';
+            document.getElementById('min-stock').value = 2;
+            document.getElementById('expiry-date').value = '';
+            document.getElementById('quantity').value = 1;
+
             document.getElementById('scanned-code').textContent = 'Código: ' + decodedText;
             document.getElementById('scanned-code').classList.remove('hidden');
             document.getElementById('product-action').classList.remove('hidden');
@@ -2095,18 +2105,14 @@
                 const loading = document.getElementById('barcode-loading');
                 if (loading) loading.remove();
             } else {
-                // New product: try to fetch from Open Food Facts API
+                // New product: reset and try to fetch from Open Food Facts API
                 document.getElementById('existing-product-view').classList.add('hidden');
                 document.getElementById('new-product-fields').classList.remove('hidden');
-
-                // Initialize form fields
                 document.getElementById('product-name').value = '';
                 document.getElementById('product-location').value = '';
                 document.getElementById('min-stock').value = 2;
                 document.getElementById('expiry-date').value = '';
                 document.getElementById('quantity').value = 1;
-                document.getElementById('new-batch-qty').value = 0;
-                document.getElementById('new-batch-expiry').value = '';
 
                 // Try to lookup barcode from Open Food Facts
                 try {
@@ -2222,28 +2228,38 @@
         async function addNewBatch() {
             if (!currentBarcode) return;
             const expiryDate = document.getElementById('new-batch-expiry').value || null;
-            const quantity = parseInt(document.getElementById('new-batch-qty').value) || 0;
+            const quantityVal = document.getElementById('new-batch-qty').value;
+            const quantity = parseInt(quantityVal) || 0;
+
+            console.log('--- ACEPTAR SCAN ---');
+            console.log('Barcode:', currentBarcode);
+            console.log('Pending Deltas:', scanSessionChanges.batches);
+            console.log('New Batch Qty Input:', quantityVal, '-> parsed:', quantity);
 
             try {
-                // 1. Apply batch deltas
+                // 1. Apply batch deltas (updates existing batches)
                 for (const [batchId, delta] of Object.entries(scanSessionChanges.batches)) {
                     if (delta !== 0) {
+                        console.log('Enviando delta:', delta, 'para lote ID:', batchId);
                         await apiCall(`/batches/${batchId}/stock`, 'POST', { quantity: delta });
                     }
                 }
 
-                // 2. Apply new stock entry if quantity > 0
+                // 2. Apply new stock entry if quantity > 0 (creates a NEW batch)
                 if (quantity > 0) {
+                    console.log('Enviando nueva entrada de stock:', quantity, 'con caducidad:', expiryDate);
                     await apiCall(`/products/${currentBarcode}/stock`, 'POST', {
                         quantity, expiry_date: expiryDate
                     });
+                } else {
+                    console.log('No se crea lote nuevo porque quantity es <= 0');
                 }
 
                 await loadProducts();
                 resetScanner();
             } catch (e) {
-                console.error('Error applying changes:', e);
-                alert('Ocurrió un error al guardar los cambios');
+                console.error('Error al procesar cambios:', e);
+                alert('No se pudieron guardar los cambios. Revisa la conexión.');
             }
         }
 
@@ -2277,6 +2293,9 @@
         function resetScanner() {
             currentBarcode = null;
             scanSessionChanges = { batches: {}, newQty: 0, newExpiry: null };
+            // Reset all scanner-related UI
+            document.getElementById('new-batch-qty').value = 0;
+            document.getElementById('new-batch-expiry').value = '';
             document.getElementById('scanned-code').classList.add('hidden');
             document.getElementById('product-action').classList.add('hidden');
             document.getElementById('existing-product-view').classList.add('hidden');
