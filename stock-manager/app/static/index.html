@@ -2854,7 +2854,7 @@
             const daysCount = getDaysInMonth(pickerState.month, pickerState.year);
             initializeWheel('day', 1, daysCount);
             initializeWheel('month', 1, 12);
-            initializeWheel('year', new Date().getFullYear() - 5, new Date().getFullYear() + 20);
+            initializeWheel('year', new Date().getFullYear() - 5, 2099);
             updateWheelPosition('day', pickerState.day);
             updateWheelPosition('month', pickerState.month);
             updateWheelPosition('year', pickerState.year);
@@ -2990,8 +2990,8 @@
                 // Determine direction and steps based on deltaY magnitude
                 const direction = e.deltaY > 0 ? -1 : 1;
                 const absDelta = Math.abs(e.deltaY);
-                // Allow bigger jumps for faster scrolling
-                const steps = absDelta > 100 ? Math.min(3, Math.ceil(absDelta / 100)) : 1;
+                // Allow much bigger jumps for faster scrolling (max 12 steps)
+                const steps = absDelta > 30 ? Math.min(12, Math.ceil(absDelta / 40)) : 1;
 
                 const currentVal = pickerState[type];
                 const itemsList = Array.from(items.querySelectorAll('.wheel-item:not(.spacer)'));
