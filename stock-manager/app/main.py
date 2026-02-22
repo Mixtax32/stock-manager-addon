@@ -161,7 +161,7 @@ async def export_data():
     data = await db.get_export_data()
     
     output = io.StringIO()
-    writer = csv.DictWriter(output, fieldnames=["barcode", "name", "category", "location", "min_stock", "quantity", "expiry_date"])
+    writer = csv.DictWriter(output, fieldnames=["barcode", "name", "category", "location", "min_stock", "image_url", "quantity", "expiry_date"])
     writer.writeheader()
     writer.writerows(data)
     

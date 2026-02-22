@@ -17,6 +17,7 @@ class Product(BaseModel):
     min_stock: int
     location: Optional[str] = None
     expiry_date: Optional[str] = None
+    image_url: Optional[str] = None
     batches: List[Batch] = []
     last_updated: Optional[datetime] = None
 
@@ -26,6 +27,7 @@ class ProductCreate(BaseModel):
     category: str
     min_stock: int = 2
     location: Optional[str] = None
+    image_url: Optional[str] = None
 
 class StockUpdate(BaseModel):
     quantity: int

@@ -31,6 +31,8 @@ class Database:
                 await db.execute("ALTER TABLE products ADD COLUMN expiry_date TEXT DEFAULT NULL")
             if 'location' not in columns:
                 await db.execute("ALTER TABLE products ADD COLUMN location TEXT DEFAULT NULL")
+            if 'image_url' not in columns:
+                await db.execute("ALTER TABLE products ADD COLUMN image_url TEXT DEFAULT NULL")
 
             # Create batches table
             await db.execute("""
@@ -138,9 +140,9 @@ class Database:
         """Create new product"""
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(
-                """INSERT INTO products (barcode, name, category, stock, min_stock, location, last_updated)
-                   VALUES (?, ?, ?, 0, ?, ?, ?)""",
-                (product.barcode, product.name, product.category, product.min_stock, product.location, datetime.now())
+                """INSERT INTO products (barcode, name, category, stock, min_stock, location, image_url, last_updated)
+                   VALUES (?, ?, ?, 0, ?, ?, ?, ?)""",
+                (product.barcode, product.name, product.category, product.min_stock, product.location, product.image_url, datetime.now())
             )
             await db.commit()
         return await self.get_product(product.barcode)
@@ -198,6 +200,8 @@ class Database:
             updates['min_stock'] = update.min_stock
         if update.location is not None:
             updates['location'] = update.location
+        if hasattr(update, 'image_url') and update.image_url is not None:
+            updates['image_url'] = update.image_url
 
         if updates:
             updates['last_updated'] = datetime.now()
@@ -333,7 +337,7 @@ class Database:
             # Join products and batches to get a flat list. 
             # We use LEFT JOIN to include products even if they have no batches (though in our sync system they shouldn't)
             async with db.execute("""
-                SELECT p.barcode, p.name, p.category, p.location, p.min_stock, b.quantity, b.expiry_date
+                SELECT p.barcode, p.name, p.category, p.location, p.min_stock, p.image_url, b.quantity, b.expiry_date
                 FROM products p
                 LEFT JOIN batches b ON p.barcode = b.barcode
                 ORDER BY p.name
@@ -355,13 +359,14 @@ class Database:
                 
                 # Insert or update product
                 await db.execute("""
-                    INSERT INTO products (barcode, name, category, location, min_stock, stock, last_updated)
-                    VALUES (?, ?, ?, ?, ?, 0, ?)
+                    INSERT INTO products (barcode, name, category, location, min_stock, image_url, stock, last_updated)
+                    VALUES (?, ?, ?, ?, ?, ?, 0, ?)
                     ON CONFLICT(barcode) DO UPDATE SET
                         name=excluded.name,
                         category=excluded.category,
                         location=excluded.location,
                         min_stock=excluded.min_stock,
+                        image_url=COALESCE(excluded.image_url, products.image_url),
                         last_updated=excluded.last_updated
                 """, (
                     barcode,
@@ -369,6 +374,7 @@ class Database:
                     item.get('category', 'Otros'),
                     item.get('location'),
                     item.get('min_stock', 2),
+                    item.get('image_url'),
                     datetime.now()
                 ))
 
