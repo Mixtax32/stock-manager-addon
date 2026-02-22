@@ -110,11 +110,15 @@ stock-manager/
 ├── run.sh              # Script de inicio
 ├── requirements.txt    # Dependencias Python
 ├── app/
-│   ├── main.py        # Backend FastAPI
-│   ├── database.py    # Gestión SQLite
-│   ├── models.py      # Modelos Pydantic
+│   ├── main.py            # Backend FastAPI
+│   ├── database.py        # Gestión SQLite
+│   ├── models.py          # Modelos de datos
+│   ├── barcode_service.py # Lógica de códigos de barras
+│   ├── ocr_service.py     # Lógica de OCR (reconocimiento de texto)
 │   └── static/
-│       └── index.html # Frontend
+│       ├── index.html     # Estructura del frontend
+│       ├── styles.css     # Estilos modernos (UI/UX)
+│       └── app.js         # Lógica interactiva del frontend
 └── README.md
 ```
 
