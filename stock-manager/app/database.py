@@ -260,6 +260,7 @@ class Database:
             else:
                 await db.execute("UPDATE batches SET quantity = ? WHERE id = ?", (new_qty, batch_id))
 
+            await self._log_movement(db, barcode, update.quantity, "manual_update")
             await self._sync_product_stock(db, barcode)
             await db.commit()
 
@@ -316,15 +317,16 @@ class Database:
     async def get_stats(self) -> dict:
         """Get inventory statistics"""
         async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
             async with db.execute(
                 """SELECT 
                     COUNT(*) as total_products,
-                    SUM(stock) as total_units,
+                    COALESCE(SUM(stock), 0) as total_units,
                     COUNT(CASE WHEN stock < min_stock THEN 1 END) as low_stock_count
                    FROM products"""
             ) as cursor:
                 row = await cursor.fetchone()
-                return dict(row)
+                return dict(row) if row else {"total_products": 0, "total_units": 0, "low_stock_count": 0}
 
     async def get_consumption_stats(self, days: int = 30) -> List[dict]:
         """Get consumption (negative movements) grouped by day"""
