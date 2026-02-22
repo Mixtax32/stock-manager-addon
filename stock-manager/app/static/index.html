@@ -1553,46 +1553,14 @@
         <button class="btn btn-secondary" onclick="clearSelection()" style="padding:6px 10px;">✕</button>
     </div>
     <div class="container">
-        <div class="header">
-            <h1>Stock Manager</h1>
-            <div class="header-main-actions" style="display:flex;gap:8px;margin-top:12px;">
-                <button class="btn btn-add" id="start-scan" style="flex:1">📦 Escanear Producto</button>
-                <button class="btn btn-primary" id="start-ticket" style="flex:1">🧾 Escanear Ticket</button>
-                <button class="btn btn-del btn-manage hidden" id="stop-scan" style="flex:1">Detener Cámara</button>
-            </div>
-        </div>
-
-        <!-- Dashboard Section -->
-        <div class="section" id="stats-section">
-            <div class="section-header">
-                <h2 onclick="toggleSection('stats-section')" style="flex:1">Estadísticas</h2>
-                <span class="toggle" onclick="toggleSection('stats-section')"></span>
-            </div>
-            <div class="section-body">
-                <div class="stats-summary" id="stats-summary-v2"
-                    style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px;">
-                    <div class="stat-card"
-                        style="background:#111;padding:12px;border-radius:8px;text-align:center;border:1px solid #222;">
-                        <div style="font-size:11px;color:#555;text-transform:uppercase;letter-spacing:1px;">Productos
-                        </div>
-                        <div id="stat-total-p" style="font-size:20px;font-weight:700;color:#e0e0e0;">0</div>
-                    </div>
-                    <div class="stat-card"
-                        style="background:#111;padding:12px;border-radius:8px;text-align:center;border:1px solid #222;">
-                        <div style="font-size:11px;color:#555;text-transform:uppercase;letter-spacing:1px;">Unidades
-                        </div>
-                        <div id="stat-total-u" style="font-size:20px;font-weight:700;color:#e0e0e0;">0</div>
-                    </div>
-                    <div class="stat-card"
-                        style="background:#111;padding:12px;border-radius:8px;text-align:center;border:1px solid #222;">
-                        <div style="font-size:11px;color:#555;text-transform:uppercase;letter-spacing:1px;">Bajo Stock
-                        </div>
-                        <div id="stat-low-s" style="font-size:20px;font-weight:700;color:#f59e0b;">0</div>
-                    </div>
-                </div>
-                <div style="height:200px;position:relative;">
-                    <canvas id="consumptionChart"></canvas>
-                </div>
+        <div class="header" style="border-bottom:none; margin-bottom: 8px;">
+            <div class="header-main-actions" style="display:flex;gap:8px;width:100%;">
+                <button class="btn btn-add" id="start-scan" style="flex:1; font-size: 16px; padding: 12px;">📦 Quick
+                    scan</button>
+                <button class="btn btn-primary" id="start-ticket" style="flex:1; font-size: 16px; padding: 12px;">🧾
+                    Escanear Ticket</button>
+                <button class="btn btn-del btn-manage hidden" id="stop-scan"
+                    style="flex:1; font-size: 16px; padding: 12px;">Detener Cámara</button>
             </div>
         </div>
 
@@ -1793,6 +1761,40 @@
             </div>
 
             <div id="manage-list"></div>
+        </div>
+
+        <!-- Dashboard Section -->
+        <div class="section collapsed" id="stats-section">
+            <div class="section-header">
+                <h2 onclick="toggleSection('stats-section')" style="flex:1">Estadísticas</h2>
+                <span class="toggle" onclick="toggleSection('stats-section')"></span>
+            </div>
+            <div class="section-body">
+                <div class="stats-summary" id="stats-summary-v2"
+                    style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px;">
+                    <div class="stat-card"
+                        style="background:#111;padding:12px;border-radius:8px;text-align:center;border:1px solid #222;">
+                        <div style="font-size:11px;color:#555;text-transform:uppercase;letter-spacing:1px;">Productos
+                        </div>
+                        <div id="stat-total-p" style="font-size:20px;font-weight:700;color:#e0e0e0;">0</div>
+                    </div>
+                    <div class="stat-card"
+                        style="background:#111;padding:12px;border-radius:8px;text-align:center;border:1px solid #222;">
+                        <div style="font-size:11px;color:#555;text-transform:uppercase;letter-spacing:1px;">Unidades
+                        </div>
+                        <div id="stat-total-u" style="font-size:20px;font-weight:700;color:#e0e0e0;">0</div>
+                    </div>
+                    <div class="stat-card"
+                        style="background:#111;padding:12px;border-radius:8px;text-align:center;border:1px solid #222;">
+                        <div style="font-size:11px;color:#555;text-transform:uppercase;letter-spacing:1px;">Bajo Stock
+                        </div>
+                        <div id="stat-low-s" style="font-size:20px;font-weight:700;color:#f59e0b;">0</div>
+                    </div>
+                </div>
+                <div style="height:200px;position:relative;">
+                    <canvas id="consumptionChart"></canvas>
+                </div>
+            </div>
         </div>
     </div>
 
