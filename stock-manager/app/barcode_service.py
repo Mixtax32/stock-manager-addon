@@ -27,7 +27,7 @@ def map_external_category_to_internal(external_category: str) -> str:
         "Higiene": ["higiene", "cosméticos", "cosmetic", "beauty", "personal care", "skincare", "hair", "body care", "belleza"],
         "Bebidas": ["bebida", "drink", "beverage", "juice", "water", "soda", "café", "coffee", "tea", "té"],
         "Limpieza": ["limpieza", "cleaning", "detergent", "soap", "hygiene", "disinfectant"],
-        "Alimentos": ["alimento", "food", "comida", "snack", "candy", "chocolate", "cereal", "pan", "bread"],
+        "Alimentos": ["alimento", "food", "comida", "snack", "candy", "chocolate", "cereal", "pan", "bread", "pet food", "perro", "gato", "dog", "cat", "mascotas"],
     }
 
     # Try to find a match
@@ -45,6 +45,7 @@ def map_external_category_to_internal(external_category: str) -> str:
 OPENFOODFACTS_API = "https://world.openfoodfacts.org/api/v2/product/{barcode}.json"
 OPENBEAUTYFACTS_API = "https://world.openbeautyfacts.org/api/v2/product/{barcode}.json"
 OPENPRODUCTFACTS_API = "https://world.openproductfacts.org/api/v2/product/{barcode}.json"
+OPENPETFOODFACTS_API = "https://world.openpetfoodfacts.org/api/v2/product/{barcode}.json"
 
 HEADERS = {
     "User-Agent": "StockManager-HomeAssistant/1.0"
@@ -183,6 +184,42 @@ async def _search_open_product_facts(barcode: str, client: httpx.AsyncClient) ->
     return {"found": False}
 
 
+async def _search_open_pet_food_facts(barcode: str, client: httpx.AsyncClient) -> Dict[str, Any]:
+    """Search in Open Pet Food Facts (for pet food products)"""
+    try:
+        url = OPENPETFOODFACTS_API.format(barcode=barcode)
+        params = {"fields": "product_name,brands,categories,image_url,quantity"}
+
+        logger.info(f"Searching Open Pet Food Facts for {barcode}...")
+        response = await client.get(url, headers=HEADERS, params=params, timeout=5.0)
+
+        if response.status_code == 404:
+            logger.info(f"Open Pet Food Facts: product not found (404) for {barcode}")
+            return {"found": False}
+
+        response.raise_for_status()
+        data = response.json()
+
+        if data.get("status") == 1:
+            product_data = data.get("product", {})
+            external_category = product_data.get("categories", "")
+            mapped_category = map_external_category_to_internal(external_category)
+
+            return {
+                "found": True,
+                "name": product_data.get("product_name", ""),
+                "brand": product_data.get("brands", ""),
+                "category": mapped_category,
+                "image_url": product_data.get("image_url", ""),
+                "quantity": product_data.get("quantity", ""),
+                "source": "Open Pet Food Facts"
+            }
+    except Exception as e:
+        logger.debug(f"Open Pet Food Facts lookup failed for {barcode}: {e}")
+
+    return {"found": False}
+
+
 async def get_product_from_barcode(barcode: str) -> Dict[str, Any]:
     """
     Fetch product information from multiple sources with fallback.
@@ -205,6 +242,11 @@ async def get_product_from_barcode(barcode: str) -> Dict[str, Any]:
 
             # Try Open Beauty Facts (for beauty and personal care products)
             result = await _search_open_beauty_facts(barcode, client)
+            if result["found"]:
+                return result
+
+            # Try Open Pet Food Facts
+            result = await _search_open_pet_food_facts(barcode, client)
             if result["found"]:
                 return result
 
