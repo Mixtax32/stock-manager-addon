@@ -151,6 +151,53 @@ async def get_stats():
     """Get inventory statistics"""
     return await db.get_stats()
 
+@app.get("/api/export")
+async def export_data():
+    """Export all inventory data as CSV"""
+    import csv
+    import io
+    from fastapi.responses import StreamingResponse
+    
+    data = await db.get_export_data()
+    
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=["barcode", "name", "category", "location", "min_stock", "quantity", "expiry_date"])
+    writer.writeheader()
+    writer.writerows(data)
+    
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=inventario_stock.csv"}
+    )
+
+@app.post("/api/import")
+async def import_data(request: Request):
+    """Import inventory data from CSV"""
+    import csv
+    import io
+    
+    body = await request.body()
+    content = body.decode('utf-8')
+    
+    f = io.StringIO(content)
+    # Detect delimiter (handle comma or semicolon)
+    first_line = content.split('\n')[0]
+    delimiter = ';' if ';' in first_line else ','
+    
+    reader = csv.DictReader(f, delimiter=delimiter)
+    data = [row for row in reader]
+    
+    if not data:
+        raise HTTPException(status_code=400, detail="No data found in file")
+        
+    # Check if we should clear existing data (optional query param could be added, for now merge)
+    clear = request.query_params.get('clear', 'false').lower() == 'true'
+    
+    await db.import_data(data, clear_existing=clear)
+    return {"message": f"Successfully imported {len(data)} rows"}
+
 # Health check
 @app.get("/api/health")
 async def health_check():

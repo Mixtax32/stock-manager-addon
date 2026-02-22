@@ -1521,6 +1521,24 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Backup and Maintenance -->
+            <div
+                style="background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px; padding: 12px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+                <div style="font-size: 13px; color: #aaa;">
+                    <strong>Copia de Seguridad</strong><br>
+                    <span style="font-size: 11px; color: #555;">Exporta o importa el inventario completo en CSV</span>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn btn-primary" onclick="exportInventory()"
+                        style="padding: 6px 12px; font-size: 12px;">Exportar</button>
+                    <button class="btn btn-add" onclick="document.getElementById('import-file').click()"
+                        style="padding: 6px 12px; font-size: 12px;">Importar</button>
+                    <input type="file" id="import-file" accept=".csv" style="display:none"
+                        onchange="importInventory(this)">
+                </div>
+            </div>
+
             <div id="manage-list"></div>
         </div>
     </div>
