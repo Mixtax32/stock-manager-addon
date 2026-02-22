@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stock Manager</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <style>
         * {
@@ -1454,14 +1455,145 @@
                 opacity: 0;
             }
         }
+
+        /* Multi-selection */
+        .selection-bar {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 12px;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            z-index: 9000;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+            width: 90%;
+            max-width: 600px;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s;
+        }
+
+        .selection-bar.hidden {
+            transform: translate(-50%, 100px);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .selection-count {
+            font-size: 14px;
+            font-weight: 600;
+            color: #4ade80;
+            white-space: nowrap;
+        }
+
+        .selection-actions {
+            display: flex;
+            gap: 8px;
+            flex: 1;
+            overflow-x: auto;
+            padding: 4px 0;
+            scrollbar-width: thin;
+        }
+
+        .selection-actions .btn {
+            padding: 6px 12px;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+        .product-checkbox-wrapper {
+            padding: 12px 8px 12px 12px;
+            display: flex;
+            align-items: center;
+        }
+
+        .product-checkbox {
+            width: 20px;
+            height: 20px;
+            appearance: none;
+            -webkit-appearance: none;
+            border: 2px solid #444;
+            border-radius: 4px;
+            background: transparent;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.2s;
+        }
+
+        .product-checkbox:checked {
+            background: #4ade80;
+            border-color: #4ade80;
+        }
+
+        .product-checkbox:checked::after {
+            content: '✓';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #000;
+            font-size: 14px;
+            font-weight: bold;
+        }
     </style>
 </head>
 
 <body class="dark-mode">
     <div class="toast-container" id="toast-container"></div>
+    <div class="selection-bar hidden" id="selection-bar">
+        <div class="selection-count" id="selection-count">0 seleccionados</div>
+        <div class="selection-actions">
+            <button class="btn btn-secondary" onclick="bulkAction('location')">Mover</button>
+            <button class="btn btn-secondary" onclick="bulkAction('category')">Categoría</button>
+            <button class="btn btn-del" onclick="bulkAction('delete')" style="background:#450a0a">Eliminar</button>
+        </div>
+        <button class="btn btn-secondary" onclick="clearSelection()" style="padding:6px 10px;">✕</button>
+    </div>
     <div class="container">
         <div class="header">
             <h1>Stock Manager</h1>
+            <div class="header-main-actions" style="display:flex;gap:8px;margin-top:12px;">
+                <button class="btn btn-add" id="start-scan" style="flex:1">📦 Escanear Producto</button>
+                <button class="btn btn-primary" id="start-ticket" style="flex:1">🧾 Escanear Ticket</button>
+                <button class="btn btn-del btn-manage hidden" id="stop-scan" style="flex:1">Detener Cámara</button>
+            </div>
+        </div>
+
+        <!-- Dashboard Section -->
+        <div class="section" id="stats-section">
+            <div class="section-header">
+                <h2 onclick="toggleSection('stats-section')" style="flex:1">Estadísticas</h2>
+                <span class="toggle" onclick="toggleSection('stats-section')"></span>
+            </div>
+            <div class="section-body">
+                <div class="stats-summary" id="stats-summary-v2"
+                    style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px;">
+                    <div class="stat-card"
+                        style="background:#111;padding:12px;border-radius:8px;text-align:center;border:1px solid #222;">
+                        <div style="font-size:11px;color:#555;text-transform:uppercase;letter-spacing:1px;">Productos
+                        </div>
+                        <div id="stat-total-p" style="font-size:20px;font-weight:700;color:#e0e0e0;">0</div>
+                    </div>
+                    <div class="stat-card"
+                        style="background:#111;padding:12px;border-radius:8px;text-align:center;border:1px solid #222;">
+                        <div style="font-size:11px;color:#555;text-transform:uppercase;letter-spacing:1px;">Unidades
+                        </div>
+                        <div id="stat-total-u" style="font-size:20px;font-weight:700;color:#e0e0e0;">0</div>
+                    </div>
+                    <div class="stat-card"
+                        style="background:#111;padding:12px;border-radius:8px;text-align:center;border:1px solid #222;">
+                        <div style="font-size:11px;color:#555;text-transform:uppercase;letter-spacing:1px;">Bajo Stock
+                        </div>
+                        <div id="stat-low-s" style="font-size:20px;font-weight:700;color:#f59e0b;">0</div>
+                    </div>
+                </div>
+                <div style="height:200px;position:relative;">
+                    <canvas id="consumptionChart"></canvas>
+                </div>
+            </div>
         </div>
 
         <!-- Estado del Stock -->
@@ -1586,7 +1718,10 @@
         <div class="section" id="inventory-section">
             <div class="section-header">
                 <h2 onclick="toggleSection('inventory-section')" style="flex:1">Inventario</h2>
-                <button class="btn-manage" onclick="event.stopPropagation(); openManagePanel()">Gestionar</button>
+                <button class="btn-manage" onclick="event.stopPropagation(); toggleSelectionMode()"
+                    id="select-mode-btn">Seleccionar</button>
+                <button class="btn-manage" onclick="event.stopPropagation(); openManagePanel()"
+                    style="margin-left:8px">Gestionar</button>
                 <span class="toggle" onclick="toggleSection('inventory-section')" style="margin-left:8px"></span>
             </div>
             <div class="section-body">
@@ -1688,6 +1823,8 @@
         let allLocations = [];
         let scanSessionChanges = { batches: {}, newQty: 0, newExpiry: null };
         let currentScannedImageUrl = null;
+        let selectedProducts = new Set();
+        let isSelectionMode = false;
 
         function showToast(message, type = 'info', duration = 3000) {
             const container = document.getElementById('toast-container');
@@ -1739,15 +1876,125 @@
             }
         }
 
+        async function exportInventory() {
+            try {
+                const response = await fetch(`${API_BASE}/export`);
+                if (!response.ok) throw new Error('Error al exportar');
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `inventario_${new Date().toISOString().split('T')[0]}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                showToast('Inventario exportado correctamente', 'success');
+            } catch (error) {
+                showToast('Error exportando: ' + error.message, 'error');
+            }
+        }
+
+        async function importInventory() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.csv';
+            input.onchange = async e => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const formData = new FormData();
+                formData.append('file', file);
+
+                try {
+                    const response = await fetch(`${API_BASE}/import`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const result = await response.json();
+                    if (response.ok) {
+                        showToast(`Importación completada: ${result.count} productos`, 'success');
+                        loadProducts();
+                    } else {
+                        throw new Error(result.detail || 'Error en la importación');
+                    }
+                } catch (error) {
+                    showToast('Error importando: ' + error.message, 'error');
+                }
+            };
+            input.click();
+        }
+
         async function loadProducts() {
             try {
                 products = await apiCall('/products');
                 updateUI();
+                updateCharts();
             } catch (error) {
                 console.error('Error loading products:', error);
             }
         }
 
+        let consumptionChart = null;
+
+        async function updateCharts() {
+            try {
+                const stats = await apiCall('/stats');
+                document.getElementById('stat-total-p').textContent = stats.total_products || 0;
+                document.getElementById('stat-total-u').textContent = stats.total_units || 0;
+                document.getElementById('stat-low-s').textContent = stats.low_stock_count || 0;
+
+                const data = await apiCall('/stats/consumption?days=30');
+                const ctx = document.getElementById('consumptionChart').getContext('2d');
+
+                const labels = data.map(d => {
+                    const date = new Date(d.day);
+                    return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+                });
+                const values = data.map(d => d.total);
+
+                if (consumptionChart) {
+                    consumptionChart.destroy();
+                }
+
+                consumptionChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Consumo diario',
+                            data: values,
+                            borderColor: '#4ade80',
+                            backgroundColor: 'rgba(74, 222, 128, 0.1)',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 3,
+                            pointBackgroundColor: '#4ade80'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: { color: '#555', stepSize: 1 },
+                                grid: { color: '#222' }
+                            },
+                            x: {
+                                ticks: { color: '#555', maxRotation: 0 },
+                                grid: { display: false }
+                            }
+                        }
+                    }
+                });
+            } catch (e) {
+                console.error('Error updating charts:', e);
+            }
+        }
         async function loadStats() {
             try { return await apiCall('/stats'); }
             catch { return { total_products: 0, total_units: 0, low_stock_count: 0 }; }
@@ -2056,21 +2303,41 @@
         }
 
         function similarityScore(a, b) {
-            // Check if one contains the other
-            if (a.includes(b) || b.includes(a)) return 0.9;
+            if (!a || !b) return 0;
+            // Check if one contains the other (very common in short OCR names)
+            if (a.includes(b) || b.includes(a)) return 0.95;
 
-            // Word overlap
-            const wordsA = a.split(/\s+/).filter(w => w.length > 2);
-            const wordsB = b.split(/\s+/).filter(w => w.length > 2);
-            if (wordsA.length === 0 || wordsB.length === 0) return 0;
+            // Levenshtein distance
+            const dist = (s1, s2) => {
+                const m = s1.length, n = s2.length;
+                const dp = Array.from({ length: m + 1 }, () => new Uint32Array(n + 1));
+                for (let i = 0; i <= m; i++) dp[i][0] = i;
+                for (let j = 0; j <= n; j++) dp[0][j] = j;
+                for (let i = 1; i <= m; i++) {
+                    for (let j = 1; j <= n; j++) {
+                        const cost = s1[i - 1] === s2[j - 1] ? 0 : 1;
+                        dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+                    }
+                }
+                return dp[m][n];
+            };
 
-            let matches = 0;
-            for (const wa of wordsA) {
-                for (const wb of wordsB) {
-                    if (wa.includes(wb) || wb.includes(wa)) { matches++; break; }
+            const maxLength = Math.max(a.length, b.length);
+            if (maxLength === 0) return 1;
+            const levScore = 1 - dist(a, b) / maxLength;
+
+            // Word overlap (additional boost)
+            const wordsA = a.split(/\s+/).filter(w => w.length >= 3);
+            const wordsB = b.split(/\s+/).filter(w => w.length >= 3);
+            let wordMatches = 0;
+            if (wordsA.length > 0 && wordsB.length > 0) {
+                for (const wa of wordsA) {
+                    if (wordsB.some(wb => wb.includes(wa) || wa.includes(wb))) wordMatches++;
                 }
             }
-            return matches / Math.max(wordsA.length, wordsB.length);
+            const overlapScore = wordMatches / Math.max(wordsA.length, wordsB.length || 1);
+
+            return (levScore * 0.7) + (overlapScore * 0.3);
         }
 
         function showTicketResults(rawText) {
@@ -2103,12 +2370,20 @@
                 html += '<div class="ticket-section-title unmatched">Detectados en ticket (sin coincidencia)</div>';
                 unmatched.forEach(item => {
                     const idx = ticketItems.indexOf(item);
+                    const productOptions = products.map(p => `<option value="${p.barcode}">${p.name}</option>`).join('');
+
                     html += `<div class="ticket-item">
                         <input type="checkbox" id="ti-check-${idx}"
                             onchange="ticketItems[${idx}].checked = this.checked">
                         <div class="ti-info">
                             <div class="ti-match" style="color:#f59e0b">${item.name}</div>
-                            <div class="ti-line">${item.line}</div>
+                            <div style="margin-top:4px;">
+                                <select style="width:100%;background:#111;color:#aaa;border:1px solid #333;font-size:12px;padding:4px;border-radius:4px;"
+                                    onchange="assignManualMatch(${idx}, this.value)">
+                                    <option value="">¿Asignar a producto inventario?</option>
+                                    ${productOptions}
+                                </select>
+                            </div>
                         </div>
                         <div class="ti-qty">
                             <label>Uds</label>
@@ -2136,6 +2411,20 @@
             document.getElementById('ticket-panel').classList.add('active');
         }
 
+        function assignManualMatch(itemIdx, barcode) {
+            if (!barcode) {
+                ticketItems[itemIdx].match = null;
+                ticketItems[itemIdx].checked = false;
+            } else {
+                const product = products.find(p => p.barcode === barcode);
+                ticketItems[itemIdx].match = product;
+                ticketItems[itemIdx].checked = true;
+            }
+            // Update checkbox visual state
+            const cb = document.getElementById(`ti-check-${itemIdx}`);
+            if (cb) cb.checked = ticketItems[itemIdx].checked;
+        }
+
         function closeTicketPanel() {
             document.getElementById('ticket-panel').classList.remove('active');
             ticketItems = [];
@@ -2155,12 +2444,14 @@
                         if (p.batches && p.batches.length > 0) {
                             await apiCall(`/batches/${p.batches[0].id}/stock`, 'POST', { quantity: item.qty });
                         } else {
+                            // If no batches exist, add to product's general stock (or create first batch)
                             await apiCall(`/products/${p.barcode}/stock`, 'POST', { quantity: item.qty });
                         }
                         added++;
                     }
                     // Unmatched items that are checked - skip for now (user would need to create them manually)
                 } catch (e) {
+                    console.error('Error adding item from ticket:', e);
                     errors++;
                 }
             }
@@ -2168,9 +2459,7 @@
             await loadProducts();
             closeTicketPanel();
 
-            if (errors > 0) {
-                showToast(`${added} productos añadidos. ${errors > 0 ? errors + ' errores.' : ''}`, errors > 0 ? 'error' : 'success');
-            }
+            showToast(`${added} productos añadidos. ${errors > 0 ? errors + ' errores.' : ''}`, errors > 0 ? 'error' : 'success');
         }
 
         function useManualBarcode() {
@@ -2630,6 +2919,8 @@
 
             list.innerHTML = filteredProducts.map(p => {
                 const isLow = p.stock < p.min_stock;
+                const isSelected = selectedProducts.has(p.barcode);
+
                 // Batch breakdown
                 let batchHtml = '';
                 if (p.batches && p.batches.length > 0) {
@@ -2639,9 +2930,9 @@
                             ? `<span class="${exp.cls}">${exp.text}</span>`
                             : '<span class="expiry-ok">Sin caducidad</span>';
                         return `<div class="batch-row">
-                            <span class="batch-qty">${b.quantity} ud${b.quantity > 1 ? 's' : ''}</span>
-                            ${expText}
-                        </div>`;
+                    <span class="batch-qty">${b.quantity} ud${b.quantity > 1 ? 's' : ''}</span>
+                    ${expText}
+                </div>`;
                     }).join('');
                     batchHtml = `<div class="batch-list">${batchRows}</div>`;
                 }
@@ -2649,8 +2940,16 @@
                     ? `<img src="${p.image_url}" class="product-img">`
                     : `<div class="product-img-placeholder">📦</div>`;
 
-                return `<div class="product-row">
+                const checkboxHtml = isSelectionMode ? `
+            <div class="product-checkbox-wrapper">
+                <input type="checkbox" class="product-checkbox" ${isSelected ? 'checked' : ''} 
+                    onclick="event.stopPropagation(); toggleSelect('${p.barcode}')">
+            </div>
+        ` : '';
+
+                return `<div class="product-row ${isSelected ? 'selected' : ''}" onclick="${isSelectionMode ? `toggleSelect('${p.barcode}')` : ''}">
             <div class="product-top">
+                ${checkboxHtml}
                 <div class="product-main">
                     ${imageHtml}
                     <div class="product-info-wrapper">
@@ -2659,19 +2958,99 @@
                     </div>
                 </div>
                 <div class="product-stock">
-                    <button class="btn-round remove" onclick="quickRemove('${p.barcode}')">-</button>
-                    <button class="btn-round lost" onclick="quickLost('${p.barcode}')" title="Marcar como perdida">?</button>
+                    <button class="btn-round remove" onclick="event.stopPropagation(); quickRemove('${p.barcode}')">-</button>
+                    <button class="btn-round lost" onclick="event.stopPropagation(); quickLost('${p.barcode}')" title="Marcar como perdida">?</button>
                     <span class="stock-num ${isLow ? 'low' : ''}">${p.stock}</span>
-                    <button class="btn-round add" onclick="quickAdd('${p.barcode}')">+</button>
+                    <button class="btn-round add" onclick="event.stopPropagation(); quickAdd('${p.barcode}')">+</button>
                     <div style="display:flex;flex-direction:column;gap:4px;">
-                        <button class="btn-del" onclick="deleteProduct('${p.barcode}')" title="Eliminar">&#x2715;</button>
-                        <button class="btn-del" onclick="openManagePanelForProduct('${p.name}')" title="Gestionar" style="font-size:12px;padding:2px 4px;">⚙</button>
+                        <button class="btn-del" onclick="event.stopPropagation(); deleteProduct('${p.barcode}')" title="Eliminar">&#x2715;</button>
+                        <button class="btn-del" onclick="event.stopPropagation(); openManagePanelForProduct('${p.name}')" title="Gestionar" style="font-size:12px;padding:2px 4px;">⚙</button>
                     </div>
                 </div>
             </div>
             ${batchHtml}
         </div>`;
             }).join('');
+        }
+
+        function toggleSelectionMode() {
+            isSelectionMode = !isSelectionMode;
+            document.getElementById('select-mode-btn').textContent = isSelectionMode ? 'Cancelar' : 'Seleccionar';
+            if (!isSelectionMode) clearSelection();
+            updateProductList();
+            updateSelectionBar(); // Ensure bar is hidden if mode is off
+        }
+
+        function toggleSelect(barcode) {
+            if (selectedProducts.has(barcode)) {
+                selectedProducts.delete(barcode);
+            } else {
+                selectedProducts.add(barcode);
+            }
+            updateSelectionBar();
+            updateProductList();
+        }
+
+        function updateSelectionBar() {
+            const bar = document.getElementById('selection-bar');
+            const countEl = document.getElementById('selection-count');
+            const count = selectedProducts.size;
+
+            if (count > 0 && isSelectionMode) { // Only show if in selection mode and items are selected
+                bar.classList.remove('hidden');
+                countEl.textContent = `${count} seleccionados`;
+            } else {
+                bar.classList.add('hidden');
+            }
+        }
+
+        function clearSelection() {
+            selectedProducts.clear();
+            updateSelectionBar();
+            if (isSelectionMode) updateProductList();
+        }
+
+        async function bulkAction(action) {
+            if (selectedProducts.size === 0) return;
+
+            const barcodes = Array.from(selectedProducts);
+
+            if (action === 'delete') {
+                if (confirm(`¿Eliminar ${barcodes.length} productos y todos sus lotes?`)) {
+                    let errors = 0;
+                    for (const bc of barcodes) {
+                        try { await apiCall(`/products/${bc}`, 'DELETE'); } catch { errors++; }
+                    }
+                    showToast(`Eliminados ${barcodes.length - errors} productos.`, errors > 0 ? 'error' : 'success');
+                    await loadProducts();
+                    toggleSelectionMode();
+                }
+            } else if (action === 'location') {
+                const newLoc = prompt('Nueva ubicación para los productos seleccionados:');
+                if (newLoc !== null) {
+                    let errors = 0;
+                    for (const bc of barcodes) {
+                        try { await apiCall(`/products/${bc}`, 'PATCH', { location: newLoc }); } catch { errors++; }
+                    }
+                    showToast(`Ubicación actualizada para ${barcodes.length - errors} productos.`, errors > 0 ? 'error' : 'success');
+                    await loadProducts();
+                    toggleSelectionMode();
+                }
+            } else if (action === 'category') {
+                const newCat = prompt('Nueva categoría (Alimentos, Bebidas, Limpieza, Higiene, Otros):');
+                const valid = ['Alimentos', 'Bebidas', 'Limpieza', 'Higiene', 'Otros'];
+                if (newCat && valid.includes(newCat)) {
+                    let errors = 0;
+                    for (const bc of barcodes) {
+                        try { await apiCall(`/products/${bc}`, 'PATCH', { category: newCat }); } catch { errors++; }
+                    }
+                    showToast(`Categoría actualizada para ${barcodes.length - errors} productos.`, errors > 0 ? 'error' : 'success');
+                    await loadProducts();
+                    toggleSelectionMode();
+                } else if (newCat !== null) {
+                    showToast('Categoría no válida', 'error');
+                }
+            }
         }
 
         async function loadLocations() {

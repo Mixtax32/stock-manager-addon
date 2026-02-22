@@ -324,11 +324,25 @@ class Database:
                    FROM products"""
             ) as cursor:
                 row = await cursor.fetchone()
-                return {
-                    'total_products': row[0] or 0,
-                    'total_units': row[1] or 0,
-                    'low_stock_count': row[2] or 0
-                }
+                return dict(row)
+
+    async def get_consumption_stats(self, days: int = 30) -> List[dict]:
+        """Get consumption (negative movements) grouped by day"""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            # Filter for negative changes (consumptions) and last X days
+            async with db.execute("""
+                SELECT 
+                    date(timestamp) as day,
+                    ABS(SUM(quantity_change)) as total
+                FROM movements
+                WHERE quantity_change < 0 
+                AND timestamp >= date('now', ?)
+                GROUP BY day
+                ORDER BY day ASC
+            """, (f'-{days} days',)) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
 
     async def get_export_data(self) -> List[dict]:
         """Get all inventory data in a flat format for export"""

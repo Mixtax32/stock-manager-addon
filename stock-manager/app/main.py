@@ -151,6 +151,10 @@ async def get_stats():
     """Get inventory statistics"""
     return await db.get_stats()
 
+@app.get("/api/stats/consumption")
+async def get_consumption_stats(days: int = 30):
+    return await db.get_consumption_stats(days)
+
 @app.get("/api/export")
 async def export_data():
     """Export all inventory data as CSV"""
