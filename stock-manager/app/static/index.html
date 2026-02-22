@@ -1559,8 +1559,6 @@
                     scan</button>
                 <button class="btn btn-primary" id="start-ticket" style="flex:1; font-size: 16px; padding: 12px;">🧾
                     Escanear Ticket</button>
-                <button class="btn btn-del btn-manage hidden" id="stop-scan"
-                    style="flex:1; font-size: 16px; padding: 12px;">Detener Cámara</button>
             </div>
         </div>
 
@@ -1596,6 +1594,8 @@
                     <button class="btn btn-primary" onclick="useManualBarcode()">Buscar</button>
                 </div>
                 <div id="search-results" class="search-results hidden"></div>
+                <button class="btn btn-del btn-manage hidden" id="stop-scan"
+                    style="width:100%; margin-bottom:12px; font-size: 16px; padding: 12px;">🛑 Detener Cámara</button>
                 <div id="scanner-container"></div>
                 <div id="ticket-progress" class="ticket-progress hidden">
                     <div class="tp-text" id="ticket-status">Preparando cámara...</div>
