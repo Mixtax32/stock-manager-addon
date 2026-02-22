@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stock Manager</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <style>
         * {
@@ -347,12 +348,58 @@
         .product-main {
             flex: 1;
             min-width: 0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .product-img {
+            width: 44px;
+            height: 44px;
+            border-radius: 8px;
+            object-fit: cover;
+            background: #222;
+            border: 1px solid #333;
+            flex-shrink: 0;
+        }
+
+        .product-img-placeholder {
+            width: 44px;
+            height: 44px;
+            border-radius: 8px;
+            background: #1a1a1a;
+            border: 1px solid #222;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+
+        .scan-product-img {
+            width: 60px;
+            height: 60px;
+            border-radius: 10px;
+            object-fit: contain;
+            background: #fff;
+            padding: 4px;
+            border: 1px solid #333;
+            margin-right: 12px;
+        }
+
+        .product-info-wrapper {
+            flex: 1;
+            min-width: 0;
         }
 
         .product-main .name {
             font-size: 15px;
             color: #e0e0e0;
             font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .product-main .meta {
@@ -1337,13 +1384,182 @@
             color: #4ade80;
             border-color: #166534;
         }
+
+        /* Notifications / Toasts */
+        .toast-container {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none;
+            width: 90%;
+            max-width: 400px;
+        }
+
+        .toast {
+            background: #222;
+            color: #fff;
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            font-size: 14px;
+            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: toast-in 0.3s ease-out forwards;
+            pointer-events: auto;
+        }
+
+        .toast.hiding {
+            animation: toast-out 0.3s ease-in forwards;
+        }
+
+        .toast-success {
+            border-left: 4px solid #166534;
+        }
+
+        .toast-error {
+            border-left: 4px solid #991b1b;
+        }
+
+        .toast-info {
+            border-left: 4px solid #1e40af;
+        }
+
+        @keyframes toast-in {
+            from {
+                transform: translateY(100px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes toast-out {
+            from {
+                transform: translateY(0);
+                opacity: 1;
+            }
+
+            to {
+                transform: translateY(100px);
+                opacity: 0;
+            }
+        }
+
+        /* Multi-selection */
+        .selection-bar {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 12px;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            z-index: 9000;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+            width: 90%;
+            max-width: 600px;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s;
+        }
+
+        .selection-bar.hidden {
+            transform: translate(-50%, 100px);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .selection-count {
+            font-size: 14px;
+            font-weight: 600;
+            color: #4ade80;
+            white-space: nowrap;
+        }
+
+        .selection-actions {
+            display: flex;
+            gap: 8px;
+            flex: 1;
+            overflow-x: auto;
+            padding: 4px 0;
+            scrollbar-width: thin;
+        }
+
+        .selection-actions .btn {
+            padding: 6px 12px;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+        .product-checkbox-wrapper {
+            padding: 12px 8px 12px 12px;
+            display: flex;
+            align-items: center;
+        }
+
+        .product-checkbox {
+            width: 20px;
+            height: 20px;
+            appearance: none;
+            -webkit-appearance: none;
+            border: 2px solid #444;
+            border-radius: 4px;
+            background: transparent;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.2s;
+        }
+
+        .product-checkbox:checked {
+            background: #4ade80;
+            border-color: #4ade80;
+        }
+
+        .product-checkbox:checked::after {
+            content: '✓';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #000;
+            font-size: 14px;
+            font-weight: bold;
+        }
     </style>
 </head>
 
-<body>
+<body class="dark-mode">
+    <div class="toast-container" id="toast-container"></div>
+    <div class="selection-bar hidden" id="selection-bar">
+        <div class="selection-count" id="selection-count">0 seleccionados</div>
+        <div class="selection-actions">
+            <button class="btn btn-secondary" onclick="bulkAction('location')">Mover</button>
+            <button class="btn btn-secondary" onclick="bulkAction('category')">Categoría</button>
+            <button class="btn btn-del" onclick="bulkAction('delete')" style="background:#450a0a">Eliminar</button>
+        </div>
+        <button class="btn btn-secondary" onclick="clearSelection()" style="padding:6px 10px;">✕</button>
+    </div>
     <div class="container">
-        <div class="header">
-            <h1>Stock Manager</h1>
+        <div class="header" style="border-bottom:none; margin-bottom: 8px;">
+            <div class="header-main-actions" style="display:flex;gap:8px;width:100%;">
+                <button class="btn btn-add" id="start-scan" style="flex:1; font-size: 16px; padding: 12px;">📦 Quick
+                    scan</button>
+                <button class="btn btn-primary" id="start-ticket" style="flex:1; font-size: 16px; padding: 12px;">🧾
+                    Escanear Ticket</button>
+            </div>
         </div>
 
         <!-- Estado del Stock -->
@@ -1378,11 +1594,9 @@
                     <button class="btn btn-primary" onclick="useManualBarcode()">Buscar</button>
                 </div>
                 <div id="search-results" class="search-results hidden"></div>
-                <div class="camera-row">
-                    <button class="btn btn-primary" id="start-scan" style="flex:1">Escanear código</button>
-                    <button class="btn btn-primary" id="start-ticket" style="flex:1">Leer ticket</button>
-                    <button class="btn btn-remove hidden" id="stop-scan" style="flex:1">Detener</button>
-                </div>
+                <button class="btn btn-manage hidden" id="stop-scan"
+                    style="width:100%; margin-bottom:12px; font-size: 16px; padding: 12px; background: #dc2626; color: #fff;">Detener
+                    Cámara</button>
                 <div id="scanner-container"></div>
                 <div id="ticket-progress" class="ticket-progress hidden">
                     <div class="tp-text" id="ticket-status">Preparando cámara...</div>
@@ -1468,7 +1682,10 @@
         <div class="section" id="inventory-section">
             <div class="section-header">
                 <h2 onclick="toggleSection('inventory-section')" style="flex:1">Inventario</h2>
-                <button class="btn-manage" onclick="event.stopPropagation(); openManagePanel()">Gestionar</button>
+                <button class="btn-manage" onclick="event.stopPropagation(); toggleSelectionMode()"
+                    id="select-mode-btn">Seleccionar</button>
+                <button class="btn-manage" onclick="event.stopPropagation(); openManagePanel()"
+                    style="margin-left:8px">Gestionar</button>
                 <span class="toggle" onclick="toggleSection('inventory-section')" style="margin-left:8px"></span>
             </div>
             <div class="section-body">
@@ -1521,7 +1738,59 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Backup and Maintenance -->
+            <div
+                style="background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px; padding: 12px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+                <div style="font-size: 13px; color: #aaa;">
+                    <strong>Copia de Seguridad</strong><br>
+                    <span style="font-size: 11px; color: #555;">Exporta o importa el inventario completo en CSV</span>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn btn-primary" onclick="exportInventory()"
+                        style="padding: 6px 12px; font-size: 12px;">Exportar</button>
+                    <button class="btn btn-add" onclick="document.getElementById('import-file').click()"
+                        style="padding: 6px 12px; font-size: 12px;">Importar</button>
+                    <input type="file" id="import-file" accept=".csv" style="display:none"
+                        onchange="importInventory(this)">
+                </div>
+            </div>
+
             <div id="manage-list"></div>
+        </div>
+
+        <!-- Dashboard Section -->
+        <div class="section collapsed" id="stats-section">
+            <div class="section-header">
+                <h2 onclick="toggleSection('stats-section')" style="flex:1">Estadísticas</h2>
+                <span class="toggle" onclick="toggleSection('stats-section')"></span>
+            </div>
+            <div class="section-body">
+                <div class="stats-summary" id="stats-summary-v2"
+                    style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px;">
+                    <div class="stat-card"
+                        style="background:#111;padding:12px;border-radius:8px;text-align:center;border:1px solid #222;">
+                        <div style="font-size:11px;color:#555;text-transform:uppercase;letter-spacing:1px;">Productos
+                        </div>
+                        <div id="stat-total-p" style="font-size:20px;font-weight:700;color:#e0e0e0;">0</div>
+                    </div>
+                    <div class="stat-card"
+                        style="background:#111;padding:12px;border-radius:8px;text-align:center;border:1px solid #222;">
+                        <div style="font-size:11px;color:#555;text-transform:uppercase;letter-spacing:1px;">Unidades
+                        </div>
+                        <div id="stat-total-u" style="font-size:20px;font-weight:700;color:#e0e0e0;">0</div>
+                    </div>
+                    <div class="stat-card"
+                        style="background:#111;padding:12px;border-radius:8px;text-align:center;border:1px solid #222;">
+                        <div style="font-size:11px;color:#555;text-transform:uppercase;letter-spacing:1px;">Bajo Stock
+                        </div>
+                        <div id="stat-low-s" style="font-size:20px;font-weight:700;color:#f59e0b;">0</div>
+                    </div>
+                </div>
+                <div style="height:200px;position:relative;">
+                    <canvas id="consumptionChart"></canvas>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1551,6 +1820,28 @@
         let filteredLocation = null;
         let allLocations = [];
         let scanSessionChanges = { batches: {}, newQty: 0, newExpiry: null };
+        let currentScannedImageUrl = null;
+        let selectedProducts = new Set();
+        let isSelectionMode = false;
+
+        function showToast(message, type = 'info', duration = 3000) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+
+            let icon = 'ℹ️';
+            if (type === 'success') icon = '✅';
+            if (type === 'error') icon = '❌';
+
+            toast.innerHTML = `<span>${icon}</span><span>${message}</span>`;
+            container.appendChild(toast);
+
+            // Auto-hide
+            setTimeout(() => {
+                toast.classList.add('hiding');
+                toast.addEventListener('animationend', () => toast.remove());
+            }, duration);
+        }
 
         window.onload = async function () {
             await loadProducts();
@@ -1578,20 +1869,130 @@
                 return await response.json().catch(() => { throw new Error('Respuesta inválida'); });
             } catch (error) {
                 console.error(`API Error [${method} ${url}]:`, error);
-                alert(error.message);
+                showToast(error.message, 'error');
                 throw error;
             }
+        }
+
+        async function exportInventory() {
+            try {
+                const response = await fetch(`${API_BASE}/export`);
+                if (!response.ok) throw new Error('Error al exportar');
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `inventario_${new Date().toISOString().split('T')[0]}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                showToast('Inventario exportado correctamente', 'success');
+            } catch (error) {
+                showToast('Error exportando: ' + error.message, 'error');
+            }
+        }
+
+        async function importInventory() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.csv';
+            input.onchange = async e => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const formData = new FormData();
+                formData.append('file', file);
+
+                try {
+                    const response = await fetch(`${API_BASE}/import`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const result = await response.json();
+                    if (response.ok) {
+                        showToast(`Importación completada: ${result.count} productos`, 'success');
+                        loadProducts();
+                    } else {
+                        throw new Error(result.detail || 'Error en la importación');
+                    }
+                } catch (error) {
+                    showToast('Error importando: ' + error.message, 'error');
+                }
+            };
+            input.click();
         }
 
         async function loadProducts() {
             try {
                 products = await apiCall('/products');
                 updateUI();
+                updateCharts();
             } catch (error) {
                 console.error('Error loading products:', error);
             }
         }
 
+        let consumptionChart = null;
+
+        async function updateCharts() {
+            try {
+                const stats = await apiCall('/stats');
+                document.getElementById('stat-total-p').textContent = stats.total_products || 0;
+                document.getElementById('stat-total-u').textContent = stats.total_units || 0;
+                document.getElementById('stat-low-s').textContent = stats.low_stock_count || 0;
+
+                const data = await apiCall('/stats/consumption?days=30');
+                const ctx = document.getElementById('consumptionChart').getContext('2d');
+
+                const labels = data.map(d => {
+                    const date = new Date(d.day);
+                    return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+                });
+                const values = data.map(d => d.total);
+
+                if (consumptionChart) {
+                    consumptionChart.destroy();
+                }
+
+                consumptionChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Consumo diario',
+                            data: values,
+                            borderColor: '#4ade80',
+                            backgroundColor: 'rgba(74, 222, 128, 0.1)',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 3,
+                            pointBackgroundColor: '#4ade80'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: { color: '#555', stepSize: 1 },
+                                grid: { color: '#222' }
+                            },
+                            x: {
+                                ticks: { color: '#555', maxRotation: 0 },
+                                grid: { display: false }
+                            }
+                        }
+                    }
+                });
+            } catch (e) {
+                console.error('Error updating charts:', e);
+            }
+        }
         async function loadStats() {
             try { return await apiCall('/stats'); }
             catch { return { total_products: 0, total_units: 0, low_stock_count: 0 }; }
@@ -1619,7 +2020,7 @@
                 document.getElementById('start-ticket').classList.add('hidden');
                 document.getElementById('stop-scan').classList.remove('hidden');
             } catch (err) {
-                alert('Error cámara: ' + err.message);
+                showToast('Error cámara: ' + err.message);
             }
         };
 
@@ -1699,7 +2100,7 @@
                     document.getElementById('stop-scan').onclick = origStop;
                 };
             } catch (err) {
-                alert('Error cámara: ' + err.message);
+                showToast('Error cámara: ' + err.message);
             }
         };
 
@@ -1745,7 +2146,7 @@
                 parseTicketText(text);
             } catch (err) {
                 progress.classList.add('hidden');
-                alert('Error al leer ticket: ' + err.message);
+                showToast('Error al leer ticket: ' + err.message, 'error');
             }
         }
 
@@ -1900,21 +2301,41 @@
         }
 
         function similarityScore(a, b) {
-            // Check if one contains the other
-            if (a.includes(b) || b.includes(a)) return 0.9;
+            if (!a || !b) return 0;
+            // Check if one contains the other (very common in short OCR names)
+            if (a.includes(b) || b.includes(a)) return 0.95;
 
-            // Word overlap
-            const wordsA = a.split(/\s+/).filter(w => w.length > 2);
-            const wordsB = b.split(/\s+/).filter(w => w.length > 2);
-            if (wordsA.length === 0 || wordsB.length === 0) return 0;
+            // Levenshtein distance
+            const dist = (s1, s2) => {
+                const m = s1.length, n = s2.length;
+                const dp = Array.from({ length: m + 1 }, () => new Uint32Array(n + 1));
+                for (let i = 0; i <= m; i++) dp[i][0] = i;
+                for (let j = 0; j <= n; j++) dp[0][j] = j;
+                for (let i = 1; i <= m; i++) {
+                    for (let j = 1; j <= n; j++) {
+                        const cost = s1[i - 1] === s2[j - 1] ? 0 : 1;
+                        dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+                    }
+                }
+                return dp[m][n];
+            };
 
-            let matches = 0;
-            for (const wa of wordsA) {
-                for (const wb of wordsB) {
-                    if (wa.includes(wb) || wb.includes(wa)) { matches++; break; }
+            const maxLength = Math.max(a.length, b.length);
+            if (maxLength === 0) return 1;
+            const levScore = 1 - dist(a, b) / maxLength;
+
+            // Word overlap (additional boost)
+            const wordsA = a.split(/\s+/).filter(w => w.length >= 3);
+            const wordsB = b.split(/\s+/).filter(w => w.length >= 3);
+            let wordMatches = 0;
+            if (wordsA.length > 0 && wordsB.length > 0) {
+                for (const wa of wordsA) {
+                    if (wordsB.some(wb => wb.includes(wa) || wa.includes(wb))) wordMatches++;
                 }
             }
-            return matches / Math.max(wordsA.length, wordsB.length);
+            const overlapScore = wordMatches / Math.max(wordsA.length, wordsB.length || 1);
+
+            return (levScore * 0.7) + (overlapScore * 0.3);
         }
 
         function showTicketResults(rawText) {
@@ -1947,12 +2368,20 @@
                 html += '<div class="ticket-section-title unmatched">Detectados en ticket (sin coincidencia)</div>';
                 unmatched.forEach(item => {
                     const idx = ticketItems.indexOf(item);
+                    const productOptions = products.map(p => `<option value="${p.barcode}">${p.name}</option>`).join('');
+
                     html += `<div class="ticket-item">
                         <input type="checkbox" id="ti-check-${idx}"
                             onchange="ticketItems[${idx}].checked = this.checked">
                         <div class="ti-info">
                             <div class="ti-match" style="color:#f59e0b">${item.name}</div>
-                            <div class="ti-line">${item.line}</div>
+                            <div style="margin-top:4px;">
+                                <select style="width:100%;background:#111;color:#aaa;border:1px solid #333;font-size:12px;padding:4px;border-radius:4px;"
+                                    onchange="assignManualMatch(${idx}, this.value)">
+                                    <option value="">¿Asignar a producto inventario?</option>
+                                    ${productOptions}
+                                </select>
+                            </div>
                         </div>
                         <div class="ti-qty">
                             <label>Uds</label>
@@ -1980,6 +2409,20 @@
             document.getElementById('ticket-panel').classList.add('active');
         }
 
+        function assignManualMatch(itemIdx, barcode) {
+            if (!barcode) {
+                ticketItems[itemIdx].match = null;
+                ticketItems[itemIdx].checked = false;
+            } else {
+                const product = products.find(p => p.barcode === barcode);
+                ticketItems[itemIdx].match = product;
+                ticketItems[itemIdx].checked = true;
+            }
+            // Update checkbox visual state
+            const cb = document.getElementById(`ti-check-${itemIdx}`);
+            if (cb) cb.checked = ticketItems[itemIdx].checked;
+        }
+
         function closeTicketPanel() {
             document.getElementById('ticket-panel').classList.remove('active');
             ticketItems = [];
@@ -1987,7 +2430,7 @@
 
         async function confirmTicketItems() {
             const selected = ticketItems.filter(t => t.checked);
-            if (selected.length === 0) { alert('No hay productos seleccionados'); return; }
+            if (selected.length === 0) { showToast('No hay productos seleccionados', 'info'); return; }
 
             let added = 0;
             let errors = 0;
@@ -1999,12 +2442,14 @@
                         if (p.batches && p.batches.length > 0) {
                             await apiCall(`/batches/${p.batches[0].id}/stock`, 'POST', { quantity: item.qty });
                         } else {
+                            // If no batches exist, add to product's general stock (or create first batch)
                             await apiCall(`/products/${p.barcode}/stock`, 'POST', { quantity: item.qty });
                         }
                         added++;
                     }
                     // Unmatched items that are checked - skip for now (user would need to create them manually)
                 } catch (e) {
+                    console.error('Error adding item from ticket:', e);
                     errors++;
                 }
             }
@@ -2012,14 +2457,12 @@
             await loadProducts();
             closeTicketPanel();
 
-            if (errors > 0) {
-                alert(`${added} producto${added !== 1 ? 's' : ''} añadido${added !== 1 ? 's' : ''}. ${errors} error${errors !== 1 ? 'es' : ''}.`);
-            }
+            showToast(`${added} productos añadidos. ${errors > 0 ? errors + ' errores.' : ''}`, errors > 0 ? 'error' : 'success');
         }
 
         function useManualBarcode() {
             const input = document.getElementById('manual-barcode').value.trim();
-            if (!input) { alert('Introduce un código o nombre'); return; }
+            if (!input) { showToast('Introduce un código o nombre', 'info'); return; }
 
             // First try exact barcode match
             const byBarcode = products.find(p => p.barcode === input);
@@ -2104,12 +2547,18 @@
             document.getElementById('product-action').insertBefore(loadingMsg, document.getElementById('product-action').firstChild);
 
             const product = products.find(p => p.barcode === currentBarcode);
+            currentScannedImageUrl = product ? product.image_url : null;
+
             if (product) {
                 // Existing product: show batch-level controls
                 document.getElementById('existing-product-view').classList.remove('hidden');
                 document.getElementById('new-product-fields').classList.add('hidden');
                 document.getElementById('existing-product-name').textContent = product.name;
                 document.getElementById('existing-product-stock').textContent = `(${product.stock} uds)`;
+
+                // Show image if available
+                renderScanImage(product.image_url);
+
                 renderExistingBatches(product);
                 // Remove loading message
                 const loading = document.getElementById('barcode-loading');
@@ -2118,40 +2567,35 @@
                 // New product: reset and try to fetch from Open Food Facts API
                 document.getElementById('existing-product-view').classList.add('hidden');
                 document.getElementById('new-product-fields').classList.remove('hidden');
-                document.getElementById('product-name').value = '';
-                document.getElementById('product-location').value = '';
-                document.getElementById('min-stock').value = 2;
-                document.getElementById('expiry-date').value = '';
-                document.getElementById('quantity').value = 1;
 
                 // Try to lookup barcode from Open Food Facts
                 try {
                     const barcodeData = await apiCall(`/barcode/${currentBarcode}`, 'GET');
                     console.log('Barcode data received:', barcodeData);
                     if (barcodeData && barcodeData.found) {
+                        currentScannedImageUrl = barcodeData.image_url;
+                        renderScanImage(barcodeData.image_url);
+
                         // Pre-fill form with data from API
-                        console.log('Product name:', barcodeData.name, 'Category:', barcodeData.category);
                         document.getElementById('product-name').value = barcodeData.name || '';
 
                         // Set category from API (already mapped by backend)
                         const apiCategory = barcodeData.category || '';
-                        console.log('API category:', apiCategory);
                         const categorySelect = document.getElementById('product-category');
                         const validCategories = ['Alimentos', 'Bebidas', 'Limpieza', 'Higiene', 'Otros'];
 
                         if (validCategories.includes(apiCategory)) {
                             categorySelect.value = apiCategory;
                         } else {
-                            // Fallback to 'Otros' if category not recognized
                             categorySelect.value = 'Otros';
                         }
                     } else {
                         console.log('Barcode not found in API');
+                        renderScanImage(null);
                     }
                 } catch (e) {
-                    // If lookup fails, just proceed with empty form
                     console.error('Barcode lookup error:', e);
-                    console.log('Barcode lookup failed, proceeding with empty form');
+                    renderScanImage(null);
                 }
                 // Remove loading message
                 const loading = document.getElementById('barcode-loading');
@@ -2159,6 +2603,21 @@
             }
             // Ensure any date inputs are wrapped with our custom picker
             wrapDateInputsWithPicker();
+        }
+
+        function renderScanImage(url) {
+            const parent = document.getElementById('product-action');
+            // Remove old image if any
+            const oldImg = parent.querySelector('.scan-product-img');
+            if (oldImg) oldImg.remove();
+
+            if (url) {
+                const img = document.createElement('img');
+                img.src = url;
+                img.className = 'scan-product-img';
+                img.style.float = 'left';
+                parent.insertBefore(img, parent.firstChild);
+            }
         }
 
         function renderExistingBatches(product) {
@@ -2269,7 +2728,7 @@
                 resetScanner();
             } catch (e) {
                 console.error('Error al procesar cambios:', e);
-                alert('No se pudieron guardar los cambios. Revisa la conexión.');
+                showToast('No se pudieron guardar los cambios. Revisa la conexión.', 'error');
             }
         }
 
@@ -2281,12 +2740,12 @@
             const minStock = parseInt(document.getElementById('min-stock').value);
             const expiryDate = document.getElementById('expiry-date').value || null;
             const quantity = parseInt(document.getElementById('quantity').value);
-            if (!name) { alert('Introduce el nombre del producto'); return; }
+            if (!name) { showToast('Introduce el nombre del producto', 'info'); return; }
             try {
                 const product = products.find(p => p.barcode === currentBarcode);
                 if (!product) {
                     await apiCall('/products', 'POST', {
-                        barcode: currentBarcode, name, category, min_stock: minStock, location
+                        barcode: currentBarcode, name, category, min_stock: minStock, location, image_url: currentScannedImageUrl
                     });
                 }
                 await apiCall(`/products/${currentBarcode}/stock`, 'POST', {
@@ -2458,6 +2917,8 @@
 
             list.innerHTML = filteredProducts.map(p => {
                 const isLow = p.stock < p.min_stock;
+                const isSelected = selectedProducts.has(p.barcode);
+
                 // Batch breakdown
                 let batchHtml = '';
                 if (p.batches && p.batches.length > 0) {
@@ -2467,32 +2928,127 @@
                             ? `<span class="${exp.cls}">${exp.text}</span>`
                             : '<span class="expiry-ok">Sin caducidad</span>';
                         return `<div class="batch-row">
-                            <span class="batch-qty">${b.quantity} ud${b.quantity > 1 ? 's' : ''}</span>
-                            ${expText}
-                        </div>`;
+                    <span class="batch-qty">${b.quantity} ud${b.quantity > 1 ? 's' : ''}</span>
+                    ${expText}
+                </div>`;
                     }).join('');
                     batchHtml = `<div class="batch-list">${batchRows}</div>`;
                 }
-                return `<div class="product-row">
-                    <div class="product-top">
-                        <div class="product-main">
-                            <div class="name">${p.name}</div>
-                            <div class="meta">${p.category}${p.location ? ' • ' + p.location : ''}</div>
-                        </div>
-                        <div class="product-stock">
-                            <button class="btn-round remove" onclick="quickRemove('${p.barcode}')">-</button>
-                            <button class="btn-round lost" onclick="quickLost('${p.barcode}')" title="Marcar como perdida">?</button>
-                            <span class="stock-num ${isLow ? 'low' : ''}">${p.stock}</span>
-                            <button class="btn-round add" onclick="quickAdd('${p.barcode}')">+</button>
-                            <div style="display:flex;flex-direction:column;gap:4px;">
-                                <button class="btn-del" onclick="deleteProduct('${p.barcode}')" title="Eliminar">&#x2715;</button>
-                                <button class="btn-del" onclick="openManagePanelForProduct('${p.name}')" title="Gestionar" style="font-size:12px;padding:2px 4px;">⚙</button>
-                            </div>
-                        </div>
+                const imageHtml = p.image_url
+                    ? `<img src="${p.image_url}" class="product-img">`
+                    : `<div class="product-img-placeholder">📦</div>`;
+
+                const checkboxHtml = isSelectionMode ? `
+            <div class="product-checkbox-wrapper">
+                <input type="checkbox" class="product-checkbox" ${isSelected ? 'checked' : ''} 
+                    onclick="event.stopPropagation(); toggleSelect('${p.barcode}')">
+            </div>
+        ` : '';
+
+                return `<div class="product-row ${isSelected ? 'selected' : ''}" onclick="${isSelectionMode ? `toggleSelect('${p.barcode}')` : ''}">
+            <div class="product-top">
+                ${checkboxHtml}
+                <div class="product-main">
+                    ${imageHtml}
+                    <div class="product-info-wrapper">
+                        <div class="name">${p.name}</div>
+                        <div class="meta">${p.category}${p.location ? ' • ' + p.location : ''}</div>
                     </div>
-                    ${batchHtml}
-                </div>`;
+                </div>
+                <div class="product-stock">
+                    <button class="btn-round remove" onclick="event.stopPropagation(); quickRemove('${p.barcode}')">-</button>
+                    <button class="btn-round lost" onclick="event.stopPropagation(); quickLost('${p.barcode}')" title="Marcar como perdida">?</button>
+                    <span class="stock-num ${isLow ? 'low' : ''}">${p.stock}</span>
+                    <button class="btn-round add" onclick="event.stopPropagation(); quickAdd('${p.barcode}')">+</button>
+                    <div style="display:flex;flex-direction:column;gap:4px;">
+                        <button class="btn-del" onclick="event.stopPropagation(); deleteProduct('${p.barcode}')" title="Eliminar">&#x2715;</button>
+                        <button class="btn-del" onclick="event.stopPropagation(); openManagePanelForProduct('${p.name}')" title="Gestionar" style="font-size:12px;padding:2px 4px;">⚙</button>
+                    </div>
+                </div>
+            </div>
+            ${batchHtml}
+        </div>`;
             }).join('');
+        }
+
+        function toggleSelectionMode() {
+            isSelectionMode = !isSelectionMode;
+            document.getElementById('select-mode-btn').textContent = isSelectionMode ? 'Cancelar' : 'Seleccionar';
+            if (!isSelectionMode) clearSelection();
+            updateProductList();
+            updateSelectionBar(); // Ensure bar is hidden if mode is off
+        }
+
+        function toggleSelect(barcode) {
+            if (selectedProducts.has(barcode)) {
+                selectedProducts.delete(barcode);
+            } else {
+                selectedProducts.add(barcode);
+            }
+            updateSelectionBar();
+            updateProductList();
+        }
+
+        function updateSelectionBar() {
+            const bar = document.getElementById('selection-bar');
+            const countEl = document.getElementById('selection-count');
+            const count = selectedProducts.size;
+
+            if (count > 0 && isSelectionMode) { // Only show if in selection mode and items are selected
+                bar.classList.remove('hidden');
+                countEl.textContent = `${count} seleccionados`;
+            } else {
+                bar.classList.add('hidden');
+            }
+        }
+
+        function clearSelection() {
+            selectedProducts.clear();
+            updateSelectionBar();
+            if (isSelectionMode) updateProductList();
+        }
+
+        async function bulkAction(action) {
+            if (selectedProducts.size === 0) return;
+
+            const barcodes = Array.from(selectedProducts);
+
+            if (action === 'delete') {
+                if (confirm(`¿Eliminar ${barcodes.length} productos y todos sus lotes?`)) {
+                    let errors = 0;
+                    for (const bc of barcodes) {
+                        try { await apiCall(`/products/${bc}`, 'DELETE'); } catch { errors++; }
+                    }
+                    showToast(`Eliminados ${barcodes.length - errors} productos.`, errors > 0 ? 'error' : 'success');
+                    await loadProducts();
+                    toggleSelectionMode();
+                }
+            } else if (action === 'location') {
+                const newLoc = prompt('Nueva ubicación para los productos seleccionados:');
+                if (newLoc !== null) {
+                    let errors = 0;
+                    for (const bc of barcodes) {
+                        try { await apiCall(`/products/${bc}`, 'PATCH', { location: newLoc }); } catch { errors++; }
+                    }
+                    showToast(`Ubicación actualizada para ${barcodes.length - errors} productos.`, errors > 0 ? 'error' : 'success');
+                    await loadProducts();
+                    toggleSelectionMode();
+                }
+            } else if (action === 'category') {
+                const newCat = prompt('Nueva categoría (Alimentos, Bebidas, Limpieza, Higiene, Otros):');
+                const valid = ['Alimentos', 'Bebidas', 'Limpieza', 'Higiene', 'Otros'];
+                if (newCat && valid.includes(newCat)) {
+                    let errors = 0;
+                    for (const bc of barcodes) {
+                        try { await apiCall(`/products/${bc}`, 'PATCH', { category: newCat }); } catch { errors++; }
+                    }
+                    showToast(`Categoría actualizada para ${barcodes.length - errors} productos.`, errors > 0 ? 'error' : 'success');
+                    await loadProducts();
+                    toggleSelectionMode();
+                } else if (newCat !== null) {
+                    showToast('Categoría no válida', 'error');
+                }
+            }
         }
 
         async function loadLocations() {
@@ -2553,7 +3109,7 @@
             const quantity = parseInt(qtyInput.value) || 1;
 
             if (quantity <= 0) {
-                alert('La cantidad debe ser mayor a 0');
+                showToast('La cantidad debe ser mayor a 0', 'info');
                 return;
             }
 
@@ -2786,7 +3342,7 @@
             pendingBatchChanges = {};
 
             if (errors > 0) {
-                alert(`${errors} cambio${errors > 1 ? 's' : ''} no se pudieron guardar.`);
+                showToast(`${errors} cambios no se pudieron guardar.`, 'error');
             }
 
             renderManageList();
@@ -2834,10 +3390,14 @@
                 const isModified = pendingChanges[p.barcode] && pendingChanges[p.barcode].type === 'edit';
                 const cardClass = isDelete ? 'edit-card to-delete' : isModified ? 'edit-card modified' : 'edit-card';
                 return `<div class="${cardClass}" id="edit-${p.barcode}">
-                    <div class="edit-card-header">
-                        <span class="name">${p.name}</span>
-                        <span class="barcode">${p.barcode} · ${p.stock} uds</span>
-                    </div>
+            <div class="edit-card-header">
+                ${p.image_url ? `<img src="${p.image_url}" class="product-img" style="width:32px;height:32px;margin-right:8px;">` :
+                        `<div class="product-img-placeholder" style="width:32px;height:32px;font-size:14px;margin-right:8px;">📦</div>`}
+                <div style="flex:1">
+                    <span class="name">${p.name}</span><br>
+                    <span class="barcode">${p.barcode} · ${p.stock} uds</span>
+                </div>
+            </div>
                     <div class="edit-grid">
                         <div class="form-group">
                             <label>Nombre</label>
@@ -2870,9 +3430,9 @@
                     <div class="edit-batch-list">
                         <div style="font-size:12px;color:#666;margin-bottom:8px;font-weight:600;">Lotes (${p.batches.length})</div>
                         ${p.batches.map(b => {
-                    const exp = getExpiryInfo(b.expiry_date);
-                    const isMod = pendingBatchChanges[b.id] ? 'batch-modified' : '';
-                    return `<div class="edit-batch-row ${isMod}">
+                            const exp = getExpiryInfo(b.expiry_date);
+                            const isMod = pendingBatchChanges[b.id] ? 'batch-modified' : '';
+                            return `<div class="edit-batch-row ${isMod}">
                                 <span class="batch-qty-label">${b.quantity} ud${b.quantity > 1 ? 's' : ''}</span>
                                 <input type="date" id="edit-batch-${b.id}" value="${b.expiry_date || ''}"
                                     onchange="checkBatchChange(${b.id}, '${p.barcode}')" ${isDelete ? 'disabled' : ''}>
@@ -2880,7 +3440,7 @@
                                 <button class="btn-round add" style="width:24px;height:24px;font-size:12px;" onclick="manageBatchStock(${b.id}, '${p.barcode}', 1)" ${isDelete ? 'disabled' : ''}>+</button>
                                 <span style="font-size:11px;color:#555">${b.added_date ? 'Añadido: ' + b.added_date : ''}</span>
                             </div>`;
-                }).join('')}
+                        }).join('')}
                         <div style="margin-top:8px;padding-top:8px;border-top:1px solid #333;">
                             <div style="font-size:12px;color:#666;margin-bottom:6px;">Nuevo lote</div>
                             <div style="display:flex;gap:6px;align-items:center;">

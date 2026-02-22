@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, File, UploadFile
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -150,6 +150,70 @@ async def get_products_by_location(location: str):
 async def get_stats():
     """Get inventory statistics"""
     return await db.get_stats()
+
+@app.get("/api/stats/consumption")
+async def get_consumption_stats(days: int = 30):
+    return await db.get_consumption_stats(days)
+
+@app.get("/api/export")
+async def export_data():
+    """Export all inventory data as CSV"""
+    import csv
+    import io
+    from fastapi.responses import StreamingResponse
+    
+    data = await db.get_export_data()
+    
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=["barcode", "name", "category", "location", "min_stock", "image_url", "quantity", "expiry_date"])
+    writer.writeheader()
+    writer.writerows(data)
+    
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=inventario_stock.csv"}
+    )
+
+@app.post("/api/import")
+async def import_data(file: UploadFile = File(...), clear: bool = False):
+    """Import inventory data from CSV file"""
+    import csv
+    import io
+    
+    try:
+        content = await file.read()
+        # Handle possible BOM and different encodings
+        try:
+            text = content.decode('utf-8-sig')
+        except UnicodeDecodeError:
+            text = content.decode('latin-1')
+            
+        f = io.StringIO(text)
+        
+        # Detect delimiter and clean up first line
+        lines = text.splitlines()
+        if not lines:
+            raise HTTPException(status_code=400, detail="El archivo está vacío")
+            
+        first_line = lines[0]
+        delimiter = ';' if ';' in first_line else ','
+        
+        # Reset StringIO after reading first line for detection
+        f.seek(0)
+        reader = csv.DictReader(f, delimiter=delimiter)
+        data = [row for row in reader]
+        
+        if not data:
+            raise HTTPException(status_code=400, detail="No se encontraron datos en el archivo")
+            
+        await db.import_data(data, clear_existing=clear)
+        return {"message": "Importación completada", "count": len(data)}
+        
+    except Exception as e:
+        logger.error(f"Error en importación: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error procesando el archivo: {str(e)}")
 
 # Health check
 @app.get("/api/health")

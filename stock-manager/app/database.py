@@ -31,6 +31,8 @@ class Database:
                 await db.execute("ALTER TABLE products ADD COLUMN expiry_date TEXT DEFAULT NULL")
             if 'location' not in columns:
                 await db.execute("ALTER TABLE products ADD COLUMN location TEXT DEFAULT NULL")
+            if 'image_url' not in columns:
+                await db.execute("ALTER TABLE products ADD COLUMN image_url TEXT DEFAULT NULL")
 
             # Create batches table
             await db.execute("""
@@ -138,9 +140,9 @@ class Database:
         """Create new product"""
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(
-                """INSERT INTO products (barcode, name, category, stock, min_stock, location, last_updated)
-                   VALUES (?, ?, ?, 0, ?, ?, ?)""",
-                (product.barcode, product.name, product.category, product.min_stock, product.location, datetime.now())
+                """INSERT INTO products (barcode, name, category, stock, min_stock, location, image_url, last_updated)
+                   VALUES (?, ?, ?, 0, ?, ?, ?, ?)""",
+                (product.barcode, product.name, product.category, product.min_stock, product.location, product.image_url, datetime.now())
             )
             await db.commit()
         return await self.get_product(product.barcode)
@@ -198,6 +200,8 @@ class Database:
             updates['min_stock'] = update.min_stock
         if update.location is not None:
             updates['location'] = update.location
+        if hasattr(update, 'image_url') and update.image_url is not None:
+            updates['image_url'] = update.image_url
 
         if updates:
             updates['last_updated'] = datetime.now()
@@ -256,6 +260,7 @@ class Database:
             else:
                 await db.execute("UPDATE batches SET quantity = ? WHERE id = ?", (new_qty, batch_id))
 
+            await self._log_movement(db, barcode, update.quantity, "manual_update")
             await self._sync_product_stock(db, barcode)
             await db.commit()
 
@@ -312,18 +317,103 @@ class Database:
     async def get_stats(self) -> dict:
         """Get inventory statistics"""
         async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
             async with db.execute(
-                """SELECT
+                """SELECT 
                     COUNT(*) as total_products,
-                    SUM(stock) as total_units,
+                    COALESCE(SUM(stock), 0) as total_units,
                     COUNT(CASE WHEN stock < min_stock THEN 1 END) as low_stock_count
                    FROM products"""
             ) as cursor:
                 row = await cursor.fetchone()
-                return {
-                    'total_products': row[0] or 0,
-                    'total_units': row[1] or 0,
-                    'low_stock_count': row[2] or 0
-                }
+                return dict(row) if row else {"total_products": 0, "total_units": 0, "low_stock_count": 0}
+
+    async def get_consumption_stats(self, days: int = 30) -> List[dict]:
+        """Get consumption (negative movements) grouped by day"""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            # Filter for negative changes (consumptions) and last X days
+            async with db.execute("""
+                SELECT 
+                    date(timestamp) as day,
+                    ABS(SUM(quantity_change)) as total
+                FROM movements
+                WHERE quantity_change < 0 
+                AND timestamp >= date('now', ?)
+                GROUP BY day
+                ORDER BY day ASC
+            """, (f'-{days} days',)) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
+
+    async def get_export_data(self) -> List[dict]:
+        """Get all inventory data in a flat format for export"""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            # Join products and batches to get a flat list. 
+            # We use LEFT JOIN to include products even if they have no batches (though in our sync system they shouldn't)
+            async with db.execute("""
+                SELECT p.barcode, p.name, p.category, p.location, p.min_stock, p.image_url, b.quantity, b.expiry_date
+                FROM products p
+                LEFT JOIN batches b ON p.barcode = b.barcode
+                ORDER BY p.name
+            """) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
+
+    async def import_data(self, data: List[dict], clear_existing: bool = False):
+        """Import data from a list of dicts. If clear_existing is True, clears DB first."""
+        async with aiosqlite.connect(self.db_path) as db:
+            if clear_existing:
+                await db.execute("DELETE FROM batches")
+                await db.execute("DELETE FROM products")
+                await db.execute("DELETE FROM movements")
+            
+            for item in data:
+                barcode = item.get('barcode')
+                if not barcode: continue
+                
+                # Insert or update product
+                await db.execute("""
+                    INSERT INTO products (barcode, name, category, location, min_stock, image_url, stock, last_updated)
+                    VALUES (?, ?, ?, ?, ?, ?, 0, ?)
+                    ON CONFLICT(barcode) DO UPDATE SET
+                        name=excluded.name,
+                        category=excluded.category,
+                        location=excluded.location,
+                        min_stock=excluded.min_stock,
+                        image_url=COALESCE(excluded.image_url, products.image_url),
+                        last_updated=excluded.last_updated
+                """, (
+                    barcode,
+                    item.get('name', 'Huerfano'),
+                    item.get('category', 'Otros'),
+                    item.get('location'),
+                    item.get('min_stock', 2),
+                    item.get('image_url'),
+                    datetime.now()
+                ))
+
+                # Insert batch if quantity > 0
+                qty = item.get('quantity')
+                if qty and int(qty) > 0:
+                    await db.execute("""
+                        INSERT INTO batches (barcode, quantity, expiry_date, added_date)
+                        VALUES (?, ?, ?, ?)
+                    """, (
+                        barcode,
+                        int(qty),
+                        item.get('expiry_date'),
+                        date.today().isoformat()
+                    ))
+            
+            # Final sync for all products to ensure totals are correct
+            async with db.execute("SELECT barcode FROM products") as cursor:
+                product_barcodes = [row[0] for row in await cursor.fetchall()]
+            
+            for barcode in product_barcodes:
+                await self._sync_product_stock(db, barcode)
+                
+            await db.commit()
 
 db = Database()
