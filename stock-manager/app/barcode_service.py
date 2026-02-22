@@ -52,27 +52,25 @@ HEADERS = {
 }
 
 
-async def _search_open_food_facts(barcode: str, client: httpx.AsyncClient) -> Dict[str, Any]:
-    """Search in Open Food Facts (best for food products)"""
+async def _search_facts_api(barcode: str, client: httpx.AsyncClient, api_url: str, source_name: str) -> Dict[str, Any]:
+    """Generic function to search in any Open Facts API"""
     try:
-        url = OPENFOODFACTS_API.format(barcode=barcode)
+        url = api_url.format(barcode=barcode)
         params = {"fields": "product_name,brands,categories,image_url,quantity"}
 
+        logger.info(f"Searching {source_name} for {barcode}...")
         response = await client.get(url, headers=HEADERS, params=params, timeout=5.0)
 
-        # Don't raise for 404 - just continue to next source
         if response.status_code == 404:
-            logger.info(f"Open Food Facts: product not found (404) for {barcode}")
+            logger.info(f"{source_name}: product not found (404) for {barcode}")
             return {"found": False}
 
         response.raise_for_status()
-
         data = response.json()
-        logger.info(f"Open Food Facts full response for {barcode}: {data}")
 
         if data.get("status") == 1:
             product_data = data.get("product", {})
-            logger.info(f"Open Food Facts product data: {product_data}")
+            logger.info(f"{source_name} product data: {product_data}")
 
             external_category = product_data.get("categories", "")
             mapped_category = map_external_category_to_internal(external_category)
@@ -84,138 +82,12 @@ async def _search_open_food_facts(barcode: str, client: httpx.AsyncClient) -> Di
                 "category": mapped_category,
                 "image_url": product_data.get("image_url", ""),
                 "quantity": product_data.get("quantity", ""),
-                "source": "Open Food Facts"
+                "source": source_name
             }
         else:
-            logger.info(f"Open Food Facts status is not 1 for {barcode}: {data.get('status')}")
+            logger.info(f"{source_name} status is not 1 for {barcode}: {data.get('status')}")
     except Exception as e:
-        logger.debug(f"Open Food Facts lookup failed for {barcode}: {e}")
-
-    return {"found": False}
-
-
-async def _search_open_beauty_facts(barcode: str, client: httpx.AsyncClient) -> Dict[str, Any]:
-    """Search in Open Beauty Facts (for beauty and personal care products)"""
-    try:
-        url = OPENBEAUTYFACTS_API.format(barcode=barcode)
-        params = {"fields": "product_name,brands,categories,image_url,quantity"}
-
-        logger.info(f"Searching Open Beauty Facts for {barcode}...")
-        response = await client.get(url, headers=HEADERS, params=params, timeout=5.0)
-
-        logger.info(f"Open Beauty Facts HTTP status: {response.status_code} for {barcode}")
-
-        # Don't raise for 404 - product just not found
-        if response.status_code == 404:
-            logger.info(f"Open Beauty Facts: product not found (404) for {barcode}")
-            return {"found": False}
-
-        response.raise_for_status()
-
-        data = response.json()
-        logger.info(f"Open Beauty Facts full response for {barcode}: {data}")
-
-        if data.get("status") == 1:
-            product_data = data.get("product", {})
-            logger.info(f"Open Beauty Facts product data: {product_data}")
-
-            external_category = product_data.get("categories", "")
-            mapped_category = map_external_category_to_internal(external_category)
-
-            return {
-                "found": True,
-                "name": product_data.get("product_name", ""),
-                "brand": product_data.get("brands", ""),
-                "category": mapped_category,
-                "image_url": product_data.get("image_url", ""),
-                "quantity": product_data.get("quantity", ""),
-                "source": "Open Beauty Facts"
-            }
-        else:
-            logger.info(f"Open Beauty Facts status is not 1 for {barcode}: {data.get('status')}")
-    except Exception as e:
-        logger.debug(f"Open Beauty Facts lookup failed for {barcode}: {e}")
-
-    return {"found": False}
-
-
-async def _search_open_product_facts(barcode: str, client: httpx.AsyncClient) -> Dict[str, Any]:
-    """Search in Open Product Facts (for non-food products)"""
-    try:
-        url = OPENPRODUCTFACTS_API.format(barcode=barcode)
-        params = {"fields": "product_name,brands,categories,image_url,quantity"}
-
-        logger.info(f"Searching Open Product Facts for {barcode}...")
-        response = await client.get(url, headers=HEADERS, params=params, timeout=5.0)
-
-        logger.info(f"Open Product Facts HTTP status: {response.status_code} for {barcode}")
-
-        # Don't raise for 404 - product just not found
-        if response.status_code == 404:
-            logger.info(f"Open Product Facts: product not found (404) for {barcode}")
-            return {"found": False}
-
-        response.raise_for_status()
-
-        data = response.json()
-        logger.info(f"Open Product Facts full response for {barcode}: {data}")
-
-        if data.get("status") == 1:
-            product_data = data.get("product", {})
-            logger.info(f"Open Product Facts product data: {product_data}")
-
-            external_category = product_data.get("categories", "")
-            mapped_category = map_external_category_to_internal(external_category)
-
-            return {
-                "found": True,
-                "name": product_data.get("product_name", ""),
-                "brand": product_data.get("brands", ""),
-                "category": mapped_category,
-                "image_url": product_data.get("image_url", ""),
-                "quantity": product_data.get("quantity", ""),
-                "source": "Open Product Facts"
-            }
-        else:
-            logger.info(f"Open Product Facts status is not 1 for {barcode}: {data.get('status')}")
-    except Exception as e:
-        logger.debug(f"Open Product Facts lookup failed for {barcode}: {e}")
-
-    return {"found": False}
-
-
-async def _search_open_pet_food_facts(barcode: str, client: httpx.AsyncClient) -> Dict[str, Any]:
-    """Search in Open Pet Food Facts (for pet food products)"""
-    try:
-        url = OPENPETFOODFACTS_API.format(barcode=barcode)
-        params = {"fields": "product_name,brands,categories,image_url,quantity"}
-
-        logger.info(f"Searching Open Pet Food Facts for {barcode}...")
-        response = await client.get(url, headers=HEADERS, params=params, timeout=5.0)
-
-        if response.status_code == 404:
-            logger.info(f"Open Pet Food Facts: product not found (404) for {barcode}")
-            return {"found": False}
-
-        response.raise_for_status()
-        data = response.json()
-
-        if data.get("status") == 1:
-            product_data = data.get("product", {})
-            external_category = product_data.get("categories", "")
-            mapped_category = map_external_category_to_internal(external_category)
-
-            return {
-                "found": True,
-                "name": product_data.get("product_name", ""),
-                "brand": product_data.get("brands", ""),
-                "category": mapped_category,
-                "image_url": product_data.get("image_url", ""),
-                "quantity": product_data.get("quantity", ""),
-                "source": "Open Pet Food Facts"
-            }
-    except Exception as e:
-        logger.debug(f"Open Pet Food Facts lookup failed for {barcode}: {e}")
+        logger.debug(f"{source_name} lookup failed for {barcode}: {e}")
 
     return {"found": False}
 
@@ -223,37 +95,20 @@ async def _search_open_pet_food_facts(barcode: str, client: httpx.AsyncClient) -
 async def get_product_from_barcode(barcode: str) -> Dict[str, Any]:
     """
     Fetch product information from multiple sources with fallback.
-
-    Tries in order:
-    1. Open Food Facts (best for food)
-    2. Open Beauty Facts (for beauty and personal care)
-    3. Open Product Facts (for other non-food products)
-
-    Returns:
-        A dict with 'found': true and product data if found, or 'found': false if not found.
-        Product data includes: name, brand, category, image_url, quantity, source
     """
+    sources = [
+        (OPENFOODFACTS_API, "Open Food Facts"),
+        (OPENBEAUTYFACTS_API, "Open Beauty Facts"),
+        (OPENPETFOODFACTS_API, "Open Pet Food Facts"),
+        (OPENPRODUCTFACTS_API, "Open Product Facts")
+    ]
+
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
-            # Try Open Food Facts first (best for food products)
-            result = await _search_open_food_facts(barcode, client)
-            if result["found"]:
-                return result
-
-            # Try Open Beauty Facts (for beauty and personal care products)
-            result = await _search_open_beauty_facts(barcode, client)
-            if result["found"]:
-                return result
-
-            # Try Open Pet Food Facts
-            result = await _search_open_pet_food_facts(barcode, client)
-            if result["found"]:
-                return result
-
-            # Try Open Product Facts (better for other non-food items)
-            result = await _search_open_product_facts(barcode, client)
-            if result["found"]:
-                return result
+            for api_url, source_name in sources:
+                result = await _search_facts_api(barcode, client, api_url, source_name)
+                if result["found"]:
+                    return result
 
             return {"found": False}
 
@@ -263,3 +118,4 @@ async def get_product_from_barcode(barcode: str) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Error fetching product information for barcode {barcode}: {e}")
         return {"found": False}
+
