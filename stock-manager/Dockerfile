@@ -7,15 +7,19 @@ RUN apk add --no-cache \
     py3-pip \
     python3-dev \
     gcc \
+    g++ \
     musl-dev \
     linux-headers \
     sqlite \
+    zbar \
     zbar-dev \
     tesseract-ocr \
     tesseract-ocr-data-spa \
     libjpeg-turbo-dev \
     libpng-dev \
-    opencv-dev
+    py3-opencv \
+    py3-numpy \
+    py3-pillow
 
 # Set working directory
 WORKDIR /app
