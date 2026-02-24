@@ -11,6 +11,8 @@ bashio::log.info "Log level: ${LOG_LEVEL}"
 mkdir -p /data/stock_manager
 
 # Set database path
+export TELEGRAM_TOKEN=$(bashio::config 'telegram_token')
+export ALLOWED_CHAT_IDS=$(bashio::config 'allowed_chat_ids')
 export DATABASE_PATH=/data/stock_manager/stock.db
 export LOG_LEVEL="${LOG_LEVEL}"
 

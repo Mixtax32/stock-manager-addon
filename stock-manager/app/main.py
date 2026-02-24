@@ -10,6 +10,8 @@ from typing import List
 from .database import db
 from .models import Product, ProductCreate, StockUpdate, ProductUpdate, Batch, BatchUpdate, BatchStockUpdate
 from .barcode_service import get_product_from_barcode
+from .telegram_service import telegram_bot
+import asyncio
 
 # Configure logging
 log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
@@ -49,6 +51,10 @@ async def startup():
     logger.info("Initializing Stock Manager...")
     await db.init_db()
     logger.info("Database initialized")
+    
+    # Start Telegram Bot in background
+    asyncio.create_task(telegram_bot.run())
+    
     logger.info("Stock Manager started successfully")
 
 # Root endpoint - serve frontend (no-cache to avoid stale JS after updates)
