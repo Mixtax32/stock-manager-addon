@@ -172,10 +172,10 @@ class TelegramService:
         except Exception as e:
             await update.message.reply_text(f"❌ Error: {str(e)}")
 
-    async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE, text_override: str = None):
         if not self.is_authorized(update.effective_chat.id): return
         
-        text = update.message.text.strip()
+        text = text_override if text_override else update.message.text.strip()
         
         # Check if it looks like a barcode (mainly numbers)
         if text.isdigit() and len(text) >= 8:
@@ -270,8 +270,7 @@ class TelegramService:
             await status_msg.delete()
             # Handle the first barcode found
             barcode = barcodes[0]
-            update.message.text = barcode
-            await self.handle_message(update, context)
+            await self.handle_message(update, context, text_override=barcode)
             if len(barcodes) > 1:
                 await update.message.reply_text(f"💡 He encontrado {len(barcodes)} códigos, mostrando el primero.")
             return
