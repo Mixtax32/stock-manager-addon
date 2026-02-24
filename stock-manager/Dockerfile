@@ -9,7 +9,13 @@ RUN apk add --no-cache \
     gcc \
     musl-dev \
     linux-headers \
-    sqlite
+    sqlite \
+    zbar-dev \
+    tesseract-ocr \
+    tesseract-ocr-data-spa \
+    libjpeg-turbo-dev \
+    libpng-dev \
+    opencv-dev
 
 # Set working directory
 WORKDIR /app

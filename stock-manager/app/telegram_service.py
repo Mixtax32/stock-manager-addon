@@ -5,7 +5,16 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
 from .database import db
 from .models import StockUpdate
+from .ocr_service import extract_text_from_image, parse_ticket_items
 import json
+import io
+from PIL import Image
+try:
+    from pyzbar.pyzbar import decode
+    PYZBAR_AVAILABLE = True
+except ImportError:
+    PYZBAR_AVAILABLE = False
+    logger.warning("pyzbar not available. Barcode detection in photos disabled.")
 
 logger = logging.getLogger(__name__)
 
@@ -237,6 +246,81 @@ class TelegramService:
         except Exception as e:
             await query.message.reply_text(f"❌ Error: {str(e)}")
 
+    async def handle_photo(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if not self.is_authorized(update.effective_chat.id): return
+        
+        # Get the highest resolution photo
+        photo_file = await update.message.photo[-1].get_file()
+        photo_bytes = await photo_file.download_as_bytearray()
+        
+        status_msg = await update.message.reply_text("🔎 Analizando imagen...")
+        
+        # 1. Try to find a barcode if pyzbar is available
+        barcodes = []
+        if PYZBAR_AVAILABLE:
+            try:
+                img = Image.open(io.BytesIO(photo_bytes))
+                decoded = decode(img)
+                for obj in decoded:
+                    barcodes.append(obj.data.decode('utf-8'))
+            except Exception as e:
+                logger.error(f"Error decoding barcode from photo: {e}")
+
+        if barcodes:
+            await status_msg.delete()
+            # Handle the first barcode found
+            barcode = barcodes[0]
+            update.message.text = barcode
+            await self.handle_message(update, context)
+            if len(barcodes) > 1:
+                await update.message.reply_text(f"💡 He encontrado {len(barcodes)} códigos, mostrando el primero.")
+            return
+
+        # 2. If no barcode, try OCR for ticket items
+        try:
+            await status_msg.edit_text("🎫 No veo códigos de barras. Analizando si es un ticket...")
+            text = extract_text_from_image(photo_bytes)
+            items = parse_ticket_items(text)
+            
+            if not items:
+                await status_msg.edit_text("❌ No he podido detectar ni códigos de barras ni productos de un ticket en esta imagen.")
+                return
+
+            # Search matches in DB for items
+            all_products = await db.get_all_products()
+            matches = []
+            
+            for item in items:
+                # Basic similarity search (simple logic for now)
+                best_match = None
+                query = item.lower()
+                for p in all_products:
+                    if p.name.lower() in query or query in p.name.lower():
+                        best_match = p
+                        break
+                
+                if best_match:
+                    matches.append((item, best_match))
+
+            if not matches:
+                response = "📝 **He leído el ticket pero no reconozco estos productos:**\n\n"
+                for it in items[:15]:
+                    response += f"• {it}\n"
+                await status_msg.edit_text(response, parse_mode="Markdown")
+            else:
+                response = "✅ **Productos del ticket reconocidos:**\n\n"
+                keyboard = []
+                for it, p in matches:
+                    response += f"• **{p.name}** (leído como '{it}')\n"
+                    keyboard.append([InlineKeyboardButton(f"➕ 1 {p.name}", callback_data=f"add_{p.barcode}_1")])
+                
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                await status_msg.edit_text(response, reply_markup=reply_markup, parse_mode="Markdown")
+
+        except Exception as e:
+            logger.error(f"Error analyzing photo: {e}")
+            await status_msg.edit_text(f"❌ Error al analizar la imagen: {str(e)}")
+
     async def run(self):
         if not self.token:
             logger.warning("TELEGRAM_TOKEN no configurado. Bot de Telegram desactivado.")
@@ -254,6 +338,7 @@ class TelegramService:
         self.application.add_handler(CommandHandler("restar", lambda u, c: self.stock_update_cmd(u, c, -1)))
         
         self.application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), self.handle_message))
+        self.application.add_handler(MessageHandler(filters.PHOTO, self.handle_photo))
         self.application.add_handler(CallbackQueryHandler(self.handle_callback))
 
         logger.info("Bot de Telegram iniciado")
