@@ -1,5 +1,5 @@
 name: Stock Manager
-version: "0.4.49"
+version: "0.4.50"
 slug: stock_manager
 description: Sistema de gestión de inventario doméstico con escáner de códigos de barras
 url: https://github.com/Mixtax32/stock-manager-addon
@@ -29,4 +29,5 @@ options:
 schema:
   log_level: list(debug|info|warning|error)
   telegram_token: str?
-  allowed_chat_ids: int?[]
+  allowed_chat_ids:
+    - int
