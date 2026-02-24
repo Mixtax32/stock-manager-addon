@@ -186,10 +186,6 @@ class TelegramService:
                     [
                         InlineKeyboardButton("➖ 1", callback_data=f"sub_{text}_1"),
                         InlineKeyboardButton("➕ 1", callback_data=f"add_{text}_1")
-                    ],
-                    [
-                        InlineKeyboardButton("➖ 5", callback_data=f"sub_{text}_5"),
-                        InlineKeyboardButton("➕ 5", callback_data=f"add_{text}_5")
                     ]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
@@ -223,23 +219,40 @@ class TelegramService:
         if action == "sub": qty = -qty
         
         try:
-            product = await db.update_stock(barcode, StockUpdate(quantity=qty, reason="telegram_inline"))
+            product = await db.get_product(barcode)
+            if not product:
+                await query.message.reply_text("❌ Producto no encontrado.")
+                return
+
+            # If we have batches, we update the latest one (highest ID) as requested
+            # to avoid creating new batch entries every time we add stock via bot.
+            if product.batches:
+                from .models import BatchStockUpdate
+                latest_batch = max(product.batches, key=lambda b: b.id)
+                
+                # Check if we're subtracting more than what the batch has
+                if qty < 0 and latest_batch.quantity + qty < 0:
+                    # In this case, we fallback to standard update_stock which handles FIFO across batches
+                    updated_product = await db.update_stock(barcode, StockUpdate(quantity=qty, reason="telegram_inline"))
+                else:
+                    updated_product = await db.update_batch_stock(latest_batch.id, BatchStockUpdate(quantity=qty))
+                    if not updated_product: # Should not happen with the check above
+                        updated_product = await db.update_stock(barcode, StockUpdate(quantity=qty, reason="telegram_inline"))
+            else:
+                # No batches yet, update_stock will create the first one
+                updated_product = await db.update_stock(barcode, StockUpdate(quantity=qty, reason="telegram_inline"))
             
             # Update the original message
             keyboard = [
                 [
                     InlineKeyboardButton("➖ 1", callback_data=f"sub_{barcode}_1"),
                     InlineKeyboardButton("➕ 1", callback_data=f"add_{barcode}_1")
-                ],
-                [
-                    InlineKeyboardButton("➖ 5", callback_data=f"sub_{barcode}_5"),
-                    InlineKeyboardButton("➕ 5", callback_data=f"add_{barcode}_5")
                 ]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             await query.edit_message_text(
-                f"📦 **{product.name}**\nStock actual: **{product.stock}**",
+                f"📦 **{updated_product.name}**\nStock actual: **{updated_product.stock}** uds.",
                 reply_markup=reply_markup,
                 parse_mode="Markdown"
             )
