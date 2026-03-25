@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Stock Manager</title>
-    <link rel="stylesheet" href="static/styles.css?v=0.5.1">
+    <link rel="stylesheet" href="static/styles.css?v=0.5.2">
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/tesseract.js@v4.0.2/dist/tesseract.min.js"></script>
@@ -36,24 +36,57 @@
             </div>
         </div>
 
-        <!-- Stock Status (Shopping & Expiring Soon) -->
-        <div class="section" id="shopping-section">
-            <div class="section-header" onclick="toggleSection('shopping-section')">
-                <h2>Estado del Stock</h2>
-                <span class="toggle"></span>
-            </div>
-            <div class="section-body">
-                <div class="shopping-container">
-                    <div class="shopping-column">
-                        <h3 class="column-title">Caduca pronto</h3>
-                        <div id="expiring-soon-list"></div>
-                    </div>
-                    <div class="shopping-column">
-                        <h3 class="column-title">Lista de la compra</h3>
-                        <div id="shopping-list"></div>
+        <!-- Top Panels (Stock & Macros) -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin-bottom: 16px;">
+            
+            <!-- Stock Status (Shopping & Expiring Soon) -->
+            <div class="section" id="shopping-section" style="margin-bottom: 0;">
+                <div class="section-header" onclick="toggleSection('shopping-section')">
+                    <h2>Estado del Stock</h2>
+                    <span class="toggle"></span>
+                </div>
+                <div class="section-body">
+                    <div class="shopping-container">
+                        <div class="shopping-column">
+                            <h3 class="column-title">Caduca pronto</h3>
+                            <div id="expiring-soon-list"></div>
+                        </div>
+                        <div class="shopping-column">
+                            <h3 class="column-title">Lista de la compra</h3>
+                            <div id="shopping-list"></div>
+                        </div>
                     </div>
                 </div>
             </div>
+
+            <!-- Macros Section -->
+            <div class="section" id="macros-section" style="margin-bottom: 0;">
+                <div class="section-header" onclick="toggleSection('macros-section')">
+                    <h2>Control de Macros Hoy</h2>
+                    <span class="toggle"></span>
+                </div>
+                <div class="section-body">
+                    <div class="stats" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
+                        <div class="stat">
+                            <div class="stat-value" id="macro-kcal">0</div>
+                            <div class="stat-label">Kcal</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-value" id="macro-proteins">0g</div>
+                            <div class="stat-label">Proteínas</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-value" id="macro-carbs">0g</div>
+                            <div class="stat-label">Carbs</div>
+                        </div>
+                        <div class="stat" style="border-left: 2px solid #ef4444;">
+                            <div class="stat-value" id="macro-fat">0g</div>
+                            <div class="stat-label">Grasas</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
         </div>
 
         <!-- Scanner Section -->
@@ -172,34 +205,6 @@
             </div>
         </div>
 
-        <!-- Macros Section -->
-        <div class="section" id="macros-section">
-            <div class="section-header" onclick="toggleSection('macros-section')">
-                <h2>Control de Macros Hoy</h2>
-                <span class="toggle"></span>
-            </div>
-            <div class="section-body">
-                <div class="stats">
-                    <div class="stat">
-                        <div class="stat-value" id="macro-kcal">0</div>
-                        <div class="stat-label">Kcal</div>
-                    </div>
-                    <div class="stat">
-                        <div class="stat-value" id="macro-proteins">0g</div>
-                        <div class="stat-label">Proteínas</div>
-                    </div>
-                    <div class="stat">
-                        <div class="stat-value" id="macro-carbs">0g</div>
-                        <div class="stat-label">Carbs</div>
-                    </div>
-                    <div class="stat" style="border-left: 2px solid #ef4444;">
-                        <div class="stat-value" id="macro-fat">0g</div>
-                        <div class="stat-label">Grasas</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <!-- Stats Section -->
         <div class="section" id="stats-section">
             <div class="section-header" onclick="toggleSection('stats-section')">
@@ -232,7 +237,7 @@
         </div>
 
         <div style="text-align:center; padding: 20px 0; opacity: 0.3; font-size: 11px;">
-            Stock Manager v0.5.1
+            Stock Manager v0.5.2
         </div>
     </div>
 
@@ -323,7 +328,7 @@
         </div>
     </div>
 
-    <script src="static/app.js?v=0.5.1"></script>
+    <script src="static/app.js?v=0.5.2"></script>
 </body>
 
 </html>
