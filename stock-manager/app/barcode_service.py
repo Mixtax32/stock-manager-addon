@@ -56,7 +56,7 @@ async def _search_facts_api(barcode: str, client: httpx.AsyncClient, api_url: st
     """Generic function to search in any Open Facts API"""
     try:
         url = api_url.format(barcode=barcode)
-        params = {"fields": "product_name,brands,categories,image_url,quantity"}
+        params = {"fields": "product_name,brands,categories,image_url,quantity,product_quantity,nutriments"}
 
         logger.info(f"Searching {source_name} for {barcode}...")
         response = await client.get(url, headers=HEADERS, params=params, timeout=5.0)
@@ -75,6 +75,8 @@ async def _search_facts_api(barcode: str, client: httpx.AsyncClient, api_url: st
             external_category = product_data.get("categories", "")
             mapped_category = map_external_category_to_internal(external_category)
 
+            nutriments = product_data.get("nutriments", {})
+
             return {
                 "found": True,
                 "name": product_data.get("product_name", ""),
@@ -82,6 +84,11 @@ async def _search_facts_api(barcode: str, client: httpx.AsyncClient, api_url: st
                 "category": mapped_category,
                 "image_url": product_data.get("image_url", ""),
                 "quantity": product_data.get("quantity", ""),
+                "weight_g": product_data.get("product_quantity"),
+                "kcal_100g": nutriments.get("energy-kcal_100g"),
+                "proteins_100g": nutriments.get("proteins_100g"),
+                "carbs_100g": nutriments.get("carbohydrates_100g"),
+                "fat_100g": nutriments.get("fat_100g"),
                 "source": source_name
             }
         else:

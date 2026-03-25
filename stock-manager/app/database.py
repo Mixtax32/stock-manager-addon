@@ -21,6 +21,13 @@ class Database:
                     stock INTEGER NOT NULL DEFAULT 0,
                     min_stock INTEGER NOT NULL DEFAULT 2,
                     expiry_date TEXT DEFAULT NULL,
+                    location TEXT DEFAULT NULL,
+                    image_url TEXT DEFAULT NULL,
+                    weight_g REAL DEFAULT NULL,
+                    kcal_100g REAL DEFAULT NULL,
+                    proteins_100g REAL DEFAULT NULL,
+                    carbs_100g REAL DEFAULT NULL,
+                    fat_100g REAL DEFAULT NULL,
                     last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
@@ -33,6 +40,16 @@ class Database:
                 await db.execute("ALTER TABLE products ADD COLUMN location TEXT DEFAULT NULL")
             if 'image_url' not in columns:
                 await db.execute("ALTER TABLE products ADD COLUMN image_url TEXT DEFAULT NULL")
+            if 'weight_g' not in columns:
+                await db.execute("ALTER TABLE products ADD COLUMN weight_g REAL DEFAULT NULL")
+            if 'kcal_100g' not in columns:
+                await db.execute("ALTER TABLE products ADD COLUMN kcal_100g REAL DEFAULT NULL")
+            if 'proteins_100g' not in columns:
+                await db.execute("ALTER TABLE products ADD COLUMN proteins_100g REAL DEFAULT NULL")
+            if 'carbs_100g' not in columns:
+                await db.execute("ALTER TABLE products ADD COLUMN carbs_100g REAL DEFAULT NULL")
+            if 'fat_100g' not in columns:
+                await db.execute("ALTER TABLE products ADD COLUMN fat_100g REAL DEFAULT NULL")
 
             # Create batches table
             await db.execute("""
@@ -140,9 +157,10 @@ class Database:
         """Create new product"""
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(
-                """INSERT INTO products (barcode, name, category, stock, min_stock, location, image_url, last_updated)
-                   VALUES (?, ?, ?, 0, ?, ?, ?, ?)""",
-                (product.barcode, product.name, product.category, product.min_stock, product.location, product.image_url, datetime.now())
+                """INSERT INTO products (barcode, name, category, stock, min_stock, location, image_url, weight_g, kcal_100g, proteins_100g, carbs_100g, fat_100g, last_updated)
+                   VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (product.barcode, product.name, product.category, product.min_stock, product.location, product.image_url, 
+                 product.weight_g, product.kcal_100g, product.proteins_100g, product.carbs_100g, product.fat_100g, datetime.now())
             )
             await db.commit()
         return await self.get_product(product.barcode)
@@ -202,6 +220,16 @@ class Database:
             updates['location'] = update.location
         if hasattr(update, 'image_url') and update.image_url is not None:
             updates['image_url'] = update.image_url
+        if hasattr(update, 'weight_g') and update.weight_g is not None:
+            updates['weight_g'] = update.weight_g
+        if hasattr(update, 'kcal_100g') and update.kcal_100g is not None:
+            updates['kcal_100g'] = update.kcal_100g
+        if hasattr(update, 'proteins_100g') and update.proteins_100g is not None:
+            updates['proteins_100g'] = update.proteins_100g
+        if hasattr(update, 'carbs_100g') and update.carbs_100g is not None:
+            updates['carbs_100g'] = update.carbs_100g
+        if hasattr(update, 'fat_100g') and update.fat_100g is not None:
+            updates['fat_100g'] = update.fat_100g
 
         if updates:
             updates['last_updated'] = datetime.now()
@@ -346,6 +374,30 @@ class Database:
                 rows = await cursor.fetchall()
                 return [dict(row) for row in rows]
 
+    async def get_daily_macros(self) -> dict:
+        """Get summarized macros consumed today"""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            # Multiply consumed quantities by macros. 
+            # Note: weight_g and macros are per 100g, so if weight_g is 500, a whole unit is 5 * macros.
+            # We assume quantity_change=1 unit = weight_g / 100 * macros.
+            # If weight_g is not available, we can't accurately calculate macros, so we assume 0 or handle it
+            async with db.execute("""
+                SELECT 
+                    SUM(ABS(m.quantity_change) * (IFNULL(p.weight_g, 100) / 100.0) * IFNULL(p.kcal_100g, 0)) as total_kcal,
+                    SUM(ABS(m.quantity_change) * (IFNULL(p.weight_g, 100) / 100.0) * IFNULL(p.proteins_100g, 0)) as total_proteins,
+                    SUM(ABS(m.quantity_change) * (IFNULL(p.weight_g, 100) / 100.0) * IFNULL(p.carbs_100g, 0)) as total_carbs,
+                    SUM(ABS(m.quantity_change) * (IFNULL(p.weight_g, 100) / 100.0) * IFNULL(p.fat_100g, 0)) as total_fat
+                FROM movements m
+                JOIN products p ON m.barcode = p.barcode
+                WHERE m.quantity_change < 0 
+                AND date(m.timestamp) = date('now')
+            """) as cursor:
+                row = await cursor.fetchone()
+                if row:
+                    return dict(row)
+                return {"total_kcal": 0, "total_proteins": 0, "total_carbs": 0, "total_fat": 0}
+
     async def get_export_data(self) -> List[dict]:
         """Get all inventory data in a flat format for export"""
         async with aiosqlite.connect(self.db_path) as db:
@@ -353,7 +405,7 @@ class Database:
             # Join products and batches to get a flat list. 
             # We use LEFT JOIN to include products even if they have no batches (though in our sync system they shouldn't)
             async with db.execute("""
-                SELECT p.barcode, p.name, p.category, p.location, p.min_stock, p.image_url, b.quantity, b.expiry_date
+                SELECT p.barcode, p.name, p.category, p.location, p.min_stock, p.image_url, p.weight_g, p.kcal_100g, p.proteins_100g, p.carbs_100g, p.fat_100g, b.quantity, b.expiry_date
                 FROM products p
                 LEFT JOIN batches b ON p.barcode = b.barcode
                 ORDER BY p.name
@@ -375,14 +427,19 @@ class Database:
                 
                 # Insert or update product
                 await db.execute("""
-                    INSERT INTO products (barcode, name, category, location, min_stock, image_url, stock, last_updated)
-                    VALUES (?, ?, ?, ?, ?, ?, 0, ?)
+                    INSERT INTO products (barcode, name, category, location, min_stock, image_url, weight_g, kcal_100g, proteins_100g, carbs_100g, fat_100g, stock, last_updated)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
                     ON CONFLICT(barcode) DO UPDATE SET
                         name=excluded.name,
                         category=excluded.category,
                         location=excluded.location,
                         min_stock=excluded.min_stock,
                         image_url=COALESCE(excluded.image_url, products.image_url),
+                        weight_g=COALESCE(excluded.weight_g, products.weight_g),
+                        kcal_100g=COALESCE(excluded.kcal_100g, products.kcal_100g),
+                        proteins_100g=COALESCE(excluded.proteins_100g, products.proteins_100g),
+                        carbs_100g=COALESCE(excluded.carbs_100g, products.carbs_100g),
+                        fat_100g=COALESCE(excluded.fat_100g, products.fat_100g),
                         last_updated=excluded.last_updated
                 """, (
                     barcode,
@@ -391,6 +448,11 @@ class Database:
                     item.get('location'),
                     item.get('min_stock', 2),
                     item.get('image_url'),
+                    item.get('weight_g'),
+                    item.get('kcal_100g'),
+                    item.get('proteins_100g'),
+                    item.get('carbs_100g'),
+                    item.get('fat_100g'),
                     datetime.now()
                 ))
 

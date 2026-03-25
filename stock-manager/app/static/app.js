@@ -113,6 +113,7 @@ async function loadProducts() {
         products = await apiCall('/products');
         updateUI();
         updateCharts();
+        updateMacros();
     } catch (error) {
         console.error('Error loading products:', error);
     }
@@ -177,6 +178,18 @@ async function updateCharts() {
         });
     } catch (e) {
         console.error('Error updating charts:', e);
+    }
+}
+
+async function updateMacros() {
+    try {
+        const macros = await apiCall('/stats/daily-macros');
+        document.getElementById('macro-kcal').textContent = Math.round(macros.total_kcal || 0);
+        document.getElementById('macro-proteins').textContent = Math.round(macros.total_proteins || 0) + 'g';
+        document.getElementById('macro-carbs').textContent = Math.round(macros.total_carbs || 0) + 'g';
+        document.getElementById('macro-fat').textContent = Math.round(macros.total_fat || 0) + 'g';
+    } catch (e) {
+        console.error('Error updating macros:', e);
     }
 }
 
@@ -671,7 +684,19 @@ async function onScanSuccess(decodedText) {
                 const categorySelect = document.getElementById('product-category');
                 const valid = ['Alimentos', 'Bebidas', 'Limpieza', 'Higiene', 'Otros'];
                 categorySelect.value = valid.includes(apiCategory) ? apiCategory : 'Otros';
-            } else { renderScanImage(null); }
+                
+                document.getElementById('new-weight').value = barcodeData.weight_g || '';
+                document.getElementById('new-kcal').value = barcodeData.kcal_100g || '';
+                document.getElementById('new-proteins').value = barcodeData.proteins_100g || '';
+                document.getElementById('new-carbs').value = barcodeData.carbs_100g || '';
+                document.getElementById('new-fat').value = barcodeData.fat_100g || '';
+            } else { 
+                renderScanImage(null); 
+                ['new-weight', 'new-kcal', 'new-proteins', 'new-carbs', 'new-fat'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.value = '';
+                });
+            }
         } catch (e) { console.error(e); renderScanImage(null); }
         const loading = document.getElementById('barcode-loading');
         if (loading) loading.remove();
@@ -781,14 +806,24 @@ async function addStock() {
     const name = document.getElementById('product-name').value.trim();
     const category = document.getElementById('product-category').value;
     const location = document.getElementById('product-location').value.trim() || null;
-    const minStock = parseInt(document.getElementById('min-stock').value);
+    const minStock = parseInt(document.getElementById('min-stock').value) || 2;
     const expiryDate = document.getElementById('expiry-date').value || null;
-    const quantity = parseInt(document.getElementById('quantity').value);
+    const quantity = parseInt(document.getElementById('quantity').value) || 1;
+    
+    const weight_g = document.getElementById('new-weight').value ? parseFloat(document.getElementById('new-weight').value) : null;
+    const kcal_100g = document.getElementById('new-kcal').value ? parseFloat(document.getElementById('new-kcal').value) : null;
+    const proteins_100g = document.getElementById('new-proteins').value ? parseFloat(document.getElementById('new-proteins').value) : null;
+    const carbs_100g = document.getElementById('new-carbs').value ? parseFloat(document.getElementById('new-carbs').value) : null;
+    const fat_100g = document.getElementById('new-fat').value ? parseFloat(document.getElementById('new-fat').value) : null;
+
     if (!name) { showToast('Introduce el nombre del producto', 'info'); return; }
     try {
         const product = products.find(p => p.barcode === currentBarcode);
         if (!product) {
-            await apiCall('/products', 'POST', { barcode: currentBarcode, name, category, min_stock: minStock, location, image_url: currentScannedImageUrl });
+            await apiCall('/products', 'POST', { 
+                barcode: currentBarcode, name, category, min_stock: minStock, location, image_url: currentScannedImageUrl,
+                weight_g, kcal_100g, proteins_100g, carbs_100g, fat_100g 
+            });
         }
         await apiCall(`/products/${currentBarcode}/stock`, 'POST', { quantity, expiry_date: expiryDate });
         await loadProducts();
@@ -993,7 +1028,11 @@ let pendingChanges = {}, pendingBatchChanges = {}, originalData = {}, originalBa
 function openManagePanel() {
     pendingChanges = {}; pendingBatchChanges = {};
     products.forEach(p => {
-        originalData[p.barcode] = { name: p.name, category: p.category, min_stock: p.min_stock, location: p.location || '' };
+        originalData[p.barcode] = { 
+            name: p.name, category: p.category, min_stock: p.min_stock, location: p.location || '',
+            weight_g: p.weight_g || null, kcal_100g: p.kcal_100g || null, proteins_100g: p.proteins_100g || null,
+            carbs_100g: p.carbs_100g || null, fat_100g: p.fat_100g || null
+        };
         p.batches?.forEach(b => originalBatchData[b.id] = b.expiry_date || '');
     });
     const locSelect = document.getElementById('manage-filter-location');
@@ -1019,9 +1058,20 @@ function checkBatchChange(id, bc) {
 
 function checkProductChanges(bc) {
     const orig = originalData[bc]; if (!orig || pendingChanges[bc]?.type === 'delete') return;
-    const n = document.getElementById(`edit-name-${bc}`).value.trim(), c = document.getElementById(`edit-cat-${bc}`).value, l = document.getElementById(`edit-location-${bc}`).value.trim(), m = parseInt(document.getElementById(`edit-min-${bc}`).value);
-    if (n !== orig.name || c !== orig.category || l !== orig.location || m !== orig.min_stock) {
-        pendingChanges[bc] = { type: 'edit', name: n, data: { name: n, category: c, location: l || null, min_stock: m } };
+    const n = document.getElementById(`edit-name-${bc}`).value.trim(), c = document.getElementById(`edit-cat-${bc}`).value;
+    const l = document.getElementById(`edit-location-${bc}`).value.trim(), m = parseInt(document.getElementById(`edit-min-${bc}`).value);
+    const w = document.getElementById(`edit-weight-${bc}`).value ? parseFloat(document.getElementById(`edit-weight-${bc}`).value) : null;
+    const k = document.getElementById(`edit-kcal-${bc}`).value ? parseFloat(document.getElementById(`edit-kcal-${bc}`).value) : null;
+    const pr = document.getElementById(`edit-proteins-${bc}`).value ? parseFloat(document.getElementById(`edit-proteins-${bc}`).value) : null;
+    const cb = document.getElementById(`edit-carbs-${bc}`).value ? parseFloat(document.getElementById(`edit-carbs-${bc}`).value) : null;
+    const f = document.getElementById(`edit-fat-${bc}`).value ? parseFloat(document.getElementById(`edit-fat-${bc}`).value) : null;
+    
+    if (n !== orig.name || c !== orig.category || l !== orig.location || m !== orig.min_stock || 
+        w !== orig.weight_g || k !== orig.kcal_100g || pr !== orig.proteins_100g || cb !== orig.carbs_100g || f !== orig.fat_100g) {
+        pendingChanges[bc] = { 
+            type: 'edit', name: n, 
+            data: { name: n, category: c, location: l || null, min_stock: m, weight_g: w, kcal_100g: k, proteins_100g: pr, carbs_100g: cb, fat_100g: f } 
+        };
     } else delete pendingChanges[bc];
     updateChangesUI();
 }
@@ -1072,6 +1122,17 @@ function renderManageList() {
                     <option value="Otros" ${p.category === 'Otros' ? 'selected' : ''}>Otros</option>
                 </select></div>
                 <div class="form-group"><label>Stock Mín</label><input type="number" id="edit-min-${p.barcode}" value="${p.min_stock}" oninput="checkProductChanges('${p.barcode}')" ${isDel ? 'disabled' : ''}></div>
+                
+                <div class="form-group" style="grid-column: 1 / -1; margin-top: 4px; border-top: 1px dashed #333; padding-top: 6px;">
+                    <label style="color:#4ade80; font-size:11px; margin-bottom: 4px; display: block;">Macros / 100g (Opcional)</label>
+                    <div style="display:grid; grid-template-columns: repeat(5, 1fr); gap: 4px;">
+                        <div><input type="number" step="0.1" id="edit-weight-${p.barcode}" value="${p.weight_g || ''}" placeholder="Peso(g)" oninput="checkProductChanges('${p.barcode}')" ${isDel ? 'disabled' : ''}></div>
+                        <div><input type="number" step="0.1" id="edit-kcal-${p.barcode}" value="${p.kcal_100g || ''}" placeholder="Kcal" oninput="checkProductChanges('${p.barcode}')" ${isDel ? 'disabled' : ''}></div>
+                        <div><input type="number" step="0.1" id="edit-proteins-${p.barcode}" value="${p.proteins_100g || ''}" placeholder="Prot" oninput="checkProductChanges('${p.barcode}')" ${isDel ? 'disabled' : ''}></div>
+                        <div><input type="number" step="0.1" id="edit-carbs-${p.barcode}" value="${p.carbs_100g || ''}" placeholder="Carbs" oninput="checkProductChanges('${p.barcode}')" ${isDel ? 'disabled' : ''}></div>
+                        <div><input type="number" step="0.1" id="edit-fat-${p.barcode}" value="${p.fat_100g || ''}" placeholder="Grasa" oninput="checkProductChanges('${p.barcode}')" ${isDel ? 'disabled' : ''}></div>
+                    </div>
+                </div>
             </div>
             <div class="edit-batch-list">
                 ${p.batches?.map(b => `<div class="edit-batch-row"><span class="batch-qty-label">${b.quantity} ud</span><input type="date" id="edit-batch-${b.id}" value="${b.expiry_date || ''}" onchange="checkBatchChange(${b.id},'${p.barcode}')" ${isDel ? 'disabled' : ''}></div>`).join('')}

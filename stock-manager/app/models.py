@@ -18,6 +18,11 @@ class Product(BaseModel):
     location: Optional[str] = None
     expiry_date: Optional[str] = None
     image_url: Optional[str] = None
+    weight_g: Optional[float] = None
+    kcal_100g: Optional[float] = None
+    proteins_100g: Optional[float] = None
+    carbs_100g: Optional[float] = None
+    fat_100g: Optional[float] = None
     batches: List[Batch] = []
     last_updated: Optional[datetime] = None
 
@@ -28,6 +33,11 @@ class ProductCreate(BaseModel):
     min_stock: int = 2
     location: Optional[str] = None
     image_url: Optional[str] = None
+    weight_g: Optional[float] = None
+    kcal_100g: Optional[float] = None
+    proteins_100g: Optional[float] = None
+    carbs_100g: Optional[float] = None
+    fat_100g: Optional[float] = None
 
 class StockUpdate(BaseModel):
     quantity: int
@@ -39,6 +49,11 @@ class ProductUpdate(BaseModel):
     category: Optional[str] = None
     min_stock: Optional[int] = None
     location: Optional[str] = None
+    weight_g: Optional[float] = None
+    kcal_100g: Optional[float] = None
+    proteins_100g: Optional[float] = None
+    carbs_100g: Optional[float] = None
+    fat_100g: Optional[float] = None
 
 class BatchUpdate(BaseModel):
     expiry_date: Optional[str] = None

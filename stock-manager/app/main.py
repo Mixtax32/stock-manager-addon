@@ -161,6 +161,11 @@ async def get_stats():
 async def get_consumption_stats(days: int = 30):
     return await db.get_consumption_stats(days)
 
+@app.get("/api/stats/daily-macros")
+async def get_daily_macros():
+    """Get macros consumed today"""
+    return await db.get_daily_macros()
+
 @app.get("/api/export")
 async def export_data():
     """Export all inventory data as CSV"""
@@ -171,7 +176,7 @@ async def export_data():
     data = await db.get_export_data()
     
     output = io.StringIO()
-    writer = csv.DictWriter(output, fieldnames=["barcode", "name", "category", "location", "min_stock", "image_url", "quantity", "expiry_date"])
+    writer = csv.DictWriter(output, fieldnames=["barcode", "name", "category", "location", "min_stock", "image_url", "weight_g", "kcal_100g", "proteins_100g", "carbs_100g", "fat_100g", "quantity", "expiry_date"])
     writer.writeheader()
     writer.writerows(data)
     
