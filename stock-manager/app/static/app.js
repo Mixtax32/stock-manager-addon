@@ -685,11 +685,11 @@ async function onScanSuccess(decodedText) {
                 const valid = ['Alimentos', 'Bebidas', 'Limpieza', 'Higiene', 'Otros'];
                 categorySelect.value = valid.includes(apiCategory) ? apiCategory : 'Otros';
                 
-                document.getElementById('new-weight').value = barcodeData.weight_g || '';
-                document.getElementById('new-kcal').value = barcodeData.kcal_100g || '';
-                document.getElementById('new-proteins').value = barcodeData.proteins_100g || '';
-                document.getElementById('new-carbs').value = barcodeData.carbs_100g || '';
-                document.getElementById('new-fat').value = barcodeData.fat_100g || '';
+                document.getElementById('new-weight').value = barcodeData.weight_g ?? '';
+                document.getElementById('new-kcal').value = barcodeData.kcal_100g ?? '';
+                document.getElementById('new-proteins').value = barcodeData.proteins_100g ?? '';
+                document.getElementById('new-carbs').value = barcodeData.carbs_100g ?? '';
+                document.getElementById('new-fat').value = barcodeData.fat_100g ?? '';
             } else { 
                 renderScanImage(null); 
                 ['new-weight', 'new-kcal', 'new-proteins', 'new-carbs', 'new-fat'].forEach(id => {
