@@ -8,7 +8,7 @@ import logging
 from typing import List
 
 from .database import db
-from .models import Product, ProductCreate, StockUpdate, ProductUpdate, Batch, BatchUpdate, BatchStockUpdate
+from .models import Product, ProductCreate, StockUpdate, ProductUpdate, Batch, BatchUpdate, BatchStockUpdate, MacroGoals, MacroGoalsUpdate
 from .barcode_service import get_product_from_barcode
 from .telegram_service import telegram_bot
 import asyncio
@@ -175,6 +175,16 @@ async def get_consumption_stats(days: int = 30):
 async def get_daily_macros():
     """Get macros consumed today"""
     return await db.get_daily_macros()
+
+@app.get("/api/stats/macro-goals", response_model=MacroGoals)
+async def get_macro_goals():
+    """Get daily macro goals"""
+    return await db.get_macro_goals()
+
+@app.patch("/api/stats/macro-goals", response_model=MacroGoals)
+async def update_macro_goals(update: MacroGoalsUpdate):
+    """Update daily macro goals"""
+    return await db.update_macro_goals(update)
 
 @app.get("/api/export")
 async def export_data():

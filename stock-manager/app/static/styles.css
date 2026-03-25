@@ -55,10 +55,17 @@ body {
 }
 
 .stat-value {
-    font-size: 24px;
+    font-size: 18px;
     font-weight: 700;
     color: #fff;
 }
+
+@media (max-width: 480px) {
+    .stat-value {
+        font-size: 15px;
+    }
+}
+
 
 .stat-label {
     font-size: 11px;

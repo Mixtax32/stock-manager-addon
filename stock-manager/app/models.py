@@ -60,3 +60,16 @@ class BatchUpdate(BaseModel):
 
 class BatchStockUpdate(BaseModel):
     quantity: int
+
+class MacroGoals(BaseModel):
+    kcal: float = 2000
+    proteins: float = 150
+    carbs: float = 200
+    fat: float = 70
+
+class MacroGoalsUpdate(BaseModel):
+    kcal: Optional[float] = None
+    proteins: Optional[float] = None
+    carbs: Optional[float] = None
+    fat: Optional[float] = None
+

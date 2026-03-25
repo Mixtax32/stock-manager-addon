@@ -1,5 +1,5 @@
 /* 
-   Stock Manager v0.5.6 
+   Stock Manager v0.5.7 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
@@ -202,9 +202,12 @@ async function updateCharts() {
 async function updateMacros() {
     try {
         const macros = await apiCall('/stats/daily-macros');
+        const goals = await apiCall('/stats/macro-goals');
         ["kcal", "proteins", "carbs", "fat"].forEach(m => {
-            const val = macros[`total_${m}`] || 0;
-            document.getElementById(`macro-${m}`).textContent = Math.round(val) + (m === "kcal" ? "" : "g");
+            const consumed = Math.round(macros[`total_${m}`] || 0);
+            const goal = Math.round(goals[m] || 0);
+            const unit = m === "kcal" ? "" : "g";
+            document.getElementById(`macro-${m}`).textContent = `${consumed} / ${goal}${unit}`;
         });
     } catch (e) { console.error('Error updating macros:', e); }
 }
@@ -718,6 +721,32 @@ window.closeDatePicker = closeDatePicker;
 window.confirmDatePicker = confirmDatePicker;
 window.tryClosePanel = () => { if (!Object.keys(pendingChanges).length && !Object.keys(pendingBatchChanges).length || confirm('¿Salir?')) document.getElementById('manage-panel').classList.remove('active'); };
 window.toggleSection = toggleSection;
+window.openMacroGoalsPanel = async () => {
+    try {
+        const goals = await apiCall('/stats/macro-goals');
+        document.getElementById('goal-kcal').value = goals.kcal;
+        document.getElementById('goal-proteins').value = goals.proteins;
+        document.getElementById('goal-carbs').value = goals.carbs;
+        document.getElementById('goal-fat').value = goals.fat;
+        document.getElementById('macro-goals-panel').classList.add('active');
+    } catch (e) { showToast('Error al cargar objetivos', 'error'); }
+};
+window.closeMacroGoalsPanel = () => {
+    document.getElementById('macro-goals-panel').classList.remove('active');
+};
+window.saveMacroGoals = async () => {
+    const kcal = parseFloat(document.getElementById('goal-kcal').value);
+    const proteins = parseFloat(document.getElementById('goal-proteins').value);
+    const carbs = parseFloat(document.getElementById('goal-carbs').value);
+    const fat = parseFloat(document.getElementById('goal-fat').value);
+    
+    try {
+        await apiCall('/stats/macro-goals', 'PATCH', { kcal, proteins, carbs, fat });
+        showToast('Objetivos guardados', 'success');
+        updateMacros();
+        closeMacroGoalsPanel();
+    } catch (e) { showToast('Error al guardar: ' + e.message, 'error'); }
+};
 
 // Junk Line Detection Logic
 function isJunkLine(line) {

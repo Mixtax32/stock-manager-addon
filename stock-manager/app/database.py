@@ -2,7 +2,7 @@ import aiosqlite
 import os
 from datetime import datetime, date
 from typing import List, Optional
-from .models import Product, ProductCreate, StockUpdate, ProductUpdate, Batch, BatchUpdate, BatchStockUpdate
+from .models import Product, ProductCreate, StockUpdate, ProductUpdate, Batch, BatchUpdate, BatchStockUpdate, MacroGoals, MacroGoalsUpdate
 
 DATABASE_PATH = os.getenv('DATABASE_PATH', '/data/stock_manager/stock.db')
 
@@ -62,6 +62,23 @@ class Database:
                     FOREIGN KEY (barcode) REFERENCES products(barcode) ON DELETE CASCADE
                 )
             """)
+
+            # Create macro_goals table
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS macro_goals (
+                    id INTEGER PRIMARY KEY DEFAULT 1,
+                    kcal REAL DEFAULT 2000,
+                    proteins REAL DEFAULT 150,
+                    carbs REAL DEFAULT 200,
+                    fat REAL DEFAULT 70
+                )
+            """)
+            
+            # Ensure at least one row exists
+            async with db.execute("SELECT COUNT(*) FROM macro_goals") as cursor:
+                count = (await cursor.fetchone())[0]
+            if count == 0:
+                await db.execute("INSERT INTO macro_goals (id, kcal, proteins, carbs, fat) VALUES (1, 2000, 150, 200, 70)")
 
             # Create movements table for tracking stock changes
             await db.execute("""
@@ -477,5 +494,32 @@ class Database:
                 await self._sync_product_stock(db, barcode)
                 
             await db.commit()
+
+    async def get_macro_goals(self) -> MacroGoals:
+        """Get the current macro goals"""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT * FROM macro_goals WHERE id = 1") as cursor:
+                row = await cursor.fetchone()
+                if row:
+                    return MacroGoals(**dict(row))
+                return MacroGoals()
+                
+    async def update_macro_goals(self, update: MacroGoalsUpdate) -> MacroGoals:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            updates = {}
+            if update.kcal is not None: updates['kcal'] = update.kcal
+            if update.proteins is not None: updates['proteins'] = update.proteins
+            if update.carbs is not None: updates['carbs'] = update.carbs
+            if update.fat is not None: updates['fat'] = update.fat
+            
+            if updates:
+                set_clause = ', '.join(f"{k} = ?" for k in updates.keys())
+                values = list(updates.values())
+                await db.execute(f"UPDATE macro_goals SET {set_clause} WHERE id = 1", values)
+                await db.commit()
+            
+            return await self.get_macro_goals()
 
 db = Database()
