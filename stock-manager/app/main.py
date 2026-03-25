@@ -12,7 +12,6 @@ from .models import Product, ProductCreate, StockUpdate, ProductUpdate, Batch, B
 from .barcode_service import get_product_from_barcode
 from .telegram_service import telegram_bot
 import asyncio
-
 # Configure logging
 log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
 logging.basicConfig(
@@ -21,10 +20,33 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # --- Startup ---
+    logger.info("Initializing Stock Manager...")
+    await db.init_db()
+    
+    # Start Telegram Bot in background and store task
+    bot_task = asyncio.create_task(telegram_bot.run())
+    logger.info("Stock Manager started successfully")
+    
+    yield
+    
+    # --- Shutdown ---
+    logger.info("Shutting down Telegram Bot...")
+    bot_task.cancel()
+    try:
+        await bot_task
+    except asyncio.CancelledError:
+        logger.info("Telegram Bot task cancelled successfully")
+
 # Create FastAPI app
 app = FastAPI(
     title="Stock Manager API",
-    description="API para gestión de inventario doméstico"
+    description="API para gestión de inventario doméstico",
+    lifespan=lifespan
 )
 
 # CORS configuration for Home Assistant ingress
@@ -44,18 +66,6 @@ async def global_exception_handler(request: Request, exc: Exception):
         status_code=500,
         content={"detail": f"Error interno: {str(exc)}"}
     )
-
-# Startup event
-@app.on_event("startup")
-async def startup():
-    logger.info("Initializing Stock Manager...")
-    await db.init_db()
-    logger.info("Database initialized")
-    
-    # Start Telegram Bot in background
-    asyncio.create_task(telegram_bot.run())
-    
-    logger.info("Stock Manager started successfully")
 
 # Root endpoint - serve frontend (no-cache to avoid stale JS after updates)
 @app.get("/")

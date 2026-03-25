@@ -9,14 +9,14 @@ from .ocr_service import extract_text_from_image, parse_ticket_items
 import json
 import io
 from PIL import Image
+logger = logging.getLogger(__name__)
+
 try:
     from pyzbar.pyzbar import decode
     PYZBAR_AVAILABLE = True
 except ImportError:
     PYZBAR_AVAILABLE = False
     logger.warning("pyzbar not available. Barcode detection in photos disabled.")
-
-logger = logging.getLogger(__name__)
 
 class TelegramService:
     def __init__(self):

@@ -24,7 +24,7 @@ startup: application
 boot: auto
 options:
   log_level: info
-  telegram_token: "6121871622:AAG_90Z4nD8DbTiyOIsV2_qKaryLe2xVGPI"
+  telegram_token: "" # Introduce el token en la configuración del add-on
   allowed_chat_ids: []
 schema:
   log_level: list(debug|info|warning|error)
