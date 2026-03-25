@@ -11,12 +11,12 @@ Este repositorio contiene el complemento de gestión de stock para Home Assistan
 *   🤖 **Integración con Telegram**: Bot inteligente para consultar buscador, añadir stock y consultar macros fuera de casa.
 *   📊 **Dashboard de Consumo**: Gráficos de tendencias y estado de la despensa.
 
-## 📁 Instalación
+## 📁 Instalación y Configuración
 
-Para instalar este add-on:
-1. Añade la URL de este repositorio a tu tienda de add-ons en Home Assistant.
-2. Busca "Stock Manager".
-3. Instala y configura tu `telegram_token` si lo deseas.
+1. Añade este repositorio a tu tienda de add-ons en Home Assistant.
+2. Busca "Stock Manager" e instala.
+3. En la pestaña de **Configuración**, pega tu `telegram_token` y tu `allowed_chat_ids`.
+4. Inicia el add-on.
 
 ---
 

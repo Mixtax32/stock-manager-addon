@@ -30,13 +30,10 @@ Stock Manager es un complemento (add-on) para Home Assistant que te permite llev
 
 ## 🤖 Configuración del Bot de Telegram
 
-Para usar el bot, añade tu token en la configuración del add-on. Se recomienda usar secretos de Home Assistant:
+Para usar el bot, simplemente introduce tu token y los IDs permitidos en la pestaña de **Configuración** del add-on en Home Assistant:
 
-```yaml
-telegram_token: "!secret my_telegram_bot_token"
-allowed_chat_ids:
-  - 12345678 # Tu ID de chat de Telegram
-```
+- **telegram_token**: Pega aquí el token de BotFather.
+- **allowed_chat_ids**: Lista de IDs de Telegram que pueden usar el bot.
 
 ---
 
