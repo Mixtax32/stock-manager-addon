@@ -1,8 +1,8 @@
-import { loadProducts, updateProductList, setLocationFilter, toggleSelectionMode, toggleSelect, clearSelection, bulkAction, updateManageFilter, openManagePanel, saveAllChanges, isPendingChanges, markForDelete, undoDelete, checkProductChanges, checkBatchChange, getProducts } from './inventory.js';
-import { apiCall, exportInventory, importInventory } from './api.js';
-import { onScanSuccess, resetScanner, setHtml5QrCode, getHtml5QrCode, processTicketImage } from './scanner.js';
-import { showToast, getExpiryInfo } from './utils.js';
-import { initializeDatePicker, confirmDatePicker, closeDatePicker, openDateModal, wrapDateInputsWithPicker } from './datepicker.js';
+import { loadProducts, updateProductList, setLocationFilter, toggleSelectionMode, toggleSelect, clearSelection, bulkAction, updateManageFilter, openManagePanel, saveAllChanges, isPendingChanges, markForDelete, undoDelete, checkProductChanges, checkBatchChange, getProducts } from './js/inventory.js';
+import { apiCall, exportInventory, importInventory } from './js/api.js';
+import { onScanSuccess, resetScanner, setHtml5QrCode, getHtml5QrCode, processTicketImage } from './js/scanner.js';
+import { showToast, getExpiryInfo } from './js/utils.js';
+import { initializeDatePicker, confirmDatePicker, closeDatePicker, openDateModal, wrapDateInputsWithPicker } from './js/datepicker.js';
 
 window.onload = async () => {
     await loadProducts();
