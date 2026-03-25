@@ -4,11 +4,20 @@ import { onScanSuccess, resetScanner, setHtml5QrCode, getHtml5QrCode, processTic
 import { showToast, getExpiryInfo } from './js/utils.js';
 import { initializeDatePicker, confirmDatePicker, closeDatePicker, openDateModal, wrapDateInputsWithPicker } from './js/datepicker.js';
 
-window.onload = async () => {
+// Aplicamos el inicio inmediato o tras DOMContentLoaded
+const init = async () => {
+    console.log("Stock Manager: Initializing...");
     await loadProducts();
     initializeDatePicker();
+    wrapDateInputsWithPicker();
     setupEventListeners();
 };
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
+}
 
 function setupEventListeners() {
     // Basic navigation
