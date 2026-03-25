@@ -67,11 +67,95 @@ body {
 }
 
 
-.stat-label {
-    font-size: 11px;
-    color: #666;
+/* Macros Dashboard */
+.macros-dashboard {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    padding: 12px 0;
+}
+
+.main-kcal {
+    flex-shrink: 0;
+}
+
+.kcal-display {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    pointer-events: none;
+}
+
+.kcal-value {
+    font-size: 24px;
+    font-weight: 800;
+    color: #fff;
+    line-height: 1;
+}
+
+.kcal-target {
+    font-size: 10px;
+    color: #555;
     text-transform: uppercase;
-    margin-top: 2px;
+    margin-top: 4px;
+}
+
+.macro-progress {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.macro-item {
+    width: 100%;
+}
+
+.macro-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    margin-bottom: 4px;
+}
+
+.macro-name {
+    color: #777;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.macro-status {
+    color: #aaa;
+    font-family: monospace;
+}
+
+.macro-progress-bg {
+    height: 6px;
+    background: #111;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.macro-progress-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.macro-progress-fill.protein { background: #3b82f6; box-shadow: 0 0 10px rgba(59, 130, 246, 0.3); }
+.macro-progress-fill.carb { background: #10b981; box-shadow: 0 0 10px rgba(16, 185, 129, 0.3); }
+.macro-progress-fill.fat { background: #ef4444; box-shadow: 0 0 10px rgba(239, 68, 68, 0.3); }
+
+@media (max-width: 500px) {
+    .macros-dashboard {
+        flex-direction: column;
+        gap: 20px;
+    }
+    .main-kcal {
+        width: 100%;
+    }
 }
 
 .stat.warning .stat-value {

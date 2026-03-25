@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Stock Manager</title>
-    <link rel="stylesheet" href="static/styles.css?v=0.5.7">
+    <link rel="stylesheet" href="static/styles.css?v=0.5.8">
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/tesseract.js@v4.0.2/dist/tesseract.min.js"></script>
@@ -69,25 +69,48 @@
                     </div>
                 </div>
                 <div class="section-body">
-                    <div class="stats" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
-                        <div class="stat">
-                            <div class="stat-value" id="macro-kcal">0</div>
-                            <div class="stat-label">Kcal</div>
+                    <div class="macros-dashboard">
+                        <div class="main-kcal">
+                            <div style="position: relative; width: 140px; height: 140px; margin: 0 auto;">
+                                <canvas id="kcalChart"></canvas>
+                                <div class="kcal-display">
+                                    <div class="kcal-value" id="macro-kcal">0</div>
+                                    <div class="kcal-target">de <span id="target-kcal">2000</span></div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="stat">
-                            <div class="stat-value" id="macro-proteins">0g</div>
-                            <div class="stat-label">Proteínas</div>
-                        </div>
-                        <div class="stat">
-                            <div class="stat-value" id="macro-carbs">0g</div>
-                            <div class="stat-label">Carbs</div>
-                        </div>
-                        <div class="stat" style="border-left: 2px solid #ef4444;">
-                            <div class="stat-value" id="macro-fat">0g</div>
-                            <div class="stat-label">Grasas</div>
+                        <div class="macro-progress">
+                            <div class="macro-item">
+                                <div class="macro-info">
+                                    <span class="macro-name">Proteínas</span>
+                                    <span class="macro-status" id="macro-proteins">0/150g</span>
+                                </div>
+                                <div class="macro-progress-bg">
+                                    <div class="macro-progress-fill protein" id="fill-proteins" style="width: 0%"></div>
+                                </div>
+                            </div>
+                            <div class="macro-item">
+                                <div class="macro-info">
+                                    <span class="macro-name">Carbos</span>
+                                    <span class="macro-status" id="macro-carbs">0/200g</span>
+                                </div>
+                                <div class="macro-progress-bg">
+                                    <div class="macro-progress-fill carb" id="fill-carbs" style="width: 0%"></div>
+                                </div>
+                            </div>
+                            <div class="macro-item">
+                                <div class="macro-info">
+                                    <span class="macro-name">Grasas</span>
+                                    <span class="macro-status" id="macro-fat">0/70g</span>
+                                </div>
+                                <div class="macro-progress-bg">
+                                    <div class="macro-progress-fill fat" id="fill-fat" style="width: 0%"></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
+
             </div>
             
         </div>
@@ -240,7 +263,7 @@
         </div>
 
         <div style="text-align:center; padding: 20px 0; opacity: 0.3; font-size: 11px;">
-            Stock Manager v0.5.7
+            Stock Manager v0.5.8
         </div>
     </div>
 
@@ -364,7 +387,7 @@
         </div>
     </div>
 
-    <script src="static/app.js?v=0.5.7"></script>
+    <script src="static/app.js?v=0.5.8"></script>
 </body>
 
 </html>

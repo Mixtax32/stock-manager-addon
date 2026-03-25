@@ -1,5 +1,5 @@
 /* 
-   Stock Manager v0.5.7 
+   Stock Manager v0.5.8 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
@@ -12,6 +12,7 @@ let selectedProducts = new Set();
 let isSelectionMode = false;
 let manageFilter = { name: '', location: '', category: '' };
 let consumptionChart = null;
+let kcalChart = null;
 let html5QrCode;
 let currentBarcode = null;
 let currentScannedImageUrl = null;
@@ -203,11 +204,38 @@ async function updateMacros() {
     try {
         const macros = await apiCall('/stats/daily-macros');
         const goals = await apiCall('/stats/macro-goals');
-        ["kcal", "proteins", "carbs", "fat"].forEach(m => {
+        
+        const cKcal = Math.round(macros.total_kcal || 0);
+        const gKcal = Math.round(goals.kcal || 2000);
+        const pctKcal = Math.min(100, (cKcal / gKcal) * 100);
+        
+        document.getElementById('macro-kcal').textContent = cKcal;
+        document.getElementById('target-kcal').textContent = gKcal;
+        
+        if (!kcalChart) {
+            const ctx = document.getElementById('kcalChart').getContext('2d');
+            kcalChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    datasets: [{
+                        data: [cKcal, Math.max(0, gKcal - cKcal)],
+                        backgroundColor: ['#4ade80', '#111'],
+                        borderWidth: 0, cutout: '85%', borderRadius: 10
+                    }]
+                },
+                options: { plugins: { legend: { display: false }, tooltip: { enabled: false } }, responsive: true }
+            });
+        } else {
+            kcalChart.data.datasets[0].data = [cKcal, Math.max(0, gKcal - cKcal)];
+            kcalChart.update();
+        }
+
+        ["proteins", "carbs", "fat"].forEach(m => {
             const consumed = Math.round(macros[`total_${m}`] || 0);
-            const goal = Math.round(goals[m] || 0);
-            const unit = m === "kcal" ? "" : "g";
-            document.getElementById(`macro-${m}`).textContent = `${consumed} / ${goal}${unit}`;
+            const goal = Math.round(goals[m] || 1);
+            const pct = Math.min(100, (consumed / goal) * 100);
+            document.getElementById(`macro-${m}`).textContent = `${consumed}/${goal}g`;
+            document.getElementById(`fill-${m}`).style.width = pct + '%';
         });
     } catch (e) { console.error('Error updating macros:', e); }
 }
