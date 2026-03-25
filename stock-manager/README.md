@@ -1,141 +1,59 @@
-# Stock Manager - Home Assistant Add-on
+# 📦 Stock Manager v0.5.6
 
-Sistema completo de gestión de inventario doméstico con escáner de códigos de barras.
+**El sistema definitivo para gestionar tu despensa desde Home Assistant.**
 
-## Características
+Stock Manager es un complemento (add-on) para Home Assistant que te permite llevar un control total de tus productos, fechas de caducidad y valores nutricionales de forma rápida y sencilla.
 
-- 📷 **Escáner de códigos de barras** - Usa la cámara del móvil para escanear productos
-- 📦 **Gestión de inventario** - Control completo de stock con categorías
-- 🛒 **Lista de compras automática** - Genera listas basadas en stock mínimo
-- 📊 **Estadísticas en tiempo real** - Visualiza tu inventario de un vistazo
-- 💾 **Base de datos SQLite** - Datos persistentes y confiables
-- 🔄 **API REST** - Backend robusto con FastAPI
-- 📱 **Responsive** - Funciona en móvil, tablet y ordenador
+---
 
-## Instalación
+## 🚀 Características Principales
 
-### Opción 1: Instalación local (desarrollo)
+*   📷 **Escáner Inteligente**: Captura códigos de barras con la cámara o busca por nombre.
+*   🧾 **OCR de Tickets**: Escanea tickets de compra completos para añadir múltiples productos de una vez (Tesseract.js).
+*   📅 **Control de Caducidad**: Visualiza qué productos vencen pronto con alertas de colores y un selector de fecha táctil (Wheel Picker).
+*   🍎 **Seguimiento Nutricional**: Obtiene automáticamente Kcal, Proteínas, Carbohidratos y Grasas desde *Open Food Facts*.
+*   🤖 **Bot de Telegram**: Gestiona tu stock, busca productos o envía fotos de códigos de barras desde cualquier lugar.
+*   📊 **Estadísticas y Gráficos**: Gráfico de consumo diario y resumen de macros del día.
+*   🛒 **Lista de la Compra**: Generación automática basada en tu stock mínimo configurado.
+*   💾 **Importar/Exportar**: Soporte completo para archivos CSV.
 
-1. Copia la carpeta `stock-manager` a `/addons/` en tu Home Assistant
-2. Ve a **Configuración** → **Complementos**
-3. Click en **"Tienda de complementos"** → **⋮** (tres puntos) → **"Repositorios"**
-4. Añade: `/addons/stock-manager`
-5. Busca "Stock Manager" en la lista
-6. Instalar
+---
 
-### Opción 2: Instalación desde repositorio (futura)
+## 🛠️ Instalación
 
-1. Añade este repositorio a HACS o a complementos personalizados
-2. Instala "Stock Manager"
-3. Inicia el add-on
-4. Accede desde el menú lateral
+1.  Copia la carpeta `stock-manager` a tu directorio `/addons/`.
+2.  Reinicia o ve a la **Tienda de complementos** → **⋮** → **Actualizar repositorios**.
+3.  Instala y pulsa **Iniciar**.
+4.  (Opcional) Activa "Mostrar en la barra lateral".
 
-## Configuración
+---
 
-El add-on no requiere configuración adicional. Los datos se guardan automáticamente en `/data/stock_manager/stock.db`.
+## 🤖 Configuración del Bot de Telegram
 
-### Opciones disponibles
-
-- **log_level**: Nivel de logging (debug, info, warning, error)
-
-## Uso
-
-### Añadir productos
-
-1. Ve a la pestaña "Escanear"
-2. Escanea el código de barras o introdúcelo manualmente
-3. Rellena nombre, categoría y stock mínimo
-4. Click en "Añadir"
-
-### Gestionar stock
-
-- **Botones +1/-1**: Ajustes rápidos desde la lista de productos
-- **Escanear y consumir**: Escanea y resta unidades
-- **Lista de compras**: Se genera automáticamente con productos bajo stock mínimo
-
-## API REST
-
-El add-on expone una API REST completa:
-
-### Endpoints
-
-- `GET /api/products` - Listar todos los productos
-- `GET /api/products/{barcode}` - Obtener producto específico
-- `POST /api/products` - Crear producto nuevo
-- `PATCH /api/products/{barcode}` - Actualizar producto
-- `POST /api/products/{barcode}/stock` - Actualizar stock
-- `DELETE /api/products/{barcode}` - Eliminar producto
-- `GET /api/products/low-stock/list` - Productos con stock bajo
-- `GET /api/stats` - Estadísticas del inventario
-
-### Ejemplo de uso
-
-```bash
-# Obtener todos los productos
-curl http://homeassistant.local:8099/api/products
-
-# Añadir stock
-curl -X POST http://homeassistant.local:8099/api/products/123456/stock \
-  -H "Content-Type: application/json" \
-  -d '{"quantity": 5}'
-```
-
-## Integración con Home Assistant
-
-Puedes crear automatizaciones basadas en la API:
+Para usar el bot, añade tu token en la configuración del add-on. Se recomienda usar secretos de Home Assistant:
 
 ```yaml
-automation:
-  - alias: "Notificar stock bajo"
-    trigger:
-      - platform: time
-        at: "09:00:00"
-    action:
-      - service: rest_command.check_stock
-      - condition: template
-        value_template: "{{ states('sensor.stock_low_count') | int > 0 }}"
-      - service: notify.mobile_app
-        data:
-          message: "Tienes {{ states('sensor.stock_low_count') }} productos con stock bajo"
+telegram_token: "!secret my_telegram_bot_token"
+allowed_chat_ids:
+  - 12345678 # Tu ID de chat de Telegram
 ```
 
-## Desarrollo
+---
 
-### Estructura del proyecto
+## 📂 Estructura del Proyecto
 
-```
-stock-manager/
-├── config.yaml           # Configuración del add-on
-├── Dockerfile           # Imagen Docker
-├── run.sh              # Script de inicio
-├── requirements.txt    # Dependencias Python
-├── app/
-│   ├── main.py            # Backend FastAPI
-│   ├── database.py        # Gestión SQLite
-│   ├── models.py          # Modelos de datos
-│   ├── barcode_service.py # Lógica de códigos de barras
-│   ├── ocr_service.py     # Lógica de OCR (reconocimiento de texto)
-│   └── static/
-│       ├── index.html     # Estructura del frontend
-│       ├── styles.css     # Estilos modernos (UI/UX)
-│       └── app.js         # Lógica interactiva del frontend
-└── README.md
-```
+*   `app/main.py`: Backend FastAPI de alto rendimiento.
+*   `app/telegram_service.py`: Gestión del bot de Telegram asíncrono.
+*   `app/static/`: Interfaz moderna con CSS puro y JS (Vanilla).
+*   `app/database.py`: Motor de base de datos SQLite con soporte para lotes (batches).
 
-### Tecnologías
+---
 
-- **Backend**: Python + FastAPI + SQLite
-- **Frontend**: HTML + CSS + JavaScript
-- **Escáner**: html5-qrcode library
+## 🧪 Desarrollo
 
-## Soporte
+Este add-on está construido pensando en la simplicidad y la velocidad:
+*   **Backend**: Python, FastAPI, SQLite.
+*   **Frontend**: HTML5, Vanilla CSS, Vanilla JS.
+*   **Bibliotecas**: Chart.js, Tesseract.js, Html5Qrcode.
 
-Para bugs o sugerencias, abre un issue en GitHub.
-
-## Licencia
-
-MIT License
-
-## Autor
-
-Creado con ❤️ para la comunidad de Home Assistant
+Creado con ❤️ para la comunidad de Home Assistant.
