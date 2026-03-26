@@ -303,6 +303,10 @@ select {
     color: var(--text);
 }
 
+.product-meta-inline {
+    display: none;
+}
+
 .product-barcode {
     font-size: 10px;
     color: var(--text-dim);
@@ -644,35 +648,54 @@ select {
     }
 
     .product-grid-row {
-        grid-template-columns: 40px 1fr auto;
+        grid-template-columns: 48px 1fr auto;
         grid-template-areas: 
             "img info stock"
             "actions actions actions";
-        gap: 8px 12px;
-        padding: 12px;
+        gap: 12px;
+        padding: 16px;
         border-radius: 12px;
-        margin-bottom: 8px;
+        margin-bottom: 12px;
         background: var(--card);
+        height: auto;
     }
 
     .cell-main {
         grid-area: info;
         flex-direction: column;
         align-items: flex-start;
-        gap: 2px;
+        gap: 4px;
         overflow: hidden;
+        min-width: 0; /* Critical for text-overflow */
     }
 
     .product-img-mini {
         grid-area: img;
-        width: 40px;
-        height: 40px;
+        width: 48px;
+        height: 48px;
+        align-self: flex-start;
+    }
+
+    .product-name-wrapper {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
     }
 
     .product-name {
-        font-size: 14px;
+        font-size: 15px;
         white-space: normal;
-        line-height: 1.2;
+        line-height: 1.3;
+        font-weight: 700;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+    }
+
+    .product-meta-inline {
+        display: block;
+        font-size: 11px;
+        color: var(--text-dim);
     }
 
     .product-barcode { font-size: 9px; }
@@ -682,22 +705,16 @@ select {
         display: none; /* Hide separate columns */
     }
 
-    /* We could inject them into the info cell via CSS or logic, 
-       but for now let's show Expiry next to stock */
+    /* Remove the old after hack */
     .product-grid-row::after {
-        content: attr(data-meta);
-        grid-area: info;
-        margin-top: 24px;
-        font-size: 10px;
-        color: var(--text-dim);
+        display: none;
     }
 
     .cell-stock {
         grid-area: stock;
         flex-direction: column;
-        gap: 2px;
+        gap: 4px;
         align-self: flex-start;
-        padding-top: 4px;
     }
 
     .stock-badge {

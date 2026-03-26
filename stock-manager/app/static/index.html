@@ -61,21 +61,6 @@
         <div class="page-container">
             <!-- PAGE: STOCK -->
             <div class="page" data-page="stock">
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <span class="label">Productos</span>
-                        <span class="value" id="stat-total-p">0</span>
-                    </div>
-                    <div class="stat-card">
-                        <span class="label">Unidades</span>
-                        <span class="value" id="stat-total-u">0</span>
-                    </div>
-                    <div class="stat-card">
-                        <span class="label">Stock Bajo</span>
-                        <span class="value" id="stat-low-s" style="color:var(--danger-text)">0</span>
-                    </div>
-                </div>
-
                 <div class="filter-bar">
                     <div class="search-wrapper">
                         <input type="text" id="stock-search" placeholder="Buscar por nombre o categoría..." oninput="updateStockPageSearch()">
@@ -203,10 +188,17 @@
             <!-- PAGE: STATS -->
             <div class="page hidden" data-page="stats">
                 <div class="stats-grid">
-                    <!-- Reusing same IDs as Stock for consistency if updated together -->
                     <div class="stat-card">
-                        <span class="label">Total Productos</span>
-                        <div class="value" id="stat-total-p-stats">...</div>
+                        <span class="label">Productos</span>
+                        <div class="value" id="stat-total-p">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <span class="label">Unidades</span>
+                        <div class="value" id="stat-total-u">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <span class="label">Stock Bajo</span>
+                        <div class="value" id="stat-low-s" style="color:var(--danger-text)">0</div>
                     </div>
                 </div>
                 <div class="column-card" style="margin-bottom: 24px;">
@@ -363,7 +355,7 @@
     </div>
 
     <div style="text-align:center; padding: 40px 0; opacity: 0.2; font-size: 10px; letter-spacing: 0.1em;">
-        STOCK MANAGER v0.5.15
+        STOCK MANAGER v0.5.16
     </div>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
