@@ -539,8 +539,8 @@ class Database:
                 rows = await cursor.fetchall()
                 return [dict(row) for row in rows]
 
-    async def delete_movement(self, movement_id: int) -> bool:
-        """Delete a movement and restore stock"""
+    async def delete_movement(self, movement_id: int, restore_stock: bool = True) -> bool:
+        """Delete a movement and optionally restore stock"""
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
             # 1. Get movement details
@@ -552,8 +552,8 @@ class Database:
             barcode = movement['barcode']
             qty_restored = abs(movement['quantity_change'])
             
-            # 2. Add stock back (if it was a consumption)
-            if movement['quantity_change'] < 0:
+            # 2. Add stock back (if it was a consumption AND restore_stock is True)
+            if restore_stock and movement['quantity_change'] < 0:
                 # Find oldest batch to put stock back or create one
                 async with db.execute(
                     "SELECT id FROM batches WHERE barcode = ? ORDER BY expiry_date ASC LIMIT 1",

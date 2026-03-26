@@ -192,9 +192,9 @@ async def get_today_movements():
     return await db.get_today_movements()
 
 @app.delete("/api/movements/{movement_id}")
-async def delete_movement(movement_id: int):
-    """Delete movement and restore stock"""
-    success = await db.delete_movement(movement_id)
+async def delete_movement(movement_id: int, restore_stock: bool = True):
+    """Delete movement and optionally restore stock"""
+    success = await db.delete_movement(movement_id, restore_stock)
     if not success:
         raise HTTPException(status_code=404, detail="Movimiento no encontrado")
     return {"message": "Movimiento eliminado"}

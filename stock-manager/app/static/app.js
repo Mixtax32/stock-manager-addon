@@ -1,5 +1,5 @@
 /* 
-   Stock Manager v0.5.10 
+   Stock Manager v0.5.11 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
@@ -790,9 +790,10 @@ window.closeMacroGoalsPanel = () => {
     document.getElementById('macro-goals-panel').classList.remove('active');
 };
 window.deleteMovement = async (id) => {
-    if (!confirm('¿Eliminar este registro de consumo?')) return;
+    if (!confirm('¿Eliminar este registro de consumo del historial?')) return;
+    const restore = confirm('¿Deseas devolver la unidad al Inventario (Stock)?\n\n[Aceptar] - Sí, devolver al stock\n[Cancelar] - No, dejar el stock como está');
     try {
-        await apiCall(`/movements/${id}`, 'DELETE');
+        await apiCall(`/movements/${id}?restore_stock=${restore}`, 'DELETE');
         showToast('Registro eliminado', 'success');
         updateTodayMovements();
         updateMacros();
