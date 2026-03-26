@@ -81,6 +81,62 @@ async def get_products():
     """Get all products"""
     return await db.get_all_products()
 
+@app.get("/api/products/low-stock/list", response_model=List[Product])
+async def get_low_stock():
+    """Get products with low stock"""
+    return await db.get_low_stock_products()
+
+@app.get("/api/products/macro-fill-preview")
+async def macro_fill_preview():
+    """Find products with missing macros and try to fetch them from APIs"""
+    products = await db.get_all_products()
+    # Filter products with missing macros (kcal is usually the best indicator)
+    to_fill = [p for p in products if (p.kcal_100g is None or p.kcal_100g == 0) and len(p.barcode) >= 8]
+    
+    results = []
+    # Limit to 20 for safety/performance in one go, user can run it multiple times
+    for p in to_fill[:20]:
+        data = await get_product_from_barcode(p.barcode)
+        if data and data.get("found"):
+            # Check if it actually has nutritional info
+            if data.get("kcal_100g") is not None:
+                results.append({
+                    "barcode": p.barcode,
+                    "name": p.name,
+                    "suggested": {
+                        "weight_g": data.get("weight_g"),
+                        "kcal_100g": data.get("kcal_100g"),
+                        "proteins_100g": data.get("proteins_100g"),
+                        "carbs_100g": data.get("carbs_100g"),
+                        "fat_100g": data.get("fat_100g"),
+                        "image_url": data.get("image_url")
+                    }
+                })
+    return results
+
+@app.post("/api/products/macro-fill-confirm")
+async def macro_fill_confirm(updates: List[dict]):
+    """Update products with the nutritional data confirmed by the user"""
+    updated_count = 0
+    for up in updates:
+        barcode = up.get("barcode")
+        if barcode:
+            try:
+                macro_data = ProductUpdate(
+                    weight_g=up.get("weight_g"),
+                    kcal_100g=up.get("kcal_100g"),
+                    proteins_100g=up.get("proteins_100g"),
+                    carbs_100g=up.get("carbs_100g"),
+                    fat_100g=up.get("fat_100g"),
+                    image_url=up.get("image_url")
+                )
+                await db.update_product(barcode, macro_data)
+                updated_count += 1
+            except Exception as e:
+                logger.error(f"Error updated macros for {barcode}: {e}")
+                
+    return {"message": f"Se han actualizado {updated_count} productos correctamente"}
+
 @app.get("/api/products/{barcode}", response_model=Product)
 async def get_product(barcode: str):
     """Get product by barcode"""
@@ -146,11 +202,6 @@ async def delete_product(barcode: str):
     if not success:
         raise HTTPException(status_code=404, detail="Product not found")
     return None
-
-@app.get("/api/products/low-stock/list", response_model=List[Product])
-async def get_low_stock():
-    """Get products with low stock"""
-    return await db.get_low_stock_products()
 
 @app.get("/api/locations", response_model=List[str])
 async def get_locations():
@@ -259,56 +310,6 @@ async def import_data(file: UploadFile = File(...), clear: bool = False):
         logger.error(f"Error en importación: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error procesando el archivo: {str(e)}")
 
-# Macro Auto-fill endpoints
-@app.get("/api/products/macro-fill-preview")
-async def macro_fill_preview():
-    """Find products with missing macros and try to fetch them from APIs"""
-    products = await db.get_all_products()
-    # Filter products with missing macros (kcal is usually the best indicator)
-    to_fill = [p for p in products if (p.kcal_100g is None or p.kcal_100g == 0) and len(p.barcode) >= 8]
-    
-    results = []
-    # Limit to 20 for safety/performance in one go, user can run it multiple times
-    for p in to_fill[:20]:
-        data = await get_product_from_barcode(p.barcode)
-        if data and data.get("found"):
-            # Check if it actually has nutritional info
-            if data.get("kcal_100g") is not None:
-                results.append({
-                    "barcode": p.barcode,
-                    "name": p.name,
-                    "suggested": {
-                        "weight_g": data.get("weight_g"),
-                        "kcal_100g": data.get("kcal_100g"),
-                        "proteins_100g": data.get("proteins_100g"),
-                        "carbs_100g": data.get("carbs_100g"),
-                        "fat_100g": data.get("fat_100g"),
-                        "image_url": data.get("image_url")
-                    }
-                })
-    return results
-
-@app.post("/api/products/macro-fill-confirm")
-async def macro_fill_confirm(updates: List[dict]):
-    """Update products with the nutritional data confirmed by the user"""
-    updated_count = 0
-    for up in updates:
-        barcode = up.get("barcode")
-        if barcode:
-            try:
-                macro_data = ProductUpdate(
-                    weight_g=up.get("weight_g"),
-                    kcal_100g=up.get("kcal_100g"),
-                    proteins_100g=up.get("proteins_100g"),
-                    carbs_100g=up.get("carbs_100g"),
-                    fat_100g=up.get("fat_100g"),
-                    image_url=up.get("image_url")
-                )
-                await db.update_product(barcode, macro_data)
-                updated_count += 1
-            except Exception as e:
-                logger.error(f"Error updated macros for {barcode}: {e}")
-                
     return {"message": f"Se han actualizado {updated_count} productos correctamente"}
 
 # Health check

@@ -1,5 +1,5 @@
 /* 
-   Stock Manager v0.5.18 
+   Stock Manager v0.5.19 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
@@ -29,7 +29,7 @@ let pickerState = {
 
 // ===== Initialization =====
 const init = async () => {
-    console.log("Stock Manager: Initializing Monolith v0.5.18...");
+    console.log("Stock Manager: Initializing Monolith v0.5.19...");
     await loadProducts();
     initializeDatePicker();
     wrapDateInputsWithPicker();
