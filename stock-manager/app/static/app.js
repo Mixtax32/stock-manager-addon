@@ -1,5 +1,5 @@
 /* 
-   Stock Manager v0.6.0 
+   Stock Manager v0.5.10 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
