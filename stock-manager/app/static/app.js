@@ -1,5 +1,5 @@
 /* 
-   Stock Manager v0.5.19 
+   Stock Manager v0.5.20 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
@@ -13,6 +13,7 @@ let isSelectionMode = false;
 let manageFilter = { name: '', location: '', category: '' };
 let consumptionChart = null;
 let kcalChart = null;
+let fullKcalChart = null;
 let html5QrCode;
 let currentBarcode = null;
 let currentScannedImageUrl = null;
@@ -29,7 +30,7 @@ let pickerState = {
 
 // ===== Initialization =====
 const init = async () => {
-    console.log("Stock Manager: Initializing Monolith v0.5.19...");
+    console.log("Stock Manager: Initializing Monolith v0.5.20...");
     await loadProducts();
     initializeDatePicker();
     wrapDateInputsWithPicker();
@@ -209,48 +210,72 @@ async function updateMacros() {
         
         const cKcal = Math.round(macros.total_kcal || 0);
         const gKcal = Math.round(goals.kcal || 2000);
-        const pctKcal = Math.min(100, (cKcal / gKcal) * 100);
         
-        document.getElementById('macro-kcal').textContent = cKcal;
-        document.getElementById('target-kcal').textContent = gKcal;
+        // Update Dashboard
+        const dashKcal = document.getElementById('macro-kcal');
+        const dashTarget = document.getElementById('target-kcal');
+        if (dashKcal) dashKcal.textContent = cKcal;
+        if (dashTarget) dashTarget.textContent = `/ ${gKcal} kcal`;
         
-        if (!kcalChart) {
-            const ctx = document.getElementById('kcalChart').getContext('2d');
-            kcalChart = new Chart(ctx, {
-                type: 'doughnut',
-                data: {
-                    datasets: [{
-                        data: [cKcal, Math.max(0, gKcal - cKcal)],
-                        backgroundColor: ['#4ade80', '#111'],
-                        borderWidth: 0, cutout: '85%', borderRadius: 10
-                    }]
-                },
-                options: { plugins: { legend: { display: false }, tooltip: { enabled: false } }, responsive: true }
-            });
-        } else {
-            kcalChart.data.datasets[0].data = [cKcal, Math.max(0, gKcal - cKcal)];
-            kcalChart.update();
-        }
+        // Update Full Page
+        const fullKcal = document.getElementById('full-macro-kcal');
+        const fullTarget = document.getElementById('full-target-kcal');
+        if (fullKcal) fullKcal.textContent = cKcal;
+        if (fullTarget) fullTarget.textContent = `/ ${gKcal} kcal`;
+
+        // Update Charts
+        updateDoughnutChart('kcalChart', kcalChart, cKcal, gKcal, c => kcalChart = c);
+        updateDoughnutChart('full-kcalChart', fullKcalChart, cKcal, gKcal, c => fullKcalChart = c);
 
         ["proteins", "carbs", "fat"].forEach(m => {
             const consumed = Math.round(macros[`total_${m}`] || 0);
             const goal = Math.round(goals[m] || 1);
             const pct = Math.min(100, (consumed / goal) * 100);
-            document.getElementById(`macro-${m}`).textContent = `${consumed}/${goal}g`;
-            document.getElementById(`fill-${m}`).style.width = pct + '%';
+            
+            // Dashboard
+            const dp = document.getElementById(`macro-${m}`);
+            if (dp) dp.textContent = `${consumed}/${goal}g`;
+            const df = document.getElementById(`fill-${m}`);
+            if (df) df.style.width = pct + '%';
+
+            // Full Page
+            const fp = document.getElementById(`full-macro-${m}`);
+            if (fp) fp.textContent = `${consumed}/${goal}g`;
+            const ff = document.getElementById(`full-fill-${m}`);
+            if (ff) ff.style.width = pct + '%';
         });
     } catch (e) { console.error('Error updating macros:', e); }
+}
+
+function updateDoughnutChart(canvasId, chartObj, val, target, setChart) {
+    const el = document.getElementById(canvasId);
+    if (!el) return;
+    const ctx = el.getContext('2d');
+    if (!chartObj) {
+        const newChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                datasets: [{
+                    data: [val, Math.max(0, target - val)],
+                    backgroundColor: ['#4ade80', '#111'],
+                    borderWidth: 0, cutout: '85%', borderRadius: 10
+                }]
+            },
+            options: { plugins: { legend: { display: false }, tooltip: { enabled: false } }, responsive: true, maintainAspectRatio: false }
+        });
+        setChart(newChart);
+    } else {
+        chartObj.data.datasets[0].data = [val, Math.max(0, target - val)];
+        chartObj.update();
+    }
 }
 
 async function updateTodayMovements() {
     try {
         const moves = await apiCall('/stats/today-movements');
-        const list = document.getElementById('today-movements-list');
-        if (!moves.length) { 
-            list.innerHTML = '<div style="color:#555;font-size:13px;text-align:center;padding:20px;">No hay consumos hoy</div>'; 
-            return;
-        }
-        list.innerHTML = moves.map(m => `
+        const listIds = ['today-movements-list', 'full-today-movements-list'];
+        
+        const html = moves.length ? moves.map(m => `
             <div class="history-item" style="display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid #1a1a1a;">
                 <div class="hi-info">
                     <div style="font-weight:600; color:#fff; font-size:14px;">${m.name}</div>
@@ -258,7 +283,12 @@ async function updateTodayMovements() {
                 </div>
                 <button class="btn-del" onclick="deleteMovement(${m.id})" style="color:#ef4444; font-size:16px;">✕</button>
             </div>
-        `).join('');
+        `).join('') : '<div style="color:#555;font-size:13px;text-align:center;padding:20px;">No hay consumos hoy</div>';
+        
+        listIds.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.innerHTML = html;
+        });
     } catch (e) { console.error('Error fetching history:', e); }
 }
 
