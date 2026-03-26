@@ -49,6 +49,7 @@ class ProductUpdate(BaseModel):
     category: Optional[str] = None
     min_stock: Optional[int] = None
     location: Optional[str] = None
+    image_url: Optional[str] = None
     weight_g: Optional[float] = None
     kcal_100g: Optional[float] = None
     proteins_100g: Optional[float] = None

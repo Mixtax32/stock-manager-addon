@@ -1,5 +1,5 @@
 /* 
-   Stock Manager v0.5.17 
+   Stock Manager v0.5.18 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
@@ -29,7 +29,7 @@ let pickerState = {
 
 // ===== Initialization =====
 const init = async () => {
-    console.log("Stock Manager: Initializing Monolith v0.5.17...");
+    console.log("Stock Manager: Initializing Monolith v0.5.18...");
     await loadProducts();
     initializeDatePicker();
     wrapDateInputsWithPicker();
@@ -973,5 +973,93 @@ window.onload = () => {
     // If init hasn't run yet, it will be called by DOMContentLoaded.
     // But initNavigation can be called safely here too.
     if (typeof initNavigation === 'function') initNavigation();
+};
+
+// ===== Macro Fill Logic =====
+let currentMacroFillResults = [];
+
+window.startMacroFillPreview = async () => {
+    const overlay = document.getElementById('loading-overlay');
+    const loadingText = document.getElementById('loading-text');
+    if (!overlay) return;
+    
+    overlay.classList.remove('hidden');
+    loadingText.textContent = "Buscando macros en Open Food Facts...";
+
+    try {
+        const results = await apiCall('/products/macro-fill-preview');
+        overlay.classList.add('hidden');
+        
+        if (!results || results.length === 0) {
+            showToast("No se han encontrado productos para actualizar o no hay coincidencias en la API", "info");
+            return;
+        }
+
+        currentMacroFillResults = results;
+        const container = document.getElementById('macro-fill-results');
+        container.innerHTML = results.map((res, i) => `
+            <div class="macro-fill-item">
+                <input type="checkbox" checked id="macro-check-${i}" style="width:20px; height:20px; accent-color: var(--accent);">
+                <div class="product-img-mini" style="width:40px; height:40px;">
+                    <img src="${res.suggested.image_url || ''}" onerror="this.src='https://placehold.co/40x40/111/444?text=?'">
+                </div>
+                <div class="mfi-info">
+                    <span class="mfi-name">${res.name}</span>
+                    <span class="mfi-barcode">${res.barcode}</span>
+                    <div class="mfi-suggested">
+                        <span>🔥 ${res.suggested.kcal_100g} kcal</span>
+                        <span>🥩 P: ${res.suggested.proteins_100g}g</span>
+                        <span>🍞 C: ${res.suggested.carbs_100g}g</span>
+                        <span>🥑 G: ${res.suggested.fat_100g}g</span>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+        
+        document.getElementById('macro-fill-preview-area').classList.remove('hidden');
+        document.getElementById('btn-macro-auto').disabled = true;
+    } catch (e) {
+        if (overlay) overlay.classList.add('hidden');
+        showToast("Error al buscar macros: " + e.message, "error");
+    }
+};
+
+window.hideMacroFillArea = () => {
+    document.getElementById('macro-fill-preview-area').classList.add('hidden');
+    document.getElementById('btn-macro-auto').disabled = false;
+};
+
+window.confirmMacroFill = async () => {
+    const confirmed = [];
+    currentMacroFillResults.forEach((res, i) => {
+        const check = document.getElementById(`macro-check-${i}`);
+        if (check && check.checked) {
+            confirmed.push({
+                barcode: res.barcode,
+                ...res.suggested
+            });
+        }
+    });
+
+    if (confirmed.length === 0) {
+        showToast("Selecciona al menos un producto", "info");
+        return;
+    }
+
+    const overlay = document.getElementById('loading-overlay');
+    const loadingText = document.getElementById('loading-text');
+    overlay.classList.remove('hidden');
+    loadingText.textContent = "Actualizando base de datos...";
+
+    try {
+        const resp = await apiCall('/products/macro-fill-confirm', 'POST', confirmed);
+        overlay.classList.add('hidden');
+        showToast(resp.message, "success");
+        window.hideMacroFillArea();
+        await loadProducts(); 
+    } catch (e) {
+        overlay.classList.add('hidden');
+        showToast("Error al guardar: " + e.message, "error");
+    }
 };
 
