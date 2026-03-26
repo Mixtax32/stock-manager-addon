@@ -1,5 +1,5 @@
 /* 
-   Stock Manager v0.5.16 
+   Stock Manager v0.5.17 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
@@ -29,7 +29,7 @@ let pickerState = {
 
 // ===== Initialization =====
 const init = async () => {
-    console.log("Stock Manager: Initializing Monolith v0.5.16...");
+    console.log("Stock Manager: Initializing Monolith v0.5.17...");
     await loadProducts();
     initializeDatePicker();
     wrapDateInputsWithPicker();
@@ -263,10 +263,21 @@ async function updateTodayMovements() {
 }
 
 function updateShoppingList() {
-    const lowStock = products.filter(p => p.min_stock !== null && p.stock < p.min_stock);
-    document.getElementById('shopping-list').innerHTML = lowStock.length ? 
-        lowStock.map(p => `<div class="shopping-item"><span class="name">${p.name}</span><span class="qty">${p.min_stock - p.stock} uds</span></div>`).join('') : 
+    const lowStock = products.filter(p => p.min_stock !== null && (p.stock || 0) < p.min_stock);
+    const shoppingHtml = lowStock.length ? 
+        lowStock.map(p => `
+            <div class="shopping-item">
+                <span class="name">${p.name}</span>
+                <span class="qty">${p.min_stock - (p.stock || 0)} uds</span>
+            </div>
+        `).join('') : 
         '<div class="shopping-empty">Todo en orden</div>';
+    
+    const miniShop = document.getElementById('shopping-list');
+    const fullShop = document.getElementById('shopping-list-full');
+    if (miniShop) miniShop.innerHTML = shoppingHtml;
+    if (fullShop) fullShop.innerHTML = shoppingHtml;
+
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const nextWeek = new Date(today); nextWeek.setDate(today.getDate() + 7);
     const expiringSoon = [];
@@ -276,15 +287,25 @@ function updateShoppingList() {
             if (exp >= today && exp <= nextWeek) expiringSoon.push({ name: p.name, expiry_date: b.expiry_date, quantity: b.quantity });
         }
     }));
-    const expiringListEl = document.getElementById('expiring-soon-list');
-    if (!expiringSoon.length) { expiringListEl.innerHTML = '<div class="shopping-empty">Nada caduca pronto</div>'; }
-    else {
+
+    let expiringHtml = '<div class="shopping-empty">Nada caduca pronto</div>';
+    if (expiringSoon.length) {
         expiringSoon.sort((a, b) => a.expiry_date.localeCompare(b.expiry_date));
-        expiringListEl.innerHTML = expiringSoon.map(item => {
+        expiringHtml = expiringSoon.map(item => {
             const exp = getExpiryInfo(item.expiry_date);
-            return `<div class="shopping-item"><span class="name">${item.name} (${item.quantity} ud)</span><span class="${exp.cls}">${exp.text}</span></div>`;
+            return `
+                <div class="shopping-item">
+                    <span class="name">${item.name} (${item.quantity} ud)</span>
+                    <span class="${exp.cls}">${exp.text}</span>
+                </div>
+            `;
         }).join('');
     }
+    
+    const miniExp = document.getElementById('expiring-soon-list');
+    const fullExp = document.getElementById('expiring-soon-list-full');
+    if (miniExp) miniExp.innerHTML = expiringHtml;
+    if (fullExp) fullExp.innerHTML = expiringHtml;
 }
 
 function updateProductList() {
@@ -928,23 +949,23 @@ function initNavigation() {
     }
 
     // Default page
-    showPage('stock');
+    showPage('dashboard');
 }
 
 function updateStockPageSearch() {
     const query = normalizeText(document.getElementById('stock-search')?.value || '');
     const location = document.getElementById('stock-location-filter')?.value || '';
-    const rows = document.querySelectorAll('#product-list .product-row');
+    const rows = document.querySelectorAll('#product-list .product-grid-row');
     
     rows.forEach(row => {
-        const name = normalizeText(row.querySelector('.name')?.textContent || '');
-        const meta = normalizeText(row.querySelector('.meta')?.textContent || '');
+        const name = normalizeText(row.querySelector('.product-name')?.textContent || '');
+        const meta = normalizeText(row.querySelector('.product-meta-inline')?.textContent || '');
         const barcode = row.dataset.barcode || '';
         
         const matchesQuery = !query || name.includes(query) || barcode.includes(query) || meta.includes(query);
         const matchesLocation = !location || meta.includes(normalizeText(location));
         
-        row.classList.toggle('hidden-search', !(matchesQuery && matchesLocation));
+        row.style.display = (matchesQuery && matchesLocation) ? '' : 'none';
     });
 }
 

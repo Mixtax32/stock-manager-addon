@@ -274,6 +274,51 @@ select {
     gap: 12px;
 }
 
+/* Dashboard Layout */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr;
+    grid-template-rows: auto auto;
+    gap: 20px;
+}
+
+.macro-widget { grid-column: 1; grid-row: 1; }
+.scan-widget { grid-column: 2; grid-row: 1; }
+.shopping-widget { grid-column: 1; grid-row: 2; }
+.expiring-widget { grid-column: 2; grid-row: 2; }
+
+.column-card h3 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+}
+
+.macro-label-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    margin-bottom: 4px;
+}
+
+.mini-list {
+    display: flex;
+    flex-direction: column;
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+@media (max-width: 1024px) {
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+    .macro-widget, .scan-widget, .shopping-widget, .expiring-widget {
+        grid-column: 1;
+        grid-row: auto;
+    }
+}
+
 .product-img-mini {
     width: 32px;
     height: 32px;
