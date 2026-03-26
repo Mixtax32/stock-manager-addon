@@ -1,5 +1,5 @@
 /* 
-   Stock Manager v0.5.23 
+   Stock Manager v0.5.25 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
@@ -147,6 +147,7 @@ async function updateUI() {
 }
 
 async function updateCharts() {
+    if (typeof Chart === 'undefined') { console.warn("Chart.js no cargado. Saltando gráficas."); return; }
     try {
         const stats = await apiCall('/stats');
         document.getElementById('stat-total-p').textContent = stats.total_products || 0;
@@ -234,6 +235,7 @@ async function updateMacros() {
 }
 
 function updateDoughnutChart(canvasId, chartObj, val, target, setChart) {
+    if (typeof Chart === 'undefined') { console.warn(`Chart.js no disponible para ${canvasId}`); return; }
     const el = document.getElementById(canvasId);
     if (!el) return;
     const ctx = el.getContext('2d');
@@ -383,12 +385,12 @@ function updateProductList() {
                     <span class="min-stock-hint">/ ${p.min_stock}</span>
                 </div>
                 <div class="cell cell-actions">
-                    <button class="btn-action-sm remove-stock" data-barcode="${p.barcode}" title="Quitar 1">-</button>
-                    <button class="btn-action-sm consume-stock" data-barcode="${p.barcode}" title="Consumir">🍽️</button>
-                    <button class="btn-action-sm add-stock" data-barcode="${p.barcode}" title="Añadir 1">+</button>
+                    <button class="btn-action-sm remove-stock" onclick="window.quickRemove('${p.barcode}')" title="Quitar 1">-</button>
+                    <button class="btn-action-sm consume-stock" onclick="window.quickConsume('${p.barcode}')" title="Consumir">🍽️</button>
+                    <button class="btn-action-sm add-stock" onclick="window.quickAdd('${p.barcode}')" title="Añadir 1">+</button>
                     <div class="action-divider"></div>
-                    <button class="btn-action-sm manage-product" data-barcode="${p.barcode}" title="Gestionar">⚙</button>
-                    <button class="btn-action-sm delete-product" data-barcode="${p.barcode}" title="Eliminar">✕</button>
+                    <button class="btn-action-sm manage-product" onclick="window.openManagePanel('${p.barcode}')" title="Gestionar">⚙</button>
+                    <button class="btn-action-sm delete-product" onclick="window.deleteProduct('${p.barcode}')" title="Eliminar">✕</button>
                 </div>
             </div>
         `;
@@ -448,7 +450,7 @@ async function bulkAction(action) {
 
 // ===== Management Functions =====
 let pendingChanges = {}, pendingBatchChanges = {}, originalData = {}, originalBatchData = {};
-function openManagePanel() {
+function openManagePanel(barcode = null) {
     pendingChanges = {}; pendingBatchChanges = {};
     products.forEach(p => {
         originalData[p.barcode] = { 
@@ -458,6 +460,9 @@ function openManagePanel() {
         };
         p.batches?.forEach(b => originalBatchData[b.id] = b.expiry_date || '');
     });
+    
+    if (barcode) document.getElementById('manage-filter-name').value = barcode;
+    
     const locSelect = document.getElementById('manage-filter-location');
     const locs = [...new Set(products.map(p => p.location).filter(l => l))];
     locSelect.innerHTML = '<option value="">Todas</option>' + locs.map(l => `<option value="${l}">${l}</option>`).join('');
@@ -626,6 +631,7 @@ window.updateBatchDelta = (id, delta) => {
     renderExistingBatches(products.find(p => p.barcode === currentBarcode));
 };
 async function processTicketImage(canvas) {
+    if (typeof Tesseract === 'undefined') { showToast('Tesseract.js no cargado. Revisa tu conexión.', 'error'); return; }
     const progress = document.getElementById('ticket-progress');
     const statusEl = document.getElementById('ticket-status');
     const fillEl = document.getElementById('ticket-fill');
@@ -740,7 +746,9 @@ function wrapDateInputsWithPicker() {
 // ===== Event Listeners & UI Helpers =====
 function setupEventListeners() {
     document.querySelectorAll('.section-header').forEach(header => header.onclick = e => { if (!e.target.closest('.header-main-actions') && !e.target.closest('button')) header.parentElement.classList.toggle('collapsed'); });
-    document.getElementById('start-scan').onclick = async () => {
+    
+    const startBtn = document.getElementById('start-scan');
+    if (startBtn) startBtn.onclick = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }); stream.getTracks().forEach(track => track.stop());
             html5QrCode = new Html5Qrcode("scanner-container"); await html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, onScanSuccess);
@@ -748,8 +756,12 @@ function setupEventListeners() {
             document.getElementById('start-scan').classList.add('hidden'); document.getElementById('start-ticket').classList.add('hidden'); document.getElementById('stop-scan').classList.remove('hidden');
         } catch (err) { showToast('Error cámara: ' + err.message, 'error'); }
     };
-    document.getElementById('stop-scan').onclick = async () => { if (html5QrCode) { await html5QrCode.stop(); document.getElementById('start-scan').classList.remove('hidden'); document.getElementById('start-ticket').classList.remove('hidden'); document.getElementById('stop-scan').classList.add('hidden'); } };
-    document.getElementById('start-ticket').onclick = async () => {
+
+    const stopBtn = document.getElementById('stop-scan');
+    if (stopBtn) stopBtn.onclick = async () => { if (html5QrCode) { await html5QrCode.stop(); document.getElementById('start-scan').classList.remove('hidden'); document.getElementById('start-ticket').classList.remove('hidden'); document.getElementById('stop-scan').classList.add('hidden'); } };
+
+    const ticketBtn = document.getElementById('start-ticket');
+    if (ticketBtn) ticketBtn.onclick = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } } });
             const video = document.createElement('video'); video.srcObject = stream; video.setAttribute('playsinline', 'true'); await video.play();
@@ -762,6 +774,7 @@ function setupEventListeners() {
             };
         } catch (err) { showToast('Error cámara: ' + err.message, 'error'); }
     };
+
     document.addEventListener('change', e => {
         if (e.target.id === 'location-select') setLocationFilter(e.target.value);
         if (e.target.id === 'manage-filter-location' || e.target.id === 'manage-filter-category') updateManageFilter();
@@ -775,28 +788,26 @@ function setupEventListeners() {
         if (e.target.classList.contains('edit-batch-field')) checkBatchChange(e.target.dataset.batchId, e.target.dataset.barcode, e.target.value);
     });
     document.addEventListener('input', e => { if (e.target.id === 'manage-filter-name') updateManageFilter(); });
+    // Global delegation for selection mode remains
     document.addEventListener('click', e => {
-        const t = e.target.closest('button') || e.target;
-        if (t.classList.contains('add-stock')) { e.stopPropagation(); quickAdd(t.dataset.barcode); }
-        if (t.classList.contains('remove-stock')) { e.stopPropagation(); quickRemove(t.dataset.barcode); }
-        if (t.classList.contains('consume-stock')) { e.stopPropagation(); quickConsume(t.dataset.barcode); }
-        if (t.classList.contains('delete-product')) { e.stopPropagation(); deleteProduct(t.dataset.barcode); }
-        if (t.classList.contains('manage-product')) { e.stopPropagation(); document.getElementById('manage-filter-name').value = t.dataset.barcode; openManagePanel(); updateManageFilter(); }
-        if (t.classList.contains('undo-delete')) undoDelete(t.dataset.barcode);
-        if (t.classList.contains('mark-delete')) markForDelete(t.dataset.barcode);
+        const t = e.target.closest('.product-grid-row') || e.target;
         if (t.classList.contains('product-grid-row') && isSelectionMode) toggleSelect(t.dataset.barcode);
         if (t.classList.contains('product-checkbox')) { e.stopPropagation(); toggleSelect(t.closest('.product-grid-row').dataset.barcode); }
-        if (t.id === 'btn-save-all') saveAllChanges();
+        if (e.target.id === 'btn-save-all') saveAllChanges();
     });
 }
 
 async function init() {
-    console.log("Stock Manager: Initializing Monolith v0.5.24...");
-    initializeDatePicker();
-    wrapDateInputsWithPicker();
-    setupEventListeners();
-    initNavigation();
-    await loadProducts();
+    try {
+        console.log("Stock Manager: Initializing Monolith v0.5.25...");
+        initializeDatePicker();
+        wrapDateInputsWithPicker();
+        setupEventListeners();
+        initNavigation();
+        await loadProducts().catch(e => console.error("Error cargando productos iniciales:", e));
+    } catch (err) {
+        console.error("Fallo crítico en init:", err);
+    }
 }
 window.useManualBarcode = () => {
     const input = document.getElementById('manual-barcode').value.trim(); if (!input) return;
@@ -1052,6 +1063,10 @@ window.showTicketResults = showTicketResults;
 window.showPage = showPage;
 window.initNavigation = initNavigation;
 window.updateStockPageSearch = updateStockPageSearch;
+window.toggleTheme = () => {
+    document.body.classList.toggle('dark-mode');
+    setTimeout(() => { if (typeof Chart !== 'undefined') updateCharts(); }, 100);
+};
 
 
 let currentMacroFillResults = [];
