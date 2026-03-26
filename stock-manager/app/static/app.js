@@ -1,5 +1,5 @@
 /* 
-   Stock Manager v0.5.22 
+   Stock Manager v0.5.23 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
@@ -28,12 +28,7 @@ let pickerState = {
     scrollOffset: {} 
 };
 
-// ===== Initialization =====
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-} else {
-    init();
-}
+
 
 // ===== API Functions =====
 async function apiCall(endpoint, method = 'GET', body = null) {
@@ -795,14 +790,14 @@ function setupEventListeners() {
     });
 }
 
-const init = async () => {
-    console.log("Stock Manager: Initializing Monolith v0.5.22...");
+async function init() {
+    console.log("Stock Manager: Initializing Monolith v0.5.23...");
     await loadProducts();
     initializeDatePicker();
     wrapDateInputsWithPicker();
     setupEventListeners();
     initNavigation();
-};
+}
 window.useManualBarcode = () => {
     const input = document.getElementById('manual-barcode').value.trim(); if (!input) return;
     const byBarcode = products.find(p => p.barcode === input); if (byBarcode) { onScanSuccess(input); return; }
@@ -1057,6 +1052,8 @@ window.showTicketResults = showTicketResults;
 window.showPage = showPage;
 window.initNavigation = initNavigation;
 window.updateStockPageSearch = updateStockPageSearch;
+
+
 let currentMacroFillResults = [];
 
 window.startMacroFillPreview = async () => {
@@ -1143,4 +1140,11 @@ window.confirmMacroFill = async () => {
         showToast("Error al guardar: " + e.message, "error");
     }
 };
+
+// ===== Initialization Execution =====
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
+}
 
