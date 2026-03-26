@@ -1,5 +1,5 @@
 /* 
-   Stock Manager v0.5.21 
+   Stock Manager v0.5.22 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
@@ -29,15 +29,6 @@ let pickerState = {
 };
 
 // ===== Initialization =====
-const init = async () => {
-    console.log("Stock Manager: Initializing Monolith v0.5.21...");
-    await loadProducts();
-    initializeDatePicker();
-    wrapDateInputsWithPicker();
-    setupEventListeners();
-    initNavigation();
-};
-
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
 } else {
@@ -798,11 +789,20 @@ function setupEventListeners() {
         if (t.classList.contains('manage-product')) { e.stopPropagation(); document.getElementById('manage-filter-name').value = t.dataset.barcode; openManagePanel(); updateManageFilter(); }
         if (t.classList.contains('undo-delete')) undoDelete(t.dataset.barcode);
         if (t.classList.contains('mark-delete')) markForDelete(t.dataset.barcode);
-        if (t.classList.contains('product-row') && isSelectionMode) toggleSelect(t.dataset.barcode);
-        if (t.classList.contains('product-checkbox')) { e.stopPropagation(); toggleSelect(t.closest('.product-row').dataset.barcode); }
+        if (t.classList.contains('product-grid-row') && isSelectionMode) toggleSelect(t.dataset.barcode);
+        if (t.classList.contains('product-checkbox')) { e.stopPropagation(); toggleSelect(t.closest('.product-grid-row').dataset.barcode); }
         if (t.id === 'btn-save-all') saveAllChanges();
     });
 }
+
+const init = async () => {
+    console.log("Stock Manager: Initializing Monolith v0.5.22...");
+    await loadProducts();
+    initializeDatePicker();
+    wrapDateInputsWithPicker();
+    setupEventListeners();
+    initNavigation();
+};
 window.useManualBarcode = () => {
     const input = document.getElementById('manual-barcode').value.trim(); if (!input) return;
     const byBarcode = products.find(p => p.barcode === input); if (byBarcode) { onScanSuccess(input); return; }
@@ -999,13 +999,64 @@ function updateStockPageSearch() {
     });
 }
 
-window.onload = () => {
-    // If init hasn't run yet, it will be called by DOMContentLoaded.
-    // But initNavigation can be called safely here too.
-    if (typeof initNavigation === 'function') initNavigation();
-};
-
-// ===== Macro Fill Logic =====
+// Export functions to window
+window.init = init;
+window.apiCall = apiCall;
+window.exportInventory = exportInventory;
+window.importInventory = importInventory;
+window.showToast = showToast;
+window.normalizeText = normalizeText;
+window.getExpiryInfo = getExpiryInfo;
+window.toggleSection = toggleSection;
+window.loadProducts = loadProducts;
+window.updateUI = updateUI;
+window.updateCharts = updateCharts;
+window.updateMacros = updateMacros;
+window.updateTodayMovements = updateTodayMovements;
+window.updateShoppingList = updateShoppingList;
+window.updateProductList = updateProductList;
+window.updateLocationFilter = updateLocationFilter;
+window.setLocationFilter = setLocationFilter;
+window.toggleSelectionMode = toggleSelectionMode;
+window.toggleSelect = toggleSelect;
+window.updateSelectionBar = updateSelectionBar;
+window.clearSelection = clearSelection;
+window.bulkAction = bulkAction;
+window.openManagePanel = openManagePanel;
+window.updateManageFilter = updateManageFilter;
+window.renderManageList = renderManageList;
+window.checkProductChanges = checkProductChanges;
+window.checkBatchChange = checkBatchChange;
+window.markForDelete = markForDelete;
+window.undoDelete = undoDelete;
+window.updateChangesUI = updateChangesUI;
+window.saveAllChanges = saveAllChanges;
+window.onScanSuccess = onScanSuccess;
+window.renderScanImage = renderScanImage;
+window.renderExistingBatches = renderExistingBatches;
+window.resetScanner = resetScanner;
+window.processTicketImage = processTicketImage;
+window.parseTicketText = parseTicketText;
+window.initializeDatePicker = initializeDatePicker;
+window.getDaysInMonth = getDaysInMonth;
+window.initializeWheel = initializeWheel;
+window.setupWheelScroller = setupWheelScroller;
+window.updateWheelScroll = updateWheelScroll;
+window.snapToNearestValue = snapToNearestValue;
+window.openDatePicker = openDatePicker;
+window.closeDatePicker = closeDatePicker;
+window.confirmDatePicker = confirmDatePicker;
+window.openDateModal = openDateModal;
+window.wrapDateInputsWithPicker = wrapDateInputsWithPicker;
+window.setupEventListeners = setupEventListeners;
+window.quickAdd = quickAdd;
+window.quickRemove = quickRemove;
+window.quickConsume = quickConsume;
+window.deleteProduct = deleteProduct;
+window.showTicketResults = showTicketResults;
+window.showPage = showPage;
+window.initNavigation = initNavigation;
+window.updateStockPageSearch = updateStockPageSearch;
 let currentMacroFillResults = [];
 
 window.startMacroFillPreview = async () => {
