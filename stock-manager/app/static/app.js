@@ -1,5 +1,5 @@
 /* 
-   Stock Manager v0.5.8 
+   Stock Manager v0.5.9 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
@@ -238,6 +238,26 @@ async function updateMacros() {
             document.getElementById(`fill-${m}`).style.width = pct + '%';
         });
     } catch (e) { console.error('Error updating macros:', e); }
+}
+
+async function updateTodayMovements() {
+    try {
+        const moves = await apiCall('/stats/today-movements');
+        const list = document.getElementById('today-movements-list');
+        if (!moves.length) { 
+            list.innerHTML = '<div style="color:#555;font-size:13px;text-align:center;padding:20px;">No hay consumos hoy</div>'; 
+            return;
+        }
+        list.innerHTML = moves.map(m => `
+            <div class="history-item" style="display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid #1a1a1a;">
+                <div class="hi-info">
+                    <div style="font-weight:600; color:#fff; font-size:14px;">${m.name}</div>
+                    <div style="font-size:12px; color:#555;">${new Date(m.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} • ${Math.abs(m.quantity_change)} ud${Math.abs(m.quantity_change)>1?'s':''}</div>
+                </div>
+                <button class="btn-del" onclick="deleteMovement(${m.id})" style="color:#ef4444; font-size:16px;">✕</button>
+            </div>
+        `).join('');
+    } catch (e) { console.error('Error fetching history:', e); }
 }
 
 function updateShoppingList() {
@@ -757,10 +777,21 @@ window.openMacroGoalsPanel = async () => {
         document.getElementById('goal-carbs').value = goals.carbs;
         document.getElementById('goal-fat').value = goals.fat;
         document.getElementById('macro-goals-panel').classList.add('active');
+        updateTodayMovements();
     } catch (e) { showToast('Error al cargar objetivos', 'error'); }
 };
 window.closeMacroGoalsPanel = () => {
     document.getElementById('macro-goals-panel').classList.remove('active');
+};
+window.deleteMovement = async (id) => {
+    if (!confirm('¿Eliminar este registro de consumo?')) return;
+    try {
+        await apiCall(`/movements/${id}`, 'DELETE');
+        showToast('Registro eliminado', 'success');
+        updateTodayMovements();
+        updateMacros();
+        loadProducts(); // Update stock in list
+    } catch (e) { showToast('Error al eliminar: ' + e.message, 'error'); }
 };
 window.saveMacroGoals = async () => {
     const kcal = parseFloat(document.getElementById('goal-kcal').value);

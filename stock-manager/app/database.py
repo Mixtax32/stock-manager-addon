@@ -521,5 +521,57 @@ class Database:
                 await db.commit()
             
             return await self.get_macro_goals()
+            
+    async def get_today_movements(self) -> List[dict]:
+        """Get list of products consumed today"""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("""
+                SELECT m.*, p.name 
+                FROM movements m
+                JOIN products p ON m.barcode = p.barcode
+                WHERE m.quantity_change < 0 
+                AND date(m.timestamp) = date('now')
+                ORDER BY m.timestamp DESC
+            """) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
+
+    async def delete_movement(self, movement_id: int) -> bool:
+        """Delete a movement and restore stock"""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            # 1. Get movement details
+            async with db.execute("SELECT * FROM movements WHERE id = ?", (movement_id,)) as cursor:
+                movement = await cursor.fetchone()
+                if not movement:
+                    return False
+            
+            barcode = movement['barcode']
+            qty_restored = abs(movement['quantity_change'])
+            
+            # 2. Add stock back (if it was a consumption)
+            if movement['quantity_change'] < 0:
+                # Find oldest batch to put stock back or create one
+                async with db.execute(
+                    "SELECT id FROM batches WHERE barcode = ? ORDER BY expiry_date ASC LIMIT 1",
+                    (barcode,)
+                ) as cursor:
+                    batch = await cursor.fetchone()
+                
+                if batch:
+                    await db.execute("UPDATE batches SET quantity = quantity + ? WHERE id = ?", (qty_restored, batch['id']))
+                else:
+                    await db.execute(
+                        "INSERT INTO batches (barcode, quantity, added_date) VALUES (?, ?, ?)",
+                        (barcode, qty_restored, date.today().isoformat())
+                    )
+                
+                await self._sync_product_stock(db, barcode)
+
+            # 3. Delete movement
+            await db.execute("DELETE FROM movements WHERE id = ?", (movement_id,))
+            await db.commit()
+            return True
 
 db = Database()

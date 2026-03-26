@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Stock Manager</title>
-    <link rel="stylesheet" href="static/styles.css?v=0.5.8">
+    <link rel="stylesheet" href="static/styles.css?v=0.5.9">
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/tesseract.js@v4.0.2/dist/tesseract.min.js"></script>
@@ -263,7 +263,7 @@
         </div>
 
         <div style="text-align:center; padding: 20px 0; opacity: 0.3; font-size: 11px;">
-            Stock Manager v0.5.8
+            Stock Manager v0.5.9
         </div>
     </div>
 
@@ -383,11 +383,19 @@
                         <input type="number" id="goal-fat" placeholder="70">
                     </div>
                 </div>
+
+                <div class="history-section" style="margin-top: 32px; border-top: 1px solid #222; padding-top: 24px;">
+                    <h3 style="font-size: 14px; text-transform: uppercase; color: #555; margin-bottom: 16px;">Consumo de hoy</h3>
+                    <div id="today-movements-list" class="history-list">
+                        <!-- Items populated by JS -->
+                    </div>
+                </div>
             </div>
+
         </div>
     </div>
 
-    <script src="static/app.js?v=0.5.8"></script>
+    <script src="static/app.js?v=0.5.9"></script>
 </body>
 
 </html>

@@ -186,6 +186,19 @@ async def update_macro_goals(update: MacroGoalsUpdate):
     """Update daily macro goals"""
     return await db.update_macro_goals(update)
 
+@app.get("/api/stats/today-movements")
+async def get_today_movements():
+    """Get list of products consumed today"""
+    return await db.get_today_movements()
+
+@app.delete("/api/movements/{movement_id}")
+async def delete_movement(movement_id: int):
+    """Delete movement and restore stock"""
+    success = await db.delete_movement(movement_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Movimiento no encontrado")
+    return {"message": "Movimiento eliminado"}
+
 @app.get("/api/export")
 async def export_data():
     """Export all inventory data as CSV"""
