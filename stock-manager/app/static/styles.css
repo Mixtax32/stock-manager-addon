@@ -541,9 +541,9 @@ body {
     color: #f87171;
 }
 
-.btn-round.lost {
-    border-color: #614c2b;
-    color: #d4a373;
+.btn-round.consume-stock {
+    border-color: #3b82f6;
+    color: #3b82f6;
 }
 
 .btn-del {

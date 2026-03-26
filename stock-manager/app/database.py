@@ -213,8 +213,8 @@ class Database:
                         await db.execute("UPDATE batches SET quantity = ? WHERE id = ?", (new_qty, batch.id))
                     remaining -= consume
 
-            # Log movement with reason (default to "consumed" if not specified)
-            reason = update.reason or "consumed"
+            # Log movement with reason (default to "removed" if not specified)
+            reason = update.reason or "removed"
             await self._log_movement(db, barcode, update.quantity, reason)
             await self._sync_product_stock(db, barcode)
             await db.commit()
@@ -408,6 +408,7 @@ class Database:
                 FROM movements m
                 JOIN products p ON m.barcode = p.barcode
                 WHERE m.quantity_change < 0 
+                AND m.reason = 'consumed'
                 AND date(m.timestamp) = date('now')
             """) as cursor:
                 row = await cursor.fetchone()
@@ -531,6 +532,7 @@ class Database:
                 FROM movements m
                 JOIN products p ON m.barcode = p.barcode
                 WHERE m.quantity_change < 0 
+                AND m.reason = 'consumed'
                 AND date(m.timestamp) = date('now')
                 ORDER BY m.timestamp DESC
             """) as cursor:

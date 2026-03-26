@@ -1,5 +1,5 @@
 /* 
-   Stock Manager v0.5.9 
+   Stock Manager v0.6.0 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
@@ -306,7 +306,7 @@ function updateProductList() {
                 </div>
                 <div class="product-stock">
                     <button class="btn-round remove-stock" data-barcode="${p.barcode}">-</button>
-                    <button class="btn-round lost-stock" data-barcode="${p.barcode}">?</button>
+                    <button class="btn-round consume-stock" data-barcode="${p.barcode}">🍽️</button>
                     <span class="stock-num ${isLow ? 'low' : ''}">${p.stock}</span>
                     <button class="btn-round add-stock" data-barcode="${p.barcode}">+</button>
                     <div style="display:flex;flex-direction:column;gap:4px;">
@@ -698,7 +698,7 @@ function setupEventListeners() {
         const t = e.target;
         if (t.classList.contains('add-stock')) { e.stopPropagation(); quickAdd(t.dataset.barcode); }
         if (t.classList.contains('remove-stock')) { e.stopPropagation(); quickRemove(t.dataset.barcode); }
-        if (t.classList.contains('lost-stock')) { e.stopPropagation(); quickLost(t.dataset.barcode); }
+        if (t.classList.contains('consume-stock')) { e.stopPropagation(); quickConsume(t.dataset.barcode); }
         if (t.classList.contains('delete-product')) { e.stopPropagation(); deleteProduct(t.dataset.barcode); }
         if (t.classList.contains('manage-product')) { e.stopPropagation(); document.getElementById('manage-filter-name').value = t.dataset.barcode; openManagePanel(); updateManageFilter(); }
         if (t.classList.contains('undo-delete')) undoDelete(t.dataset.barcode);
@@ -724,11 +724,17 @@ async function quickAdd(barcode) {
 }
 async function quickRemove(barcode) {
     const p = products.find(prod => prod.barcode === barcode);
-    if (p && p.stock > 0 && p.batches?.length) { await apiCall(`/batches/${p.batches[0].id}/stock`, 'POST', { quantity: -1 }); await loadProducts(); }
+    if (p && p.stock > 0 && p.batches?.length) { 
+        await apiCall(`/batches/${p.batches[0].id}/stock`, 'POST', { quantity: -1, reason: 'removed' }); 
+        await loadProducts(); 
+    }
 }
-async function quickLost(barcode) {
+async function quickConsume(barcode) {
     const p = products.find(prod => prod.barcode === barcode);
-    if (p && p.stock > 0) { await apiCall(`/products/${barcode}/stock`, 'POST', { quantity: -1, reason: 'lost' }); await loadProducts(); }
+    if (p && p.stock > 0) { 
+        await apiCall(`/products/${barcode}/stock`, 'POST', { quantity: -1, reason: 'consumed' }); 
+        await loadProducts(); 
+    }
 }
 async function deleteProduct(barcode) { if (confirm('¿Eliminar este producto?')) { await apiCall(`/products/${barcode}`, 'DELETE'); await loadProducts(); } }
 window.addStock = async () => {
