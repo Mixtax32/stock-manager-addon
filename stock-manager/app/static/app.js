@@ -791,12 +791,12 @@ function setupEventListeners() {
 }
 
 async function init() {
-    console.log("Stock Manager: Initializing Monolith v0.5.23...");
-    await loadProducts();
+    console.log("Stock Manager: Initializing Monolith v0.5.24...");
     initializeDatePicker();
     wrapDateInputsWithPicker();
     setupEventListeners();
     initNavigation();
+    await loadProducts();
 }
 window.useManualBarcode = () => {
     const input = document.getElementById('manual-barcode').value.trim(); if (!input) return;
