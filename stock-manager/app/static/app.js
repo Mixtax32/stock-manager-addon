@@ -1,5 +1,5 @@
 /* 
-   Stock Manager v0.5.13 
+   Stock Manager v0.5.14 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
@@ -29,7 +29,7 @@ let pickerState = {
 
 // ===== Initialization =====
 const init = async () => {
-    console.log("Stock Manager: Initializing Monolith v0.5.13...");
+    console.log("Stock Manager: Initializing Monolith v0.5.14...");
     await loadProducts();
     initializeDatePicker();
     wrapDateInputsWithPicker();
@@ -290,36 +290,71 @@ function updateShoppingList() {
 function updateProductList() {
     const list = document.getElementById('product-list');
     let filtered = filteredLocation ? products.filter(p => p.location === filteredLocation) : products;
-    if (!filtered.length) { list.innerHTML = `<div class="empty-state">Sin productos${filteredLocation ? ' en ' + filteredLocation : ''}.</div>`; return; }
+    
+    if (!filtered.length) { 
+        list.innerHTML = `<div class="empty-state">Sin productos${filteredLocation ? ' en ' + filteredLocation : ''}.</div>`; 
+        return; 
+    }
+    
     filtered.sort((a, b) => a.name.localeCompare(b.name));
-    list.innerHTML = filtered.map(p => {
+    
+    let html = `
+        <div class="inventory-grid-header">
+            <div class="header-cell">Producto</div>
+            <div class="header-cell">Categoría</div>
+            <div class="header-cell">Ubicación</div>
+            <div class="header-cell">Estado / Caducidad</div>
+            <div class="header-cell" style="text-align:center">Stock</div>
+            <div class="header-cell" style="text-align:right">Acciones</div>
+        </div>
+    `;
+
+    html += filtered.map(p => {
         const isLow = p.stock < p.min_stock;
         const isSelected = selectedProducts.has(p.barcode);
-        let batches = p.batches?.map(b => {
-            const exp = getExpiryInfo(b.expiry_date);
-            return `<div class="batch-row"><span class="batch-qty">${b.quantity} ud</span>${exp ? `<span class="${exp.cls}">${exp.text}</span>` : '<span class="expiry-ok">Sin caducidad</span>'}</div>`;
-        }).join('') || '';
-        return `<div class="product-row ${isSelected ? 'selected' : ''}" data-barcode="${p.barcode}">
-            <div class="product-top">
-                ${isSelectionMode ? `<div class="product-checkbox-wrapper"><input type="checkbox" class="product-checkbox" ${isSelected ? 'checked' : ''}></div>` : ''}
-                <div class="product-main">
-                    ${p.image_url ? `<img src="${p.image_url}" class="product-img">` : `<div class="product-img-placeholder">📦</div>`}
-                    <div class="product-info-wrapper"><div class="name">${p.name}</div><div class="meta">${p.category}${p.location ? ' • ' + p.location : ''}</div></div>
-                </div>
-                <div class="product-stock">
-                    <button class="btn-round remove-stock" data-barcode="${p.barcode}">-</button>
-                    <button class="btn-round consume-stock" data-barcode="${p.barcode}">🍽️</button>
-                    <span class="stock-num ${isLow ? 'low' : ''}">${p.stock}</span>
-                    <button class="btn-round add-stock" data-barcode="${p.barcode}">+</button>
-                    <div style="display:flex;flex-direction:column;gap:4px;">
-                        <button class="btn-del delete-product" data-barcode="${p.barcode}">&#x2715;</button>
-                        <button class="btn-del manage-product" data-barcode="${p.name}">⚙</button>
+        
+        // Get primary expiry info
+        let expiryHtml = '<span class="text-dim">Sin fecha</span>';
+        if (p.batches && p.batches.length > 0) {
+            const sortedBatches = [...p.batches].sort((a,b) => (a.expiry_date || '9999').localeCompare(b.expiry_date || '9999'));
+            const firstExp = getExpiryInfo(sortedBatches[0].id ? sortedBatches[0].expiry_date : null);
+            if (firstExp) {
+                expiryHtml = `<span class="expiry-pill ${firstExp.cls}">${firstExp.text}</span>`;
+            }
+        }
+
+        return `
+            <div class="product-grid-row ${isSelected ? 'selected' : ''} ${isLow ? 'row-warning' : ''}" data-barcode="${p.barcode}">
+                <div class="cell cell-main">
+                    ${isSelectionMode ? `<input type="checkbox" class="product-checkbox" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation()">` : ''}
+                    <div class="product-img-mini">
+                        ${p.image_url ? `<img src="${p.image_url}">` : `<span>📦</span>`}
+                    </div>
+                    <div class="product-name-wrapper">
+                        <span class="product-name">${p.name}</span>
+                        <span class="product-barcode">${p.barcode}</span>
                     </div>
                 </div>
+                <div class="cell text-dim">${p.category}</div>
+                <div class="cell">${p.location || '—'}</div>
+                <div class="cell">${expiryHtml}</div>
+                <div class="cell cell-stock">
+                    <span class="stock-badge ${isLow ? 'low' : ''}">${p.stock}</span>
+                    <span class="min-stock-hint">/ ${p.min_stock}</span>
+                </div>
+                <div class="cell cell-actions">
+                    <button class="btn-action-sm remove" data-barcode="${p.barcode}" title="Quitar 1">-</button>
+                    <button class="btn-action-sm consume" data-barcode="${p.barcode}" title="Consumir">🍽️</button>
+                    <button class="btn-action-sm add" data-barcode="${p.barcode}" title="Añadir 1">+</button>
+                    <div class="action-divider"></div>
+                    <button class="btn-action-sm edit manage-product" data-barcode="${p.barcode}" title="Gestionar">⚙</button>
+                    <button class="btn-action-sm delete delete-product" data-barcode="${p.barcode}" title="Eliminar">✕</button>
+                </div>
             </div>
-            ${batches ? `<div class="batch-list">${batches}</div>` : ''}
-        </div>`;
+        `;
     }).join('');
+    
+    list.innerHTML = html;
 }
 
 function updateLocationFilter() {
