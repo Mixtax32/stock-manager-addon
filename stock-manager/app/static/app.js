@@ -1,5 +1,5 @@
 /* 
-   Stock Manager v0.5.14 
+   Stock Manager v0.5.15 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
@@ -29,7 +29,7 @@ let pickerState = {
 
 // ===== Initialization =====
 const init = async () => {
-    console.log("Stock Manager: Initializing Monolith v0.5.14...");
+    console.log("Stock Manager: Initializing Monolith v0.5.15...");
     await loadProducts();
     initializeDatePicker();
     wrapDateInputsWithPicker();
@@ -324,7 +324,9 @@ function updateProductList() {
         }
 
         return `
-            <div class="product-grid-row ${isSelected ? 'selected' : ''} ${isLow ? 'row-warning' : ''}" data-barcode="${p.barcode}">
+            <div class="product-grid-row ${isSelected ? 'selected' : ''} ${isLow ? 'row-warning' : ''}" 
+                 data-barcode="${p.barcode}" 
+                 data-meta="${p.category}${p.location ? ' • ' + p.location : ''}">
                 <div class="cell cell-main">
                     ${isSelectionMode ? `<input type="checkbox" class="product-checkbox" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation()">` : ''}
                     <div class="product-img-mini">

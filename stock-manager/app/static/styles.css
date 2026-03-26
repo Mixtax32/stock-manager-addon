@@ -584,7 +584,7 @@ select {
     align-items: center;
 }
 
-/* Mobile Adjustments */
+/* Responsive Adjustments */
 @media (max-width: 768px) {
     body {
         flex-direction: column;
@@ -609,36 +609,124 @@ select {
         height: 100%;
         width: 20%;
         border-radius: 0;
+        flex-direction: column;
+        gap: 2px;
     }
-    
+
+    .nav-item i, .nav-item svg {
+        width: 18px;
+        height: 18px;
+        margin-bottom: 0;
+    }
+
     .main-content {
         height: calc(100vh - 64px);
     }
     
+    .top-bar {
+        padding: 0 16px;
+    }
+
+    .top-bar h1 { font-size: 16px; }
+
+    .page-container {
+        padding: 12px;
+    }
+
     .stats-grid {
         grid-template-columns: 1fr;
+        gap: 8px;
     }
-    
+
+    /* Mobile Grid Transformation */
+    .inventory-grid-header {
+        display: none;
+    }
+
+    .product-grid-row {
+        grid-template-columns: 40px 1fr auto;
+        grid-template-areas: 
+            "img info stock"
+            "actions actions actions";
+        gap: 8px 12px;
+        padding: 12px;
+        border-radius: 12px;
+        margin-bottom: 8px;
+        background: var(--card);
+    }
+
+    .cell-main {
+        grid-area: info;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+        overflow: hidden;
+    }
+
+    .product-img-mini {
+        grid-area: img;
+        width: 40px;
+        height: 40px;
+    }
+
+    .product-name {
+        font-size: 14px;
+        white-space: normal;
+        line-height: 1.2;
+    }
+
+    .product-barcode { font-size: 9px; }
+
+    /* Stack Category, Location, Expiry in a single line */
+    .cell:not(.cell-main):not(.cell-stock):not(.cell-actions) {
+        display: none; /* Hide separate columns */
+    }
+
+    /* We could inject them into the info cell via CSS or logic, 
+       but for now let's show Expiry next to stock */
+    .product-grid-row::after {
+        content: attr(data-meta);
+        grid-area: info;
+        margin-top: 24px;
+        font-size: 10px;
+        color: var(--text-dim);
+    }
+
+    .cell-stock {
+        grid-area: stock;
+        flex-direction: column;
+        gap: 2px;
+        align-self: flex-start;
+        padding-top: 4px;
+    }
+
+    .stock-badge {
+        font-size: 18px;
+        padding: 4px 10px;
+    }
+
+    .cell-actions {
+        grid-area: actions;
+        justify-content: space-between;
+        padding-top: 10px;
+        border-top: 1px dashed var(--border);
+        width: 100%;
+    }
+
+    .btn-action-sm {
+        width: 32px;
+        height: 32px;
+        font-size: 14px;
+    }
+
+    .action-divider { display: none; }
+
     .compra-columns {
         grid-template-columns: 1fr;
+        gap: 16px;
     }
-    
-    #product-list .product-top {
-        grid-template-columns: 50px 1fr 100px 40px;
-    }
-    
-    .product-stock {
-        grid-column: 1 / -1;
-        display: flex;
-        justify-content: space-between;
-        padding-top: 8px;
-        border-top: 1px dashed var(--border);
-        margin-top: 8px;
-    }
-    
-    .mt-auto {
-        margin-top: 0;
-    }
+
+    .mt-auto { margin-top: 0; }
 }
 
 /* Toast */
