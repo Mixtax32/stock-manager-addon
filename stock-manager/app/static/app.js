@@ -1,5 +1,5 @@
 /* 
-   Stock Manager v0.5.20 
+   Stock Manager v0.5.21 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
@@ -30,7 +30,7 @@ let pickerState = {
 
 // ===== Initialization =====
 const init = async () => {
-    console.log("Stock Manager: Initializing Monolith v0.5.20...");
+    console.log("Stock Manager: Initializing Monolith v0.5.21...");
     await loadProducts();
     initializeDatePicker();
     wrapDateInputsWithPicker();
@@ -397,12 +397,12 @@ function updateProductList() {
                     <span class="min-stock-hint">/ ${p.min_stock}</span>
                 </div>
                 <div class="cell cell-actions">
-                    <button class="btn-action-sm remove" data-barcode="${p.barcode}" title="Quitar 1">-</button>
-                    <button class="btn-action-sm consume" data-barcode="${p.barcode}" title="Consumir">🍽️</button>
-                    <button class="btn-action-sm add" data-barcode="${p.barcode}" title="Añadir 1">+</button>
+                    <button class="btn-action-sm remove-stock" data-barcode="${p.barcode}" title="Quitar 1">-</button>
+                    <button class="btn-action-sm consume-stock" data-barcode="${p.barcode}" title="Consumir">🍽️</button>
+                    <button class="btn-action-sm add-stock" data-barcode="${p.barcode}" title="Añadir 1">+</button>
                     <div class="action-divider"></div>
-                    <button class="btn-action-sm edit manage-product" data-barcode="${p.barcode}" title="Gestionar">⚙</button>
-                    <button class="btn-action-sm delete delete-product" data-barcode="${p.barcode}" title="Eliminar">✕</button>
+                    <button class="btn-action-sm manage-product" data-barcode="${p.barcode}" title="Gestionar">⚙</button>
+                    <button class="btn-action-sm delete-product" data-barcode="${p.barcode}" title="Eliminar">✕</button>
                 </div>
             </div>
         `;
@@ -790,7 +790,7 @@ function setupEventListeners() {
     });
     document.addEventListener('input', e => { if (e.target.id === 'manage-filter-name') updateManageFilter(); });
     document.addEventListener('click', e => {
-        const t = e.target;
+        const t = e.target.closest('button') || e.target;
         if (t.classList.contains('add-stock')) { e.stopPropagation(); quickAdd(t.dataset.barcode); }
         if (t.classList.contains('remove-stock')) { e.stopPropagation(); quickRemove(t.dataset.barcode); }
         if (t.classList.contains('consume-stock')) { e.stopPropagation(); quickConsume(t.dataset.barcode); }
