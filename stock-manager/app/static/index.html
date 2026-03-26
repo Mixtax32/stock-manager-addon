@@ -1,16 +1,13 @@
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Stock Manager</title>
-    <link rel="stylesheet" href="static/styles.css?v=0.5.11">
-    <script src="https://unpkg.com/html5-qrcode"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://unpkg.com/tesseract.js@v4.0.2/dist/tesseract.min.js"></script>
+    <link rel="stylesheet" href="static/styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 </head>
-
 <body class="dark-mode">
     <div class="toast-container" id="toast-container"></div>
 
@@ -20,152 +17,138 @@
         <div class="selection-actions">
             <button class="btn btn-secondary" onclick="bulkAction('location')">Mover</button>
             <button class="btn btn-secondary" onclick="bulkAction('category')">Categoría</button>
-            <button class="btn btn-del" onclick="bulkAction('delete')" style="background:#450a0a">Eliminar</button>
+            <button class="btn btn-del" onclick="bulkAction('delete')">Eliminar</button>
         </div>
-        <button class="btn btn-secondary" onclick="clearSelection()" style="padding:6px 10px;">✕</button>
+        <button class="btn btn-secondary" onclick="clearSelection()">✕</button>
     </div>
 
-    <div class="container">
-        <!-- Header -->
-        <div class="header" style="border-bottom:none; margin-bottom: 8px;">
-            <div class="header-main-actions" style="display:flex;gap:8px;width:100%;">
-                <button class="btn btn-add" id="start-scan" style="flex:1; font-size: 16px; padding: 12px;">📦 Quick
-                    scan</button>
-                <button class="btn btn-primary" id="start-ticket" style="flex:1; font-size: 16px; padding: 12px;">🧾
-                    Escanear Ticket</button>
-            </div>
+    <!-- Sidebar Navigation -->
+    <nav class="sidebar">
+        <div class="nav-item active" data-page="stock">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+            <span>Stock</span>
         </div>
-
-        <!-- Top Panels (Stock & Macros) -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin-bottom: 16px;">
-            
-            <!-- Stock Status (Shopping & Expiring Soon) -->
-            <div class="section" id="shopping-section" style="margin-bottom: 0;">
-                <div class="section-header" onclick="toggleSection('shopping-section')">
-                    <h2>Estado del Stock</h2>
-                    <span class="toggle"></span>
-                </div>
-                <div class="section-body">
-                    <div class="shopping-container">
-                        <div class="shopping-column">
-                            <h3 class="column-title">Caduca pronto</h3>
-                            <div id="expiring-soon-list"></div>
-                        </div>
-                        <div class="shopping-column">
-                            <h3 class="column-title">Lista de la compra</h3>
-                            <div id="shopping-list"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Macros Section -->
-            <div class="section" id="macros-section" style="margin-bottom: 0;">
-                <div class="section-header">
-                    <h2 onclick="toggleSection('macros-section')" style="cursor:pointer; flex:1;">Control de Macros Hoy</h2>
-                    <div style="display:flex;gap:8px;align-items:center;">
-                        <button class="btn-manage" onclick="openMacroGoalsPanel()">Objetivos</button>
-                        <span class="toggle" onclick="toggleSection('macros-section')"></span>
-                    </div>
-                </div>
-                <div class="section-body">
-                    <div class="macros-dashboard">
-                        <div class="main-kcal">
-                            <div style="position: relative; width: 140px; height: 140px; margin: 0 auto;">
-                                <canvas id="kcalChart"></canvas>
-                                <div class="kcal-display">
-                                    <div class="kcal-value" id="macro-kcal">0</div>
-                                    <div class="kcal-target">de <span id="target-kcal">2000</span></div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="macro-progress">
-                            <div class="macro-item">
-                                <div class="macro-info">
-                                    <span class="macro-name">Proteínas</span>
-                                    <span class="macro-status" id="macro-proteins">0/150g</span>
-                                </div>
-                                <div class="macro-progress-bg">
-                                    <div class="macro-progress-fill protein" id="fill-proteins" style="width: 0%"></div>
-                                </div>
-                            </div>
-                            <div class="macro-item">
-                                <div class="macro-info">
-                                    <span class="macro-name">Carbos</span>
-                                    <span class="macro-status" id="macro-carbs">0/200g</span>
-                                </div>
-                                <div class="macro-progress-bg">
-                                    <div class="macro-progress-fill carb" id="fill-carbs" style="width: 0%"></div>
-                                </div>
-                            </div>
-                            <div class="macro-item">
-                                <div class="macro-info">
-                                    <span class="macro-name">Grasas</span>
-                                    <span class="macro-status" id="macro-fat">0/70g</span>
-                                </div>
-                                <div class="macro-progress-bg">
-                                    <div class="macro-progress-fill fat" id="fill-fat" style="width: 0%"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-            </div>
-            
+        <div class="nav-item" data-page="scan">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M8 7v10"/><path d="M12 7v10"/><path d="M16 7v10"/></svg>
+            <span>Scan</span>
         </div>
+        <div class="nav-item" data-page="compra">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
+            <span>Compra</span>
+        </div>
+        <div class="nav-item" data-page="stats">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+            <span>Stats</span>
+        </div>
+        <div class="nav-item" data-page="ajustes">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+            <span>Ajustes</span>
+        </div>
+        
+        <div id="theme-toggle" class="nav-item mt-auto">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="moon"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+            <span>Tema</span>
+        </div>
+    </nav>
 
-        <!-- Scanner Section -->
-        <div class="section" id="scanner-section">
-            <div class="section-header" onclick="toggleSection('scanner-section')">
-                <h2>Escanear / Añadir</h2>
-                <span class="toggle"></span>
+    <main class="main-content">
+        <header class="top-bar">
+            <h1 id="page-title">Stock</h1>
+            <div class="top-bar-actions">
+                <button class="btn btn-add" onclick="document.querySelector('.nav-item[data-page=scan]').click()">+ Escanear</button>
             </div>
-            <div class="section-body">
-                <div class="barcode-input">
-                    <input type="text" id="manual-barcode" placeholder="Código de barras o nombre" autocomplete="off">
-                    <button class="btn btn-primary" onclick="useManualBarcode()">Buscar</button>
-                </div>
-                <div id="search-results" class="search-results hidden"></div>
+        </header>
 
-                <button class="btn btn-manage hidden" id="stop-scan"
-                    style="width:100%; margin-bottom:12px; font-size: 16px; padding: 12px; background: #dc2626; color: #fff;">
-                    Detener Cámara
-                </button>
-
-                <div id="scanner-container"></div>
-                <div class="ticket-progress hidden" id="ticket-progress">
-                    <div class="tp-text" id="ticket-status">Leyendo ticket...</div>
-                    <div class="tp-bar">
-                        <div class="tp-fill" id="ticket-fill" style="width: 0%"></div>
+        <div class="page-container">
+            <!-- PAGE: STOCK -->
+            <div class="page" data-page="stock">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <span class="label">Productos</span>
+                        <span class="value" id="stat-total-p">0</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="label">Unidades</span>
+                        <span class="value" id="stat-total-u">0</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="label">Stock Bajo</span>
+                        <span class="value" id="stat-low-s" style="color:var(--danger-text)">0</span>
                     </div>
                 </div>
 
-                <div id="product-action" class="hidden">
-                    <div id="scanned-code"></div>
+                <div class="filter-bar">
+                    <div class="search-wrapper">
+                        <input type="text" id="stock-search" placeholder="Buscar por nombre o categoría..." oninput="updateStockPageSearch()">
+                    </div>
+                    <div style="width: 200px;">
+                        <select id="stock-location-filter" onchange="updateStockPageSearch()">
+                            <option value="">Todas las ubicaciones</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-secondary" id="select-mode-btn" onclick="toggleSelectionMode()">Seleccionar</button>
+                    <button class="btn btn-secondary" onclick="openManagePanel()">⚙</button>
+                </div>
 
-                    <!-- Existing Product View -->
+                <div class="inventory-table-container">
+                    <!-- Fake Table Header (Styled via CSS Grid on children) -->
+                    <div id="product-list"></div>
+                </div>
+            </div>
+
+            <!-- PAGE: SCAN -->
+            <div class="page hidden" data-page="scan">
+                <div class="column-card" style="margin-bottom: 24px;">
+                    <div class="barcode-input">
+                        <input type="text" id="manual-barcode" placeholder="Introduce código manualmente..." autocomplete="off">
+                        <button class="btn btn-primary" onclick="useManualBarcode()">Buscar</button>
+                    </div>
+                    <div id="search-results" class="search-results hidden"></div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;">
+                        <button class="btn btn-primary" id="start-scan">📦 Escanear Producto</button>
+                        <button class="btn btn-primary" id="start-ticket">🧾 Escanear Ticket</button>
+                    </div>
+
+                    <button class="btn btn-del hidden" id="stop-scan" style="width:100%; background:var(--danger); color:white; margin-bottom:12px;">
+                        Detener Cámara
+                    </button>
+
+                    <div id="scanner-container"></div>
+
+                    <div class="ticket-progress hidden" id="ticket-progress">
+                        <div class="tp-text" id="ticket-status">Leyendo ticket...</div>
+                        <div class="tp-bar"><div class="tp-fill" id="ticket-fill"></div></div>
+                    </div>
+                </div>
+
+                <div id="product-action" class="column-card hidden">
+                    <div id="scanned-code" style="margin-bottom: 16px; font-weight: 700; opacity: 0.5;"></div>
+
+                    <!-- Existing Product -->
                     <div id="existing-product-view" class="hidden">
-                        <div class="existing-header">
-                            <span id="existing-product-name"></span>
-                            <span id="existing-product-stock"></span>
+                        <h2 id="existing-product-name" style="margin-bottom: 4px;"></h2>
+                        <div id="existing-product-stock" style="font-size: 14px; color: var(--text-dim); margin-bottom: 16px;"></div>
+                        <div id="existing-batches" style="margin-bottom: 20px;"></div>
+                        <div class="form-grid" style="margin-bottom: 20px; border-top: 1px solid var(--border); padding-top: 16px;">
+                            <div class="form-group">
+                                <label>Añadir nuevas unidades</label>
+                                <div style="display: flex; gap: 8px;">
+                                    <input type="number" id="new-batch-qty" value="0" min="0" style="width: 80px;">
+                                    <input type="date" id="new-batch-expiry">
+                                </div>
+                            </div>
                         </div>
-                        <div id="existing-batches"></div>
-                        <div class="new-batch-row">
-                            <span class="new-batch-label">Añadir lote:</span>
-                            <input type="number" id="new-batch-qty" value="0" min="0" style="width:60px">
-                            <input type="date" id="new-batch-expiry">
-                        </div>
-                        <div class="form-actions">
-                            <button class="btn btn-primary" onclick="resetScanner()">Cancelar</button>
-                            <button class="btn btn-add" onclick="addNewBatch()">Guardar Cambios</button>
+                        <div style="display: flex; gap: 12px;">
+                            <button class="btn btn-secondary" style="flex:1" onclick="resetScanner()">Cancelar</button>
+                            <button class="btn btn-add" style="flex:1" onclick="addNewBatch()">Guardar</button>
                         </div>
                     </div>
 
-                    <!-- New Product Fields -->
+                    <!-- New Product -->
                     <div id="new-product-fields" class="hidden">
-                        <div class="form-grid">
-                            <div class="form-group full">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                            <div class="form-group" style="grid-column: span 2;">
                                 <label>Nombre del producto</label>
                                 <input type="text" id="product-name" placeholder="Nombre completo">
                             </div>
@@ -175,7 +158,7 @@
                                     <option value="Alimentos">Alimentos</option>
                                     <option value="Bebidas">Bebidas</option>
                                     <option value="Limpieza">Limpieza</option>
-                                    <option value="Higiene">Higiene Personal</option>
+                                    <option value="Higiene">Higiene</option>
                                     <option value="Otros">Otros</option>
                                 </select>
                             </div>
@@ -185,217 +168,204 @@
                             </div>
                             <div class="form-group">
                                 <label>Stock Mínimo</label>
-                                <input type="number" id="min-stock" value="2" min="1">
+                                <input type="number" id="min-stock" value="2">
                             </div>
                             <div class="form-group">
-                                <label>Cantidad inicial</label>
-                                <input type="number" id="quantity" value="1" min="1">
+                                <label>Cantidad Inicial</label>
+                                <input type="number" id="quantity" value="1">
                             </div>
-                            <div class="form-group full">
-                                <label>Fecha de caducidad</label>
+                            <div class="form-group" style="grid-column: span 2;">
+                                <label>Fecha de Caducidad</label>
                                 <input type="date" id="expiry-date">
                             </div>
-                            <div class="form-group full" style="border-top: 1px dashed #333; padding-top: 12px; margin-top: 4px;">
-                                <label style="color:#4ade80;">Valores Nutricionales / 100g (Opcional)</label>
-                                <div style="display:grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-top: 8px;">
-                                    <div><input type="number" step="0.1" id="new-weight" placeholder="Peso(g)"></div>
-                                    <div><input type="number" step="0.1" id="new-kcal" placeholder="Kcal"></div>
-                                    <div><input type="number" step="0.1" id="new-proteins" placeholder="Prot"></div>
-                                    <div><input type="number" step="0.1" id="new-carbs" placeholder="Carbs"></div>
-                                    <div><input type="number" step="0.1" id="new-fat" placeholder="Grasa"></div>
-                                </div>
+                        </div>
+                        <div style="display: flex; gap: 12px; margin-top: 24px;">
+                            <button class="btn btn-secondary" style="flex:1" onclick="resetScanner()">Cancelar</button>
+                            <button class="btn btn-add" style="flex:1" onclick="addStock()">Registrar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PAGE: COMPRA -->
+            <div class="page hidden" data-page="compra">
+                <div class="compra-columns">
+                    <div class="column-card">
+                        <h3>Caduca pronto</h3>
+                        <div id="expiring-soon-list"></div>
+                    </div>
+                    <div class="column-card">
+                        <h3>Lista de la compra</h3>
+                        <div id="shopping-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PAGE: STATS -->
+            <div class="page hidden" data-page="stats">
+                <div class="stats-grid">
+                    <!-- Reusing same IDs as Stock for consistency if updated together -->
+                    <div class="stat-card">
+                        <span class="label">Total Productos</span>
+                        <div class="value" id="stat-total-p-stats">...</div>
+                    </div>
+                </div>
+                <div class="column-card" style="margin-bottom: 24px;">
+                    <h3>Consumo últimos 30 días</h3>
+                    <div style="height: 300px; margin-top: 20px;">
+                        <canvas id="consumptionChart"></canvas>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 12px;">
+                    <button class="btn btn-secondary" style="flex:1" onclick="exportInventory()">📥 Exportar CSV</button>
+                    <button class="btn btn-secondary" style="flex:1" onclick="importInventory()">📤 Importar CSV</button>
+                </div>
+            </div>
+
+            <!-- PAGE: AJUSTES -->
+            <div class="page hidden" data-page="ajustes">
+                <div class="column-card" style="margin-bottom: 24px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h3>Objetivos Nutricionales</h3>
+                        <button class="btn btn-primary" onclick="openMacroGoalsPanel()">Editar</button>
+                    </div>
+                    <div class="macros-dashboard">
+                        <div style="position: relative; width: 120px; height: 120px;">
+                            <canvas id="kcalChart"></canvas>
+                            <div class="kcal-display">
+                                <div class="kcal-value" id="macro-kcal">0</div>
+                                <div class="kcal-target">Kcal</div>
                             </div>
                         </div>
-                        <div class="form-actions">
-                            <button class="btn btn-primary" onclick="resetScanner()">Cancelar</button>
-                            <button class="btn btn-add" onclick="addStock()">Registrar Producto</button>
+                        <div class="macro-progress">
+                            <div class="macro-item" style="margin-bottom: 12px;">
+                                <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
+                                    <span>Proteínas</span>
+                                    <span id="macro-proteins">0/0g</span>
+                                </div>
+                                <div class="macro-progress-bg"><div class="macro-progress-fill" id="fill-proteins"></div></div>
+                            </div>
+                            <div class="macro-item" style="margin-bottom: 12px;">
+                                <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
+                                    <span>Carbohidratos</span>
+                                    <span id="macro-carbs">0/0g</span>
+                                </div>
+                                <div class="macro-progress-bg"><div class="macro-progress-fill" id="fill-carbs"></div></div>
+                            </div>
+                            <div class="macro-item">
+                                <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
+                                    <span>Grasas</span>
+                                    <span id="macro-fat">0/0g</span>
+                                </div>
+                                <div class="macro-progress-bg"><div class="macro-progress-fill" id="fill-fat"></div></div>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
 
-        <!-- Inventory List -->
-        <div class="section" id="inventory-section">
-            <div class="section-header">
-                <h2>Inventario</h2>
-                <div style="display:flex;gap:8px;align-items:center;">
-                    <button class="btn-manage" id="select-mode-btn" onclick="toggleSelectionMode()">Seleccionar</button>
-                    <button class="btn-manage" onclick="openManagePanel()">Gestionar</button>
-                    <span class="toggle" onclick="toggleSection('inventory-section')"></span>
-                </div>
-            </div>
-            <div class="section-body">
-                <div id="location-filter" style="margin-bottom: 12px;"></div>
-                <div id="product-list"></div>
-            </div>
-        </div>
-
-        <!-- Stats Section -->
-        <div class="section" id="stats-section">
-            <div class="section-header" onclick="toggleSection('stats-section')">
-                <h2>Estadísticas y Datos</h2>
-                <span class="toggle"></span>
-            </div>
-            <div class="section-body">
-                <div class="stats">
-                    <div class="stat">
-                        <div class="stat-value" id="stat-total-p">0</div>
-                        <div class="stat-label">Productos</div>
-                    </div>
-                    <div class="stat">
-                        <div class="stat-value" id="stat-total-u">0</div>
-                        <div class="stat-label">Unidades</div>
-                    </div>
-                    <div class="stat warning">
-                        <div class="stat-value" id="stat-low-s">0</div>
-                        <div class="stat-label">Stock Bajo</div>
-                    </div>
-                </div>
-                <div style="height: 200px; margin-bottom: 16px;">
-                    <canvas id="consumptionChart"></canvas>
-                </div>
-                <div class="form-actions" style="margin-top: 16px; border-top: 1px solid #222; padding-top: 16px;">
-                    <button class="btn btn-secondary" onclick="exportInventory()">📥 Exportar CSV</button>
-                    <button class="btn btn-secondary" onclick="importInventory()">📤 Importar CSV</button>
+                <div class="column-card">
+                    <h3>Ubicaciones detectadas</h3>
+                    <div id="location-filter" style="margin-top: 12px;"></div>
                 </div>
             </div>
         </div>
+    </main>
 
-        <div style="text-align:center; padding: 20px 0; opacity: 0.3; font-size: 11px;">
-            Stock Manager v0.5.11
-        </div>
-    </div>
-
-    <!-- Management Panel -->
+    <!-- Overlays -->
     <div class="panel-overlay" id="manage-panel">
         <div class="panel">
             <div class="panel-header">
                 <h2>Gestionar Inventario</h2>
-                <div class="panel-header-btns">
-                    <button class="btn-save-all" id="btn-save-all" onclick="saveAllChanges()" disabled>Guardar
-                        Todo</button>
-                    <button class="panel-close" onclick="tryClosePanel()">Cerrar</button>
+                <div style="display:flex; gap:8px;">
+                    <button class="btn btn-primary" id="btn-save-all" onclick="saveAllChanges()" disabled>Guardar</button>
+                    <button class="btn btn-secondary" onclick="tryClosePanel()">✕</button>
                 </div>
             </div>
-
-            <div id="changes-container" class="hidden"></div>
-
-            <div class="section" style="margin-bottom:16px; background:#111;">
-                <div class="section-body" style="padding:12px;">
-                    <div class="edit-grid" style="grid-template-columns: 1fr 1fr 1fr;">
-                        <input type="text" id="manage-filter-name" placeholder="Filtrar por nombre..."
-                            oninput="updateManageFilter()">
-                        <select id="manage-filter-location" onchange="updateManageFilter()">
-                            <option value="">Todas las ubicaciones</option>
-                        </select>
-                        <select id="manage-filter-category" onchange="updateManageFilter()">
-                            <option value="">Todas las categorías</option>
-                            <option value="Alimentos">Alimentos</option>
-                            <option value="Bebidas">Bebidas</option>
-                            <option value="Limpieza">Limpieza</option>
-                            <option value="Higiene">Higiene Personal</option>
-                            <option value="Otros">Otros</option>
-                        </select>
-                    </div>
-                </div>
+            <div id="changes-container" class="hidden" style="padding:10px 24px; background:var(--accent); color:white; font-size:12px;"></div>
+            <div style="padding: 16px 24px; border-bottom: 1px solid var(--border); display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+                <input type="text" id="manage-filter-name" placeholder="Filtrar por nombre..." oninput="updateManageFilter()">
+                <select id="manage-filter-location" onchange="updateManageFilter()"></select>
+                <select id="manage-filter-category" onchange="updateManageFilter()">
+                    <option value="">Todas</option>
+                    <option value="Alimentos">Alimentos</option>
+                    <option value="Bebidas">Bebidas</option>
+                    <option value="Limpieza">Limpieza</option>
+                    <option value="Higiene">Higiene</option>
+                    <option value="Otros">Otros</option>
+                </select>
             </div>
-
-            <div id="manage-list"></div>
+            <div id="manage-list" style="overflow-y:auto; flex:1; padding:24px;"></div>
         </div>
     </div>
 
-    <!-- Ticket Panel -->
     <div class="ticket-overlay" id="ticket-panel">
         <div class="ticket-panel">
             <div class="ticket-header">
-                <h2>Ticket escaneado</h2>
-                <button class="panel-close" onclick="closeTicketPanel()">Cancelar</button>
+                <h2>Ticket detectado</h2>
+                <button class="btn btn-secondary" onclick="closeTicketPanel()">✕</button>
             </div>
-            <div id="ticket-matched"></div>
-            <div class="ticket-actions">
-                <button class="btn btn-add" onclick="confirmTicketItems()">Añadir seleccionados</button>
+            <div id="ticket-matched" style="flex:1; overflow-y:auto; padding:24px;"></div>
+            <div style="padding: 24px; border-top: 1px solid var(--border);">
+                <button class="btn btn-add" style="width:100%" onclick="confirmTicketItems()">Añadir seleccionados</button>
             </div>
         </div>
     </div>
 
-    <!-- Date Picker Modal -->
     <div id="date-picker-modal" class="date-picker-modal">
         <div class="date-picker-container">
-            <div class="date-picker-title">📅 Selecciona la fecha de caducidad</div>
-            <div class="date-picker-preview" id="date-preview">00 / 00 / 0000</div>
-            <div class="date-picker-wheels">
-                <div class="picker-wheel">
-                    <div class="picker-label">Día</div>
-                    <div class="wheel-scroller" id="day-wheel">
-                        <div class="wheel-highlight"></div>
-                        <div class="wheel-items" id="day-items"></div>
-                    </div>
-                </div>
-                <div class="picker-wheel">
-                    <div class="picker-label">Mes</div>
-                    <div class="wheel-scroller" id="month-wheel">
-                        <div class="wheel-highlight"></div>
-                        <div class="wheel-items" id="month-items"></div>
-                    </div>
-                </div>
-                <div class="picker-wheel">
-                    <div class="picker-label">Año</div>
-                    <div class="wheel-scroller" id="year-wheel">
-                        <div class="wheel-highlight"></div>
-                        <div class="wheel-items" id="year-items"></div>
-                    </div>
-                </div>
+            <div style="text-align:center; margin-bottom: 20px; font-weight:700;">Seleccionar Fecha</div>
+            <div id="date-preview" style="text-align:center; font-size: 20px; margin-bottom: 24px; color: var(--accent);">01 / 01 / 2024</div>
+            <div style="display: flex; justify-content: space-around; height: 160px; overflow: hidden;">
+                <div class="picker-wheel" id="day-wheel"><div id="day-items" class="wheel-items"></div></div>
+                <div class="picker-wheel" id="month-wheel"><div id="month-items" class="wheel-items"></div></div>
+                <div class="picker-wheel" id="year-wheel"><div id="year-items" class="wheel-items"></div></div>
             </div>
-            <div class="date-picker-buttons">
-                <button class="date-picker-btn" onclick="closeDatePicker()">Cancelar</button>
-                <button class="date-picker-btn confirm" onclick="confirmDatePicker()">Aceptar</button>
+            <div style="display: flex; gap: 12px; margin-top: 24px;">
+                <button class="btn btn-secondary" style="flex:1" onclick="closeDatePicker()">Cancelar</button>
+                <button class="btn btn-primary" style="flex:1" onclick="confirmDatePicker()">Aceptar</button>
             </div>
         </div>
     </div>
 
-    <!-- Macro Goals Panel -->
     <div class="panel-overlay" id="macro-goals-panel">
         <div class="panel">
             <div class="panel-header">
                 <h2>Objetivos Diarios</h2>
-                <div class="panel-header-btns">
-                    <button class="btn-save-all" id="btn-save-macros" onclick="saveMacroGoals()">Guardar</button>
-                    <button class="panel-close" onclick="closeMacroGoalsPanel()">Cerrar</button>
-                </div>
+                <button class="btn btn-secondary" onclick="closeMacroGoalsPanel()">✕</button>
             </div>
-            <div class="section-body" style="padding: 20px;">
-                <div class="form-grid">
+            <div style="padding: 24px; overflow-y: auto;">
+                <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom:32px;">
                     <div class="form-group">
                         <label>Calorías (kcal)</label>
-                        <input type="number" id="goal-kcal" placeholder="2000">
+                        <input type="number" id="goal-kcal">
                     </div>
                     <div class="form-group">
                         <label>Proteínas (g)</label>
-                        <input type="number" id="goal-proteins" placeholder="150">
+                        <input type="number" id="goal-proteins">
                     </div>
                     <div class="form-group">
                         <label>Carbohidratos (g)</label>
-                        <input type="number" id="goal-carbs" placeholder="200">
+                        <input type="number" id="goal-carbs">
                     </div>
                     <div class="form-group">
                         <label>Grasas (g)</label>
-                        <input type="number" id="goal-fat" placeholder="70">
+                        <input type="number" id="goal-fat">
                     </div>
                 </div>
-
-                <div class="history-section" style="margin-top: 32px; border-top: 1px solid #222; padding-top: 24px;">
-                    <h3 style="font-size: 14px; text-transform: uppercase; color: #555; margin-bottom: 16px;">Consumo de hoy</h3>
-                    <div id="today-movements-list" class="history-list">
-                        <!-- Items populated by JS -->
-                    </div>
-                </div>
+                <button class="btn btn-primary" style="width:100%; margin-bottom:32px;" onclick="saveMacroGoals()">Guardar Objetivos</button>
+                
+                <h3>Historial de hoy</h3>
+                <div id="today-movements-list" style="margin-top: 16px;"></div>
             </div>
-
         </div>
     </div>
 
-    <script src="static/app.js?v=0.5.11"></script>
+    <div style="text-align:center; padding: 40px 0; opacity: 0.2; font-size: 10px; letter-spacing: 0.1em;">
+        STOCK MANAGER v0.5.12
+    </div>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/tesseract.js@v4.0.2/dist/tesseract.min.js"></script>
+    <script src="static/app.js"></script>
 </body>
-
 </html>

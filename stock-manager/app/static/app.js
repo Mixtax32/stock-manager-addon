@@ -1,5 +1,5 @@
 /* 
-   Stock Manager v0.5.11 
+   Stock Manager v0.5.12 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
@@ -29,11 +29,12 @@ let pickerState = {
 
 // ===== Initialization =====
 const init = async () => {
-    console.log("Stock Manager: Initializing Monolith v0.5.6...");
+    console.log("Stock Manager: Initializing Monolith v0.5.12...");
     await loadProducts();
     initializeDatePicker();
     wrapDateInputsWithPicker();
     setupEventListeners();
+    initNavigation();
 };
 
 if (document.readyState === 'loading') {
@@ -155,6 +156,7 @@ async function updateUI() {
     updateLocationFilter();
     updateShoppingList();
     updateProductList();
+    updateStockPageSearch();
 }
 
 async function updateCharts() {
@@ -321,11 +323,15 @@ function updateProductList() {
 }
 
 function updateLocationFilter() {
-    const container = document.getElementById('location-filter');
-    if (!allLocations.length) { container.innerHTML = ''; return; }
-    let html = `<div class="location-filter-container"><span class="location-filter-label">Filtrar por ubicación:</span><select class="location-filter-select" id="location-select"><option value="">Todas</option>`;
-    allLocations.forEach(loc => { html += `<option value="${loc}" ${filteredLocation === loc ? 'selected' : ''}>${loc}</option>`; });
-    container.innerHTML = html + `</select></div>`;
+    const list = document.getElementById('location-filter');
+    const stockList = document.getElementById('stock-location-filter');
+    if (!allLocations.length) return;
+    
+    const options = '<option value="">Todas</option>' + 
+        allLocations.map(loc => `<option value="${loc}">${loc}</option>`).join('');
+    
+    if (list) list.innerHTML = options;
+    if (stockList) stockList.innerHTML = options;
 }
 
 function setLocationFilter(loc) { filteredLocation = loc || null; updateProductList(); }
@@ -835,3 +841,71 @@ function similarityScore(a, b) {
     let matches = 0; if(wA.length && wB.length) for(const wa of wA) if(wB.some(wb=>wb.includes(wa)||wa.includes(wb))) matches++;
     return (lev*0.7) + ((matches/Math.max(wA.length,wB.length||1))*0.3);
 }
+
+// ===== Redesign Additions =====
+function initNavigation() {
+    const navItems = document.querySelectorAll('.nav-item[data-page]');
+    const pages = document.querySelectorAll('.page');
+    const pageTitle = document.getElementById('page-title');
+
+    navItems.forEach(item => {
+        item.addEventListener('click', () => {
+            const targetPage = item.getAttribute('data-page');
+            
+            navItems.forEach(i => i.classList.remove('active'));
+            item.classList.add('active');
+            
+            pages.forEach(p => {
+                if (p.getAttribute('data-page') === targetPage) {
+                    p.classList.remove('hidden');
+                    const text = item.querySelector('span').textContent;
+                    if (pageTitle) pageTitle.textContent = text;
+                    if (targetPage === 'scan') window.scrollTo({ top: 0, behavior: 'smooth' });
+                } else {
+                    p.classList.add('hidden');
+                }
+            });
+        });
+    });
+
+    // Theme toggle
+    const themeBtn = document.getElementById('theme-toggle');
+    if (themeBtn) {
+        themeBtn.onclick = () => {
+            document.body.classList.toggle('light-mode');
+            const isLight = document.body.classList.contains('light-mode');
+            localStorage.setItem('theme', isLight ? 'light' : 'dark');
+        };
+        if (localStorage.getItem('theme') === 'light') {
+            document.body.classList.add('light-mode');
+        }
+    }
+
+    // Default page
+    const stockNav = document.querySelector('.nav-item[data-page="stock"]');
+    if (stockNav) stockNav.click();
+}
+
+function updateStockPageSearch() {
+    const query = normalizeText(document.getElementById('stock-search')?.value || '');
+    const location = document.getElementById('stock-location-filter')?.value || '';
+    const rows = document.querySelectorAll('#product-list .product-row');
+    
+    rows.forEach(row => {
+        const name = normalizeText(row.querySelector('.name')?.textContent || '');
+        const meta = normalizeText(row.querySelector('.meta')?.textContent || '');
+        const barcode = row.dataset.barcode || '';
+        
+        const matchesQuery = !query || name.includes(query) || barcode.includes(query) || meta.includes(query);
+        const matchesLocation = !location || meta.includes(normalizeText(location));
+        
+        row.classList.toggle('hidden-search', !(matchesQuery && matchesLocation));
+    });
+}
+
+window.onload = () => {
+    // If init hasn't run yet, it will be called by DOMContentLoaded.
+    // But initNavigation can be called safely here too.
+    if (typeof initNavigation === 'function') initNavigation();
+};
+
