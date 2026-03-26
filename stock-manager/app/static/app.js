@@ -1,5 +1,5 @@
 /* 
-   Stock Manager v0.5.12 
+   Stock Manager v0.5.13 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
@@ -29,7 +29,7 @@ let pickerState = {
 
 // ===== Initialization =====
 const init = async () => {
-    console.log("Stock Manager: Initializing Monolith v0.5.12...");
+    console.log("Stock Manager: Initializing Monolith v0.5.13...");
     await loadProducts();
     initializeDatePicker();
     wrapDateInputsWithPicker();
@@ -843,28 +843,36 @@ function similarityScore(a, b) {
 }
 
 // ===== Redesign Additions =====
-function initNavigation() {
+window.showPage = (targetPage) => {
     const navItems = document.querySelectorAll('.nav-item[data-page]');
     const pages = document.querySelectorAll('.page');
     const pageTitle = document.getElementById('page-title');
 
-    navItems.forEach(item => {
-        item.addEventListener('click', () => {
-            const targetPage = item.getAttribute('data-page');
+    pages.forEach(p => {
+        if (p.getAttribute('data-page') === targetPage) {
+            p.classList.remove('hidden');
+            const navItem = Array.from(navItems).find(i => i.getAttribute('data-page') === targetPage);
             
             navItems.forEach(i => i.classList.remove('active'));
-            item.classList.add('active');
+            if (navItem) {
+                navItem.classList.add('active');
+                if (pageTitle) pageTitle.textContent = navItem.querySelector('span')?.textContent || targetPage;
+            } else {
+                if (pageTitle) pageTitle.textContent = targetPage.charAt(0).toUpperCase() + targetPage.slice(1);
+            }
             
-            pages.forEach(p => {
-                if (p.getAttribute('data-page') === targetPage) {
-                    p.classList.remove('hidden');
-                    const text = item.querySelector('span').textContent;
-                    if (pageTitle) pageTitle.textContent = text;
-                    if (targetPage === 'scan') window.scrollTo({ top: 0, behavior: 'smooth' });
-                } else {
-                    p.classList.add('hidden');
-                }
-            });
+            if (targetPage === 'scan') window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else {
+            p.classList.add('hidden');
+        }
+    });
+};
+
+function initNavigation() {
+    const navItems = document.querySelectorAll('.nav-item[data-page]');
+    navItems.forEach(item => {
+        item.addEventListener('click', () => {
+            showPage(item.getAttribute('data-page'));
         });
     });
 
@@ -882,8 +890,7 @@ function initNavigation() {
     }
 
     // Default page
-    const stockNav = document.querySelector('.nav-item[data-page="stock"]');
-    if (stockNav) stockNav.click();
+    showPage('stock');
 }
 
 function updateStockPageSearch() {

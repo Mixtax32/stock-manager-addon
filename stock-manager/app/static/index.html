@@ -22,15 +22,14 @@
         <button class="btn btn-secondary" onclick="clearSelection()">✕</button>
     </div>
 
-    <!-- Sidebar Navigation -->
     <nav class="sidebar">
         <div class="nav-item active" data-page="stock">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
             <span>Stock</span>
         </div>
-        <div class="nav-item" data-page="scan">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M8 7v10"/><path d="M12 7v10"/><path d="M16 7v10"/></svg>
-            <span>Scan</span>
+        <div class="nav-item" data-page="macros">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 2-2.3 2.3a3 3 0 0 0 0 4.2l1.8 1.8a3 3 0 0 0 4.2 0L22 8"/><path d="M15 15 3.3 3.3a2 2 0 1 0-2.8 2.8L12.2 17.8"/><path d="m12 12.5 3 3a2 2 0 0 0 2.8-2.8l-3-3"/></svg>
+            <span>Macros</span>
         </div>
         <div class="nav-item" data-page="compra">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
@@ -55,7 +54,7 @@
         <header class="top-bar">
             <h1 id="page-title">Stock</h1>
             <div class="top-bar-actions">
-                <button class="btn btn-add" onclick="document.querySelector('.nav-item[data-page=scan]').click()">+ Escanear</button>
+                <button class="btn btn-add" onclick="showPage('scan')">+ Escanear</button>
             </div>
         </header>
 
@@ -222,8 +221,8 @@
                 </div>
             </div>
 
-            <!-- PAGE: AJUSTES -->
-            <div class="page hidden" data-page="ajustes">
+            <!-- PAGE: MACROS -->
+            <div class="page hidden" data-page="macros">
                 <div class="column-card" style="margin-bottom: 24px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                         <h3>Objetivos Nutricionales</h3>
@@ -262,7 +261,10 @@
                         </div>
                     </div>
                 </div>
+            </div>
 
+            <!-- PAGE: AJUSTES -->
+            <div class="page hidden" data-page="ajustes">
                 <div class="column-card">
                     <h3>Ubicaciones detectadas</h3>
                     <div id="location-filter" style="margin-top: 12px;"></div>
@@ -361,7 +363,7 @@
     </div>
 
     <div style="text-align:center; padding: 40px 0; opacity: 0.2; font-size: 10px; letter-spacing: 0.1em;">
-        STOCK MANAGER v0.5.12
+        STOCK MANAGER v0.5.13
     </div>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
