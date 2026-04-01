@@ -1,5 +1,5 @@
 /* 
-   Stock Manager v0.5.43 
+   Stock Manager v0.5.44 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
@@ -1236,16 +1236,21 @@ window.closeDatePicker = closeDatePicker;
 window.confirmDatePicker = confirmDatePicker;
 
 window.quickStartScan = (type) => {
+    console.log("Stock Manager: Iniciando flujo rápido para:", type);
     showPage('scan');
-    setTimeout(() => {
-        if (type === 'scan') {
-            const btn = document.getElementById('start-scan');
-            if (btn) btn.click();
-        } else {
-            const btn = document.getElementById('start-ticket');
-            if (btn) btn.click();
+    
+    const clickAttempt = (retries) => {
+        const id = type === 'scan' ? 'start-scan' : 'start-ticket';
+        const btn = document.getElementById(id);
+        if (btn) {
+            btn.click();
+        } else if (retries > 0) {
+            setTimeout(() => clickAttempt(retries - 1), 100);
         }
-    }, 200);
+    };
+    
+    // Inicia intentos de click tras un breve retardo para asegurar renderizado
+    setTimeout(() => clickAttempt(3), 300);
 };
 window.openDateModal = openDateModal;
 window.wrapDateInputsWithPicker = wrapDateInputsWithPicker;
