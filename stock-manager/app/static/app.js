@@ -1,5 +1,5 @@
 /* 
-   Stock Manager v0.5.31 
+   Stock Manager v0.5.32 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
@@ -318,7 +318,7 @@ function updateShoppingList() {
             const exp = getExpiryInfo(item.expiry_date);
             return `
                 <div class="shopping-item">
-                    <span class="name">${item.name} (${item.quantity} ud)</span>
+                    <span class="name">${item.name} (${item.quantity.toFixed(2).replace(/\.00$/, '')}${item.unit_type || 'uds'})</span>
                     <span class="${exp.cls}">${exp.text}</span>
                 </div>
             `;
@@ -386,7 +386,7 @@ function updateProductList() {
                 <div class="cell">${p.location || '—'}</div>
                 <div class="cell">${expiryHtml}</div>
                 <div class="cell cell-stock">
-                    <span class="stock-badge ${isLow ? 'low' : ''}">${p.stock}</span>
+                    <span class="stock-badge ${isLow ? 'low' : ''}">${p.stock.toFixed(2).replace(/\.00$/, '')} ${p.unit_type || 'uds'}</span>
                     <span class="min-stock-hint">/ ${p.min_stock}</span>
                 </div>
                 <div class="cell cell-actions">
@@ -573,7 +573,7 @@ async function onScanSuccess(decodedText) {
         document.getElementById('existing-product-view').classList.remove('hidden');
         document.getElementById('new-product-fields').classList.add('hidden');
         document.getElementById('existing-product-name').textContent = product.name;
-        document.getElementById('existing-product-stock').textContent = `(${product.stock} uds)`;
+        document.getElementById('existing-product-stock').textContent = `(${product.stock} ${product.unit_type || 'uds'})`;
         renderScanImage(product.image_url);
         renderExistingBatches(product);
     } else {
@@ -804,7 +804,7 @@ function setupEventListeners() {
 
 async function init() {
     try {
-        console.log("Stock Manager: Initializing Monolith v0.5.31...");
+        console.log("Stock Manager: Initializing Monolith v0.5.32...");
         initializeDatePicker();
         wrapDateInputsWithPicker();
         setupEventListeners();
@@ -831,8 +831,9 @@ window.useManualBarcode = () => {
             <div class="search-result-item" onclick="window.showPage('scan'); window.onScanSuccess('${p.barcode}')">
                 <div class="sr-info">
                     <span class="sr-name" title="${p.name}">${p.name}</span>
-                    <span class="sr-meta">${p.stock} uds • ${p.category}</span>
+                    <span class="sr-meta">${p.stock.toFixed(2).replace(/\.00$/, '')}${p.unit_type || 'uds'} • ${p.category}</span>
                 </div>
+
                 <div class="sr-actions" onclick="event.stopPropagation()">
                     <button class="btn-action-sm remove-stock" onclick="window.quickRemove('${p.barcode}')" title="Quitar 1">-</button>
                     <button class="btn-action-sm consume-stock" onclick="window.quickConsume('${p.barcode}')" title="Añadir a Macros / Consumir">🍽️</button>
@@ -866,9 +867,15 @@ async function quickRemove(barcode) {
 }
 async function quickConsume(barcode) {
     const p = products.find(prod => prod.barcode === barcode);
-    if (p && p.stock > 0) { 
+    if (!p || p.stock <= 0) return;
+    
+    if (p.unit_type === 'uds') {
+        // Normal unit behavior
         await apiCall(`/products/${barcode}/stock`, 'POST', { quantity: -1, reason: 'consumed' }); 
         await loadProducts(); 
+    } else {
+        // Open portion selection for grams/ml
+        window.openPortionPanel(barcode);
     }
 }
 async function deleteProduct(barcode) { if (confirm('¿Eliminar este producto?')) { await apiCall(`/products/${barcode}`, 'DELETE'); await loadProducts(); } }
@@ -876,8 +883,8 @@ window.addStock = async () => {
     const bc = currentBarcode; if (!bc) return;
     const name = document.getElementById('product-name').value.trim(); if (!name) { showToast('Introduce el nombre', 'info'); return; }
     const p = products.find(prod => prod.barcode === bc);
-    if (!p) await apiCall('/products', 'POST', { barcode: bc, name, category: document.getElementById('product-category').value, location: document.getElementById('product-location').value.trim() || null, min_stock: parseInt(document.getElementById('min-stock').value) || 2, weight_g: parseFloat(document.getElementById('new-weight').value) || null, kcal_100g: parseFloat(document.getElementById('new-kcal').value) || null, proteins_100g: parseFloat(document.getElementById('new-proteins').value) || null, carbs_100g: parseFloat(document.getElementById('new-carbs').value) || null, fat_100g: parseFloat(document.getElementById('new-fat').value) || null, image_url: currentScannedImageUrl });
-    await apiCall(`/products/${bc}/stock`, 'POST', { quantity: parseInt(document.getElementById('quantity').value) || 1, expiry_date: document.getElementById('expiry-date').value || null });
+    if (!p) await apiCall('/products', 'POST', { barcode: bc, name, category: document.getElementById('product-category').value, unit_type: document.getElementById('product-unit').value, location: document.getElementById('product-location').value.trim() || null, min_stock: parseFloat(document.getElementById('min-stock').value) || 2, weight_g: parseFloat(document.getElementById('new-weight').value) || null, kcal_100g: parseFloat(document.getElementById('new-kcal').value) || null, proteins_100g: parseFloat(document.getElementById('new-proteins').value) || null, carbs_100g: parseFloat(document.getElementById('new-carbs').value) || null, fat_100g: parseFloat(document.getElementById('new-fat').value) || null, image_url: currentScannedImageUrl });
+    await apiCall(`/products/${bc}/stock`, 'POST', { quantity: parseFloat(document.getElementById('quantity').value) || 1, expiry_date: document.getElementById('expiry-date').value || null });
     await loadProducts(); resetScanner(); window.showPage('dashboard');
 };
 window.addNewBatch = async () => {
@@ -898,6 +905,54 @@ window.updateTicketQty = (i, q) => currentTicketItems[i].qty = parseInt(q);
 window.assignTicketMatch = (i, bc) => { currentTicketItems[i].match = products.find(p=>p.barcode===bc); currentTicketItems[i].checked = !!currentTicketItems[i].match; document.getElementById('ticket-panel').querySelectorAll('input[type="checkbox"]')[i].checked = currentTicketItems[i].checked; };
 window.confirmTicketItems = async () => { for (const it of currentTicketItems.filter(t=>t.checked && t.match)) await apiCall((it.match.batches?.length ? `/batches/${it.match.batches[0].id}` : `/products/${it.match.barcode}`) + '/stock', 'POST', { quantity: it.qty }); await loadProducts(); window.closeTicketPanel(); showToast('Añadidos', 'success'); };
 window.closeTicketPanel = () => document.getElementById('ticket-panel').classList.remove('active');
+
+// Portion Panel Functions
+let currentPortionBarcode = null;
+window.openPortionPanel = (barcode) => {
+    const p = products.find(prod => prod.barcode === barcode);
+    if (!p) return;
+    currentPortionBarcode = barcode;
+    const unit = p.unit_type || 'g';
+    document.getElementById('portion-title').innerText = `Consumir ${p.name}`;
+    document.getElementById('portion-stock-info').innerText = `Stock actual: ${p.stock}${unit}`;
+    
+    // Suggest common portions
+    const portions = unit === 'g' ? [50, 100, 200, 250, 500] : [100, 200, 250, 330, 500];
+    const optionsHtml = portions.map(amt => `
+        <button class="btn btn-secondary" onclick="consumeAmount(${amt})">${amt}${unit}</button>
+    `).join('') + `<button class="btn btn-del" onclick="consumeAmount(${p.stock})">Terminar (${p.stock}${unit})</button>`;
+    
+    document.getElementById('portion-options').innerHTML = optionsHtml;
+    document.getElementById('custom-portion-qty').placeholder = `Cant en ${unit}`;
+    document.getElementById('portion-panel').classList.add('active');
+    
+    document.getElementById('btn-custom-portion').onclick = () => {
+        const amt = parseFloat(document.getElementById('custom-portion-qty').value);
+        if (amt > 0) consumeAmount(amt);
+    };
+};
+
+window.closePortionPanel = () => {
+    document.getElementById('portion-panel').classList.remove('active');
+    currentPortionBarcode = null;
+};
+
+async function consumeAmount(amount) {
+    if (!currentPortionBarcode) return;
+    const p = products.find(prod => prod.barcode === currentPortionBarcode);
+    if (amount > p.stock) {
+        if (!confirm('La cantidad supera el stock. ¿Deseas agotar el producto?')) return;
+        amount = p.stock;
+    }
+    await apiCall(`/products/${currentPortionBarcode}/stock`, 'POST', { 
+        quantity: -amount, 
+        reason: 'consumed' 
+    });
+    closePortionPanel();
+    await loadProducts();
+    showToast(`Registrado: -${amount}${p.unit_type}`, 'success');
+}
+window.consumeAmount = consumeAmount;
 window.exportInventory = exportInventory;
 window.importInventory = importInventory;
 window.toggleSelectionMode = toggleSelectionMode;

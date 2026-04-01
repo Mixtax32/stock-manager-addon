@@ -18,8 +18,9 @@ class Database:
                     barcode TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
                     category TEXT NOT NULL,
-                    stock INTEGER NOT NULL DEFAULT 0,
-                    min_stock INTEGER NOT NULL DEFAULT 2,
+                    stock REAL NOT NULL DEFAULT 0,
+                    min_stock REAL NOT NULL DEFAULT 2,
+                    unit_type TEXT NOT NULL DEFAULT 'uds',
                     expiry_date TEXT DEFAULT NULL,
                     location TEXT DEFAULT NULL,
                     image_url TEXT DEFAULT NULL,
@@ -40,6 +41,8 @@ class Database:
                 await db.execute("ALTER TABLE products ADD COLUMN location TEXT DEFAULT NULL")
             if 'image_url' not in columns:
                 await db.execute("ALTER TABLE products ADD COLUMN image_url TEXT DEFAULT NULL")
+            if 'unit_type' not in columns:
+                await db.execute("ALTER TABLE products ADD COLUMN unit_type TEXT NOT NULL DEFAULT 'uds'")
             if 'weight_g' not in columns:
                 await db.execute("ALTER TABLE products ADD COLUMN weight_g REAL DEFAULT NULL")
             if 'kcal_100g' not in columns:
@@ -56,7 +59,7 @@ class Database:
                 CREATE TABLE IF NOT EXISTS batches (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     barcode TEXT NOT NULL,
-                    quantity INTEGER NOT NULL,
+                    quantity REAL NOT NULL,
                     expiry_date TEXT DEFAULT NULL,
                     added_date TEXT DEFAULT NULL,
                     FOREIGN KEY (barcode) REFERENCES products(barcode) ON DELETE CASCADE
@@ -85,7 +88,7 @@ class Database:
                 CREATE TABLE IF NOT EXISTS movements (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     barcode TEXT NOT NULL,
-                    quantity_change INTEGER NOT NULL,
+                    quantity_change REAL NOT NULL,
                     reason TEXT DEFAULT 'consumed',
                     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (barcode) REFERENCES products(barcode) ON DELETE CASCADE
@@ -174,15 +177,15 @@ class Database:
         """Create new product"""
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(
-                """INSERT INTO products (barcode, name, category, stock, min_stock, location, image_url, weight_g, kcal_100g, proteins_100g, carbs_100g, fat_100g, last_updated)
-                   VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (product.barcode, product.name, product.category, product.min_stock, product.location, product.image_url, 
+                """INSERT INTO products (barcode, name, category, stock, min_stock, unit_type, location, image_url, weight_g, kcal_100g, proteins_100g, carbs_100g, fat_100g, last_updated)
+                   VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (product.barcode, product.name, product.category, product.min_stock, product.unit_type, product.location, product.image_url, 
                  product.weight_g, product.kcal_100g, product.proteins_100g, product.carbs_100g, product.fat_100g, datetime.now())
             )
             await db.commit()
         return await self.get_product(product.barcode)
 
-    async def _log_movement(self, db, barcode: str, quantity_change: int, reason: str = "consumed"):
+    async def _log_movement(self, db, barcode: str, quantity_change: float, reason: str = "consumed"):
         """Log a stock movement for traceability"""
         await db.execute(
             "INSERT INTO movements (barcode, quantity_change, reason) VALUES (?, ?, ?)",
@@ -233,6 +236,8 @@ class Database:
             updates['category'] = update.category
         if update.min_stock is not None:
             updates['min_stock'] = update.min_stock
+        if update.unit_type is not None:
+            updates['unit_type'] = update.unit_type
         if update.location is not None:
             updates['location'] = update.location
         if hasattr(update, 'image_url') and update.image_url is not None:
@@ -401,10 +406,22 @@ class Database:
             # If weight_g is not available, we can't accurately calculate macros, so we assume 0 or handle it
             async with db.execute("""
                 SELECT 
-                    SUM(ABS(m.quantity_change) * (IFNULL(p.weight_g, 100) / 100.0) * IFNULL(p.kcal_100g, 0)) as total_kcal,
-                    SUM(ABS(m.quantity_change) * (IFNULL(p.weight_g, 100) / 100.0) * IFNULL(p.proteins_100g, 0)) as total_proteins,
-                    SUM(ABS(m.quantity_change) * (IFNULL(p.weight_g, 100) / 100.0) * IFNULL(p.carbs_100g, 0)) as total_carbs,
-                    SUM(ABS(m.quantity_change) * (IFNULL(p.weight_g, 100) / 100.0) * IFNULL(p.fat_100g, 0)) as total_fat
+                    SUM(CASE 
+                        WHEN p.unit_type = 'uds' THEN ABS(m.quantity_change) * (IFNULL(p.weight_g, 100) / 100.0) * IFNULL(p.kcal_100g, 0)
+                        ELSE ABS(m.quantity_change) / 100.0 * IFNULL(p.kcal_100g, 0)
+                    END) as total_kcal,
+                    SUM(CASE 
+                        WHEN p.unit_type = 'uds' THEN ABS(m.quantity_change) * (IFNULL(p.weight_g, 100) / 100.0) * IFNULL(p.proteins_100g, 0)
+                        ELSE ABS(m.quantity_change) / 100.0 * IFNULL(p.proteins_100g, 0)
+                    END) as total_proteins,
+                    SUM(CASE 
+                        WHEN p.unit_type = 'uds' THEN ABS(m.quantity_change) * (IFNULL(p.weight_g, 100) / 100.0) * IFNULL(p.carbs_100g, 0)
+                        ELSE ABS(m.quantity_change) / 100.0 * IFNULL(p.carbs_100g, 0)
+                    END) as total_carbs,
+                    SUM(CASE 
+                        WHEN p.unit_type = 'uds' THEN ABS(m.quantity_change) * (IFNULL(p.weight_g, 100) / 100.0) * IFNULL(p.fat_100g, 0)
+                        ELSE ABS(m.quantity_change) / 100.0 * IFNULL(p.fat_100g, 0)
+                    END) as total_fat
                 FROM movements m
                 JOIN products p ON m.barcode = p.barcode
                 WHERE m.quantity_change < 0 
@@ -423,7 +440,7 @@ class Database:
             # Join products and batches to get a flat list. 
             # We use LEFT JOIN to include products even if they have no batches (though in our sync system they shouldn't)
             async with db.execute("""
-                SELECT p.barcode, p.name, p.category, p.location, p.min_stock, p.image_url, p.weight_g, p.kcal_100g, p.proteins_100g, p.carbs_100g, p.fat_100g, b.quantity, b.expiry_date
+                SELECT p.barcode, p.name, p.category, p.unit_type, p.location, p.min_stock, p.image_url, p.weight_g, p.kcal_100g, p.proteins_100g, p.carbs_100g, p.fat_100g, b.quantity, b.expiry_date
                 FROM products p
                 LEFT JOIN batches b ON p.barcode = b.barcode
                 ORDER BY p.name
@@ -445,11 +462,12 @@ class Database:
                 
                 # Insert or update product
                 await db.execute("""
-                    INSERT INTO products (barcode, name, category, location, min_stock, image_url, weight_g, kcal_100g, proteins_100g, carbs_100g, fat_100g, stock, last_updated)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+                    INSERT INTO products (barcode, name, category, unit_type, location, min_stock, image_url, weight_g, kcal_100g, proteins_100g, carbs_100g, fat_100g, stock, last_updated)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
                     ON CONFLICT(barcode) DO UPDATE SET
                         name=excluded.name,
                         category=excluded.category,
+                        unit_type=excluded.unit_type,
                         location=excluded.location,
                         min_stock=excluded.min_stock,
                         image_url=COALESCE(excluded.image_url, products.image_url),
@@ -463,6 +481,7 @@ class Database:
                     barcode,
                     item.get('name', 'Huerfano'),
                     item.get('category', 'Otros'),
+                    item.get('unit_type', 'uds'),
                     item.get('location'),
                     item.get('min_stock', 2),
                     item.get('image_url'),
@@ -476,13 +495,13 @@ class Database:
 
                 # Insert batch if quantity > 0
                 qty = item.get('quantity')
-                if qty and int(qty) > 0:
+                if qty and float(qty) > 0:
                     await db.execute("""
                         INSERT INTO batches (barcode, quantity, expiry_date, added_date)
                         VALUES (?, ?, ?, ?)
                     """, (
                         barcode,
-                        int(qty),
+                        float(qty),
                         item.get('expiry_date'),
                         date.today().isoformat()
                     ))

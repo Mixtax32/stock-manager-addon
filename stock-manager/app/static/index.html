@@ -204,10 +204,19 @@
                                 <label>Ubicación</label>
                                 <input type="text" id="product-location" placeholder="Ej: Despensa">
                             </div>
-                            <div class="form-group">
+                             <div class="form-group">
+                                <label>Unidad de medida</label>
+                                <select id="product-unit">
+                                    <option value="uds">Unidades (uds)</option>
+                                    <option value="g">Gramos (g)</option>
+                                    <option value="ml">Mililitros (ml)</option>
+                                </select>
+                             </div>
+                             <div class="form-group">
                                 <label>Stock Mínimo</label>
-                                <input type="number" id="min-stock" value="2">
-                            </div>
+                                <input type="number" step="0.1" id="min-stock" value="2">
+                             </div>
+
                              <div class="form-group">
                                 <label>Cantidad Inicial</label>
                                 <input type="number" id="quantity" value="1">
@@ -402,6 +411,28 @@
         </div>
     </div>
 
+    <div class="panel-overlay" id="portion-panel">
+        <div class="panel" style="max-width: 400px; height: auto; bottom: 0; border-radius: 20px 20px 0 0; top: auto;">
+            <div class="panel-header">
+                <h2 id="portion-title">Consumir ración</h2>
+                <button class="btn btn-secondary" onclick="closePortionPanel()">✕</button>
+            </div>
+            <div style="padding: 24px;">
+                <div id="portion-stock-info" style="margin-bottom: 20px; font-weight: 700; color: var(--accent);"></div>
+                <div class="portion-options" id="portion-options" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 24px;">
+                    <!-- Portions filled by JS -->
+                </div>
+                <div class="form-group">
+                    <label>Cantidad personalizada</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="number" id="custom-portion-qty" placeholder="Ej: 125" style="flex:1">
+                        <button class="btn btn-add" id="btn-custom-portion" style="padding: 0 20px;">✓</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="panel-overlay" id="macro-goals-panel">
         <div class="panel">
             <div class="panel-header">
@@ -436,11 +467,11 @@
     </div>
 
     <div style="text-align:center; padding: 40px 0; opacity: 0.2; font-size: 10px; letter-spacing: 0.1em;">
-        STOCK MANAGER v0.5.31
+        STOCK MANAGER v0.5.32
     </div>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/tesseract.js@v4.0.2/dist/tesseract.min.js"></script>
-    <script src="static/app.js?v=0.5.31"></script>
+    <script src="static/app.js?v=0.5.32"></script>
 </body>
 </html>

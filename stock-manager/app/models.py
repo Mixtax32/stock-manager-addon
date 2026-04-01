@@ -5,7 +5,7 @@ from datetime import datetime
 class Batch(BaseModel):
     id: int
     barcode: str
-    quantity: int
+    quantity: float
     expiry_date: Optional[str] = None
     added_date: Optional[str] = None
 
@@ -13,8 +13,9 @@ class Product(BaseModel):
     barcode: str
     name: str
     category: str
-    stock: int
-    min_stock: int
+    stock: float
+    min_stock: float
+    unit_type: str = "uds" # "uds", "g", "ml"
     location: Optional[str] = None
     expiry_date: Optional[str] = None
     image_url: Optional[str] = None
@@ -30,7 +31,8 @@ class ProductCreate(BaseModel):
     barcode: str
     name: str
     category: str
-    min_stock: int = 2
+    min_stock: float = 2
+    unit_type: str = "uds"
     location: Optional[str] = None
     image_url: Optional[str] = None
     weight_g: Optional[float] = None
@@ -40,14 +42,15 @@ class ProductCreate(BaseModel):
     fat_100g: Optional[float] = None
 
 class StockUpdate(BaseModel):
-    quantity: int
+    quantity: float
     expiry_date: Optional[str] = None
     reason: Optional[str] = None  # "consumed", "lost", etc.
 
 class ProductUpdate(BaseModel):
     name: Optional[str] = None
     category: Optional[str] = None
-    min_stock: Optional[int] = None
+    min_stock: Optional[float] = None
+    unit_type: Optional[str] = None
     location: Optional[str] = None
     image_url: Optional[str] = None
     weight_g: Optional[float] = None
@@ -60,7 +63,7 @@ class BatchUpdate(BaseModel):
     expiry_date: Optional[str] = None
 
 class BatchStockUpdate(BaseModel):
-    quantity: int
+    quantity: float
 
 class MacroGoals(BaseModel):
     kcal: float = 2000

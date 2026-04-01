@@ -65,7 +65,9 @@
     --text: #ffffff;
     --text-dim: #a0a0a0;
     --accent: #1D9E75;
+    --accent-rgb: 29, 158, 117;
     --accent-hover: #168a65;
+
     --danger: #450a0a;
     --danger-text: #ef4444;
     --warning: #451a03;
@@ -1029,5 +1031,37 @@ select {
 }
 
 .btn-create-new:hover {
-    background: rgba(29, 158, 117, 0.1);
+    background: rgba(var(--accent-rgb), 0.1);
+    transform: translateY(-2px);
+}
+
+/* Portion Panel Styling */
+#portion-panel .btn-secondary {
+    font-weight: 600;
+    padding: 16px 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+}
+
+#portion-panel .btn-secondary:hover {
+    border-color: var(--accent);
+    background: rgba(var(--accent-rgb), 0.1);
+}
+
+#portion-panel .btn-del {
+    grid-column: span 2;
+    margin-top: 10px;
+    padding: 16px;
+    font-weight: 700;
+    font-size: 14px;
+}
+
+@keyframes slideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+}
+
+#portion-panel.active .panel {
+    animation: slideUp 0.3s ease-out;
 }
