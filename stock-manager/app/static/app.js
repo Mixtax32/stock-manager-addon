@@ -1,5 +1,5 @@
 /* 
-   Stock Manager v0.5.28 
+   Stock Manager v0.5.29 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
@@ -93,7 +93,7 @@ async function importInventory() {
 }
 
 // ===== Utils =====
-function showToast(message, type = 'info', duration = 3000) {
+function showToast(message, type = 'info', duration = 10000) {
     const container = document.getElementById('toast-container');
     if (!container) return;
     const toast = document.createElement('div');
@@ -804,7 +804,7 @@ function setupEventListeners() {
 
 async function init() {
     try {
-        console.log("Stock Manager: Initializing Monolith v0.5.28...");
+        console.log("Stock Manager: Initializing Monolith v0.5.29...");
         initializeDatePicker();
         wrapDateInputsWithPicker();
         setupEventListeners();

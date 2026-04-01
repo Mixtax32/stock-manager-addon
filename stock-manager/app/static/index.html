@@ -211,6 +211,15 @@
                             <div class="form-group">
                                 <label>Cantidad Inicial</label>
                                 <input type="number" id="quantity" value="1">
+                                        <div class="form-group" style="grid-column: span 2; margin-top: 8px; border-top: 1px dashed var(--border); padding-top: 12px; margin-bottom: 4px;">
+                                <label style="color:var(--accent); font-size:12px; font-weight: 700;">VALORES NUTRICIONALES (100g)</label>
+                                <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top:12px;">
+                                    <div class="form-group"><label style="font-size:10px;">Peso total (g)</label><input type="number" id="new-weight" placeholder="Ej: 500"></div>
+                                    <div class="form-group"><label style="font-size:10px;">Calorías (kcal)</label><input type="number" step="0.1" id="new-kcal" placeholder="kcal"></div>
+                                    <div class="form-group"><label style="font-size:10px;">Proteínas (g)</label><input type="number" step="0.1" id="new-proteins" placeholder="g"></div>
+                                    <div class="form-group"><label style="font-size:10px;">Carbohidratos (g)</label><input type="number" step="0.1" id="new-carbs" placeholder="g"></div>
+                                    <div class="form-group"><label style="font-size:10px;">Grasas (g)</label><input type="number" step="0.1" id="new-fat" placeholder="g"></div>
+                                </div>
                             </div>
                             <div class="form-group" style="grid-column: span 2;">
                                 <label>Fecha de Caducidad</label>
@@ -423,11 +432,11 @@
     </div>
 
     <div style="text-align:center; padding: 40px 0; opacity: 0.2; font-size: 10px; letter-spacing: 0.1em;">
-        STOCK MANAGER v0.5.28
+        STOCK MANAGER v0.5.29
     </div>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/tesseract.js@v4.0.2/dist/tesseract.min.js"></script>
-    <script src="static/app.js?v=0.5.28"></script>
+    <script src="static/app.js?v=0.5.29"></script>
 </body>
 </html>
