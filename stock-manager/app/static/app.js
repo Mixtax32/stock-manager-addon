@@ -1,5 +1,5 @@
 /* 
-   Stock Manager v0.5.38 
+   Stock Manager v0.5.39 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
@@ -838,7 +838,7 @@ function setupEventListeners() {
 
 async function init() {
     try {
-        console.log("Stock Manager: Initializing Monolith v0.5.38 (Robust Mode)...");
+        console.log("Stock Manager: Initializing Monolith v0.5.39 (Robust Mode)...");
         initializeDatePicker();
         wrapDateInputsWithPicker();
         setupEventListeners();
