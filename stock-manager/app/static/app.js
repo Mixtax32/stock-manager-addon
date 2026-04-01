@@ -1,5 +1,5 @@
 /* 
-   Stock Manager v0.5.25 
+   Stock Manager v0.5.26 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
@@ -799,7 +799,7 @@ function setupEventListeners() {
 
 async function init() {
     try {
-        console.log("Stock Manager: Initializing Monolith v0.5.25...");
+        console.log("Stock Manager: Initializing Monolith v0.5.26...");
         initializeDatePicker();
         wrapDateInputsWithPicker();
         setupEventListeners();
@@ -811,13 +811,48 @@ async function init() {
 }
 window.useManualBarcode = () => {
     const input = document.getElementById('manual-barcode').value.trim(); if (!input) return;
-    const byBarcode = products.find(p => p.barcode === input); if (byBarcode) { onScanSuccess(input); return; }
-    const matches = products.filter(p => p.name.toLowerCase().includes(input.toLowerCase()));
-    if (matches.length === 1) onScanSuccess(matches[0].barcode); else if (matches.length > 1) {
-        document.getElementById('search-results').innerHTML = matches.map(p => `<div class="search-result-item" onclick="onScanSuccess('${p.barcode}'); document.getElementById('manual-barcode').value=''; document.getElementById('search-results').classList.add('hidden')"><span class="sr-name">${p.name}</span><span class="sr-meta">${p.stock} uds</span></div>`).join('');
-        document.getElementById('search-results').classList.remove('hidden');
-    } else onScanSuccess(input);
+    
+    // Improved search: find by barcode or partial name
+    const byBarcode = products.find(p => p.barcode === input);
+    let matches = [];
+    
+    if (byBarcode) {
+        matches = [byBarcode];
+    } else {
+        const query = normalizeText(input);
+        matches = products.filter(p => normalizeText(p.name).includes(query) || p.barcode === input);
+    }
+    
+    const resultsEl = document.getElementById('search-results');
+    
+    if (matches.length > 0) {
+        resultsEl.innerHTML = matches.map(p => `
+            <div class="search-result-item" onclick="window.showPage('scan'); window.onScanSuccess('${p.barcode}'); document.getElementById('manual-barcode').value=''; document.getElementById('search-results').classList.add('hidden')">
+                <div class="sr-info">
+                    <span class="sr-name" title="${p.name}">${p.name}</span>
+                    <span class="sr-meta">${p.stock} uds • ${p.category}</span>
+                </div>
+                <div class="sr-actions" onclick="event.stopPropagation()">
+                    <button class="btn-action-sm remove-stock" onclick="window.quickRemove('${p.barcode}')" title="Quitar 1">-</button>
+                    <button class="btn-action-sm consume-stock" onclick="window.quickConsume('${p.barcode}')" title="Añadir a Macros / Consumir">🍽️</button>
+                    <button class="btn-action-sm add-stock" onclick="window.quickAdd('${p.barcode}')" title="Añadir 1">+</button>
+                </div>
+            </div>
+        `).join('');
+        resultsEl.classList.remove('hidden');
+    } else {
+        // If no matches, show button to create manually
+        resultsEl.innerHTML = `
+            <div class="btn-create-new" onclick="window.showPage('scan'); window.onScanSuccess('${input}'); document.getElementById('search-results').classList.add('hidden'); document.getElementById('manual-barcode').value=''">
+                <span>➕</span> Crear producto: <b>${input}</b>
+            </div>
+        `;
+        resultsEl.classList.remove('hidden');
+    }
+
+
 };
+
 async function quickAdd(barcode) {
     const p = products.find(prod => prod.barcode === barcode);
     if (p && p.batches?.length) { await apiCall(`/batches/${p.batches[0].id}/stock`, 'POST', { quantity: 1 }); await loadProducts(); }
