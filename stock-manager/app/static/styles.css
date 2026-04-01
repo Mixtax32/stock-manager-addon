@@ -1065,3 +1065,52 @@ select {
 #portion-panel.active .panel {
     animation: slideUp 0.3s ease-out;
 }
+
+/* Advanced Options Registration */
+.advanced-toggle {
+    grid-column: span 2;
+    padding: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    margin-top: 12px;
+    transition: all 0.2s;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.advanced-toggle:hover {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: #444;
+}
+
+.hidden-advanced {
+    grid-column: span 2;
+    display: none;
+    padding-top: 16px;
+    animation: advancedFade 0.3s ease-out;
+}
+
+.hidden-advanced.show {
+    display: block;
+}
+
+#advanced-chevron {
+    transition: transform 0.3s;
+    font-size: 10px;
+    opacity: 0.5;
+}
+
+#advanced-chevron.rotate {
+    transform: rotate(180deg);
+}
+
+@keyframes advancedFade {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+

@@ -1,5 +1,5 @@
 /* 
-   Stock Manager v0.5.33 
+   Stock Manager v0.5.34 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
@@ -806,7 +806,7 @@ function setupEventListeners() {
 
 async function init() {
     try {
-        console.log("Stock Manager: Initializing Monolith v0.5.33...");
+        console.log("Stock Manager: Initializing Monolith v0.5.34...");
         initializeDatePicker();
         wrapDateInputsWithPicker();
         setupEventListeners();
@@ -880,12 +880,35 @@ async function quickConsume(barcode) {
         window.openPortionPanel(barcode);
     }
 }
+window.deleteMacroHistory = async () => { if (confirm('¿Vaciar historial de hoy?')) { await apiCall('/movements/today', 'DELETE'); updateTodayMovements(); updateMacros(); showToast('Historial vaciado', 'success'); } };
+
+window.toggleAdvancedFields = () => {
+    const fields = document.getElementById('advanced-fields');
+    const chevron = document.getElementById('advanced-chevron');
+    if (fields) {
+        fields.classList.toggle('show');
+        if (chevron) chevron.classList.toggle('rotate');
+    }
+};
 async function deleteProduct(barcode) { if (confirm('¿Eliminar este producto?')) { await apiCall(`/products/${barcode}`, 'DELETE'); await loadProducts(); } }
 window.addStock = async () => {
     const bc = currentBarcode; if (!bc) return;
     const name = document.getElementById('product-name').value.trim(); if (!name) { showToast('Introduce el nombre', 'info'); return; }
     const p = products.find(prod => prod.barcode === bc);
-    if (!p) await apiCall('/products', 'POST', { barcode: bc, name, category: document.getElementById('product-category').value, unit_type: document.getElementById('product-unit').value, serving_size: parseFloat(document.getElementById('serving-size').value) || null, location: document.getElementById('product-location').value.trim() || null, min_stock: parseFloat(document.getElementById('min-stock').value) || 2, weight_g: parseFloat(document.getElementById('new-weight').value) || null, kcal_100g: parseFloat(document.getElementById('new-kcal').value) || null, proteins_100g: parseFloat(document.getElementById('new-proteins').value) || null, carbs_100g: parseFloat(document.getElementById('new-carbs').value) || null, fat_100g: parseFloat(document.getElementById('new-fat').value) || null, image_url: currentScannedImageUrl });
+    if (!p) await apiCall('/products', 'POST', { 
+        barcode: bc, 
+        name, 
+        category: document.getElementById('product-category').value, 
+        unit_type: document.getElementById('product-unit').value, 
+        serving_size: parseFloat(document.getElementById('serving-size').value) || null, 
+        location: document.getElementById('product-location').value.trim() || null, 
+        min_stock: parseFloat(document.getElementById('min-stock').value) || 2, 
+        kcal_100g: parseFloat(document.getElementById('new-kcal').value) || null, 
+        proteins_100g: parseFloat(document.getElementById('new-proteins').value) || null, 
+        carbs_100g: parseFloat(document.getElementById('new-carbs').value) || null, 
+        fat_100g: parseFloat(document.getElementById('new-fat').value) || null, 
+        image_url: currentScannedImageUrl 
+    });
     await apiCall(`/products/${bc}/stock`, 'POST', { quantity: parseFloat(document.getElementById('quantity').value) || 1, expiry_date: document.getElementById('expiry-date').value || null });
     await loadProducts(); resetScanner(); window.showPage('dashboard');
 };

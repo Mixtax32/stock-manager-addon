@@ -201,10 +201,6 @@
                                 </select>
                             </div>
                             <div class="form-group">
-                                <label>Ubicación</label>
-                                <input type="text" id="product-location" placeholder="Ej: Despensa">
-                            </div>
-                             <div class="form-group">
                                 <label>Unidad de medida</label>
                                 <select id="product-unit">
                                     <option value="uds">Unidades (uds)</option>
@@ -217,30 +213,42 @@
                                 <input type="number" step="0.1" id="serving-size" placeholder="Ej: 125">
                               </div>
                              <div class="form-group">
-                                <label>Stock Mínimo</label>
-                                <input type="number" step="0.1" id="min-stock" value="2">
+                                <label>Cantidad Inicial</label>
+                                <input type="number" step="0.1" id="quantity" value="1">
+                            </div>
+
+                             <!-- Advanced Options Toggle -->
+                             <div class="advanced-toggle" onclick="toggleAdvancedFields()">
+                                 <span>⚙️ Opciones avanzadas</span>
+                                 <span id="advanced-chevron">▼</span>
                              </div>
 
-                             <div class="form-group">
-                                <label>Cantidad Inicial</label>
-                                <input type="number" id="quantity" value="1">
-                            </div>
-
-                            <div class="form-group" style="grid-column: span 2; margin-top: 8px; border-top: 1px dashed var(--border); padding-top: 12px; margin-bottom: 4px;">
-                                <label style="color:var(--accent); font-size:12px; font-weight: 700;">VALORES NUTRICIONALES (100g)</label>
-                                <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top:12px;">
-                                    <div class="form-group"><label style="font-size:10px;">Peso total (g)</label><input type="number" id="new-weight" placeholder="Ej: 500"></div>
-                                    <div class="form-group"><label style="font-size:10px;">Calorías (kcal)</label><input type="number" step="0.1" id="new-kcal" placeholder="kcal"></div>
-                                    <div class="form-group"><label style="font-size:10px;">Proteínas (g)</label><input type="number" step="0.1" id="new-proteins" placeholder="g"></div>
-                                    <div class="form-group"><label style="font-size:10px;">Carbohidratos (g)</label><input type="number" step="0.1" id="new-carbs" placeholder="g"></div>
-                                    <div class="form-group"><label style="font-size:10px;">Grasas (g)</label><input type="number" step="0.1" id="new-fat" placeholder="g"></div>
+                             <div id="advanced-fields" class="hidden-advanced">
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                                    <div class="form-group">
+                                        <label>Ubicación</label>
+                                        <input type="text" id="product-location" placeholder="Opcional">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Stock Mínimo</label>
+                                        <input type="number" step="0.1" id="min-stock" placeholder="Opcional">
+                                    </div>
+                                    <div class="form-group" style="grid-column: span 2;">
+                                        <label>Fecha de Caducidad</label>
+                                        <input type="date" id="expiry-date">
+                                    </div>
                                 </div>
-                            </div>
 
-                            <div class="form-group" style="grid-column: span 2;">
-                                <label>Fecha de Caducidad</label>
-                                <input type="date" id="expiry-date">
-                            </div>
+                                <div class="form-group" style="margin-top: 12px; border-top: 1px dashed var(--border); padding-top: 12px;">
+                                    <label style="color:var(--accent); font-size:12px; font-weight: 700;">VALORES NUTRICIONALES (100g)</label>
+                                    <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top:10px;">
+                                        <div class="form-group"><label style="font-size:11px;">Calorías (kcal)</label><input type="number" step="0.1" id="new-kcal" placeholder=""></div>
+                                        <div class="form-group"><label style="font-size:11px;">Proteínas (g)</label><input type="number" step="0.1" id="new-proteins" placeholder=""></div>
+                                        <div class="form-group"><label style="font-size:11px;">Carbohidratos (g)</label><input type="number" step="0.1" id="new-carbs" placeholder=""></div>
+                                        <div class="form-group"><label style="font-size:11px;">Grasas (g)</label><input type="number" step="0.1" id="new-fat" placeholder=""></div>
+                                    </div>
+                                </div>
+                             </div>
                         </div>
                         <div style="display: flex; gap: 12px; margin-top: 24px;">
                             <button class="btn btn-secondary" style="flex:1" onclick="resetScanner()">Cancelar</button>
@@ -471,11 +479,11 @@
     </div>
 
     <div style="text-align:center; padding: 40px 0; opacity: 0.2; font-size: 10px; letter-spacing: 0.1em;">
-        STOCK MANAGER v0.5.33
+        STOCK MANAGER v0.5.34
     </div>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/tesseract.js@v4.0.2/dist/tesseract.min.js"></script>
-    <script src="static/app.js?v=0.5.33"></script>
+    <script src="static/app.js?v=0.5.34"></script>
 </body>
 </html>
