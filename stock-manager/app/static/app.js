@@ -1,5 +1,5 @@
 /* 
-   Stock Manager v0.5.26 
+   Stock Manager v0.5.27 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
@@ -144,6 +144,11 @@ async function updateUI() {
     updateShoppingList();
     updateProductList();
     updateStockPageSearch();
+    // Refresh quick search results if there is an active search
+    const searchInput = document.getElementById('manual-barcode');
+    if (searchInput && searchInput.value.trim()) {
+        window.useManualBarcode();
+    }
 }
 
 async function updateCharts() {
@@ -799,7 +804,7 @@ function setupEventListeners() {
 
 async function init() {
     try {
-        console.log("Stock Manager: Initializing Monolith v0.5.26...");
+        console.log("Stock Manager: Initializing Monolith v0.5.27...");
         initializeDatePicker();
         wrapDateInputsWithPicker();
         setupEventListeners();
@@ -810,24 +815,20 @@ async function init() {
     }
 }
 window.useManualBarcode = () => {
-    const input = document.getElementById('manual-barcode').value.trim(); if (!input) return;
-    
-    // Improved search: find by barcode or partial name
-    const byBarcode = products.find(p => p.barcode === input);
-    let matches = [];
-    
-    if (byBarcode) {
-        matches = [byBarcode];
-    } else {
-        const query = normalizeText(input);
-        matches = products.filter(p => normalizeText(p.name).includes(query) || p.barcode === input);
+    const input = document.getElementById('manual-barcode').value.trim();
+    const resultsEl = document.getElementById('search-results');
+    if (!input) {
+        resultsEl.classList.add('hidden');
+        return;
     }
     
-    const resultsEl = document.getElementById('search-results');
+    // Improved search: find by barcode or partial name
+    const query = normalizeText(input);
+    const matches = products.filter(p => normalizeText(p.name).includes(query) || p.barcode === input);
     
     if (matches.length > 0) {
         resultsEl.innerHTML = matches.map(p => `
-            <div class="search-result-item" onclick="window.showPage('scan'); window.onScanSuccess('${p.barcode}'); document.getElementById('manual-barcode').value=''; document.getElementById('search-results').classList.add('hidden')">
+            <div class="search-result-item" onclick="window.showPage('scan'); window.onScanSuccess('${p.barcode}')">
                 <div class="sr-info">
                     <span class="sr-name" title="${p.name}">${p.name}</span>
                     <span class="sr-meta">${p.stock} uds • ${p.category}</span>
@@ -843,14 +844,12 @@ window.useManualBarcode = () => {
     } else {
         // If no matches, show button to create manually
         resultsEl.innerHTML = `
-            <div class="btn-create-new" onclick="window.showPage('scan'); window.onScanSuccess('${input}'); document.getElementById('search-results').classList.add('hidden'); document.getElementById('manual-barcode').value=''">
+            <div class="btn-create-new" onclick="window.showPage('scan'); window.onScanSuccess('${input}')">
                 <span>➕</span> Crear producto: <b>${input}</b>
             </div>
         `;
         resultsEl.classList.remove('hidden');
     }
-
-
 };
 
 async function quickAdd(barcode) {
