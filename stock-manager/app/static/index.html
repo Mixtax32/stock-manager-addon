@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Stock Manager</title>
-    <link rel="stylesheet" href="static/styles.css?v=0.5.41">
+    <title>Stock Manager v0.5.42</title>
+    <link rel="stylesheet" href="static/styles.css?v=0.5.42">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 </head>
@@ -148,8 +148,8 @@
 
             <div class="page hidden" data-page="scan">
                 <div class="column-card" style="margin-bottom: 24px;">
-                    <div id="scanner-container" style="min-height: 200px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 12px;">
-                        <!-- Scanner will be mounted here -->
+                    <div id="scanner-container"></div>
+                    <div id="scanner-controls" style="display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 12px; margin-top: 12px;">
                         <button class="btn btn-add" id="start-scan" style="width: 100%; max-width: 300px;">📷 Escanear Producto</button>
                         <button class="btn btn-secondary" id="start-ticket" style="width: 100%; max-width: 300px;">🧾 Escanear Ticket</button>
                         <button class="btn btn-del hidden" id="stop-scan" style="width: 100%; max-width: 300px;">🛑 Detener Cámara</button>
@@ -484,11 +484,11 @@
     </div>
 
     <div style="text-align:center; padding: 40px 0; opacity: 0.2; font-size: 10px; letter-spacing: 0.1em;">
-        STOCK MANAGER v0.5.41
+        STOCK MANAGER v0.5.42
     </div>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/tesseract.js@v4.0.2/dist/tesseract.min.js"></script>
-    <script src="static/app.js?v=0.5.41"></script>
+    <script src="static/app.js?v=0.5.42"></script>
 </body>
 </html>
