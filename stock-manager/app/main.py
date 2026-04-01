@@ -25,7 +25,7 @@ from contextlib import asynccontextmanager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # --- Startup ---
-    logger.info("Initializing Stock Manager...")
+    logger.info("Initializing Stock Manager v0.5.41.")
     await db.init_db()
     
     # Start Telegram Bot in background and store task
@@ -48,6 +48,16 @@ app = FastAPI(
     description="API para gestión de inventario doméstico",
     lifespan=lifespan
 )
+
+# Anti-cache middleware
+@app.middleware("http")
+async def add_custom_headers(request: Request, call_next):
+    # Disable cache for all responses to fix browser issues in HA Ingress
+    response = await call_next(request)
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 # CORS configuration for Home Assistant ingress
 app.add_middleware(
