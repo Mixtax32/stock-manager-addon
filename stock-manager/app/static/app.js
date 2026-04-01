@@ -1,5 +1,5 @@
 /* 
-   Stock Manager v0.5.32 
+   Stock Manager v0.5.33 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
@@ -461,7 +461,7 @@ function openManagePanel(barcode = null) {
         originalData[p.barcode] = { 
             name: p.name, category: p.category, min_stock: p.min_stock, location: p.location || '',
             weight_g: p.weight_g || null, kcal_100g: p.kcal_100g || null, proteins_100g: p.proteins_100g || null,
-            carbs_100g: p.carbs_100g || null, fat_100g: p.fat_100g || null
+            carbs_100g: p.carbs_100g || null, fat_100g: p.fat_100g || null, serving_size: p.serving_size || null
         };
         p.batches?.forEach(b => originalBatchData[b.id] = b.expiry_date || '');
     });
@@ -501,6 +501,7 @@ function renderManageList() {
                     <option value="Otros" ${p.category === 'Otros' ? 'selected' : ''}>Otros</option>
                 </select></div>
                 <div class="form-group"><label>Stock Mín</label><input type="number" class="edit-field" data-barcode="${p.barcode}" data-field="min_stock" value="${p.min_stock}" ${isDel ? 'disabled' : ''}></div>
+                <div class="form-group"><label>Ración Usual</label><input type="number" class="edit-field" data-barcode="${p.barcode}" data-field="serving_size" value="${p.serving_size || ''}" ${isDel ? 'disabled' : ''}></div>
                 <div class="form-group" style="grid-column: 1 / -1; margin-top: 4px; border-top: 1px dashed #333; padding-top: 6px;">
                     <label style="color:#4ade80; font-size:11px; margin-bottom: 4px; display: block;">Macros / 100g</label>
                     <div style="display:grid; grid-template-columns: repeat(5, 1fr); gap: 4px;">
@@ -558,7 +559,7 @@ async function onScanSuccess(decodedText) {
     }
     currentBarcode = decodedText;
     scanSessionChanges = { batches: {}, newQty: 0, newExpiry: null };
-    const fields = ['new-batch-qty', 'new-batch-expiry', 'product-name', 'product-location', 'min-stock', 'expiry-date', 'quantity'];
+    const fields = ['new-batch-qty', 'new-batch-expiry', 'product-name', 'product-location', 'min-stock', 'expiry-date', 'quantity', 'serving-size'];
     fields.forEach(f => {
         const el = document.getElementById(f);
         if (el) el.value = (f === 'new-batch-qty' || f === 'quantity') ? 1 : (f === 'min-stock' ? 2 : '');
@@ -573,6 +574,7 @@ async function onScanSuccess(decodedText) {
         document.getElementById('existing-product-view').classList.remove('hidden');
         document.getElementById('new-product-fields').classList.add('hidden');
         document.getElementById('existing-product-name').textContent = product.name;
+        document.getElementById('serving-size').value = product.serving_size || '';
         document.getElementById('existing-product-stock').textContent = `(${product.stock} ${product.unit_type || 'uds'})`;
         renderScanImage(product.image_url);
         renderExistingBatches(product);
@@ -804,7 +806,7 @@ function setupEventListeners() {
 
 async function init() {
     try {
-        console.log("Stock Manager: Initializing Monolith v0.5.32...");
+        console.log("Stock Manager: Initializing Monolith v0.5.33...");
         initializeDatePicker();
         wrapDateInputsWithPicker();
         setupEventListeners();
@@ -883,7 +885,7 @@ window.addStock = async () => {
     const bc = currentBarcode; if (!bc) return;
     const name = document.getElementById('product-name').value.trim(); if (!name) { showToast('Introduce el nombre', 'info'); return; }
     const p = products.find(prod => prod.barcode === bc);
-    if (!p) await apiCall('/products', 'POST', { barcode: bc, name, category: document.getElementById('product-category').value, unit_type: document.getElementById('product-unit').value, location: document.getElementById('product-location').value.trim() || null, min_stock: parseFloat(document.getElementById('min-stock').value) || 2, weight_g: parseFloat(document.getElementById('new-weight').value) || null, kcal_100g: parseFloat(document.getElementById('new-kcal').value) || null, proteins_100g: parseFloat(document.getElementById('new-proteins').value) || null, carbs_100g: parseFloat(document.getElementById('new-carbs').value) || null, fat_100g: parseFloat(document.getElementById('new-fat').value) || null, image_url: currentScannedImageUrl });
+    if (!p) await apiCall('/products', 'POST', { barcode: bc, name, category: document.getElementById('product-category').value, unit_type: document.getElementById('product-unit').value, serving_size: parseFloat(document.getElementById('serving-size').value) || null, location: document.getElementById('product-location').value.trim() || null, min_stock: parseFloat(document.getElementById('min-stock').value) || 2, weight_g: parseFloat(document.getElementById('new-weight').value) || null, kcal_100g: parseFloat(document.getElementById('new-kcal').value) || null, proteins_100g: parseFloat(document.getElementById('new-proteins').value) || null, carbs_100g: parseFloat(document.getElementById('new-carbs').value) || null, fat_100g: parseFloat(document.getElementById('new-fat').value) || null, image_url: currentScannedImageUrl });
     await apiCall(`/products/${bc}/stock`, 'POST', { quantity: parseFloat(document.getElementById('quantity').value) || 1, expiry_date: document.getElementById('expiry-date').value || null });
     await loadProducts(); resetScanner(); window.showPage('dashboard');
 };
@@ -914,13 +916,22 @@ window.openPortionPanel = (barcode) => {
     currentPortionBarcode = barcode;
     const unit = p.unit_type || 'g';
     document.getElementById('portion-title').innerText = `Consumir ${p.name}`;
-    document.getElementById('portion-stock-info').innerText = `Stock actual: ${p.stock}${unit}`;
+    document.getElementById('portion-stock-info').innerText = `Stock actual: ${p.stock.toFixed(2).replace(/\.00$/, '')}${unit}`;
     
     // Suggest common portions
-    const portions = unit === 'g' ? [50, 100, 200, 250, 500] : [100, 200, 250, 330, 500];
-    const optionsHtml = portions.map(amt => `
+    let portions = unit === 'g' ? [50, 100, 200, 250, 500] : [100, 200, 250, 330, 500];
+    
+    // If there is a serving size, put it at the start
+    let optionsHtml = '';
+    if (p.serving_size) {
+        optionsHtml += `<button class="btn btn-add" style="grid-column: span 2; margin-bottom: 8px; font-weight: 800; padding: 20px;" onclick="consumeAmount(${p.serving_size})">🍕 Ración Sugerida: ${p.serving_size}${unit}</button>`;
+        // Filter out if duplicate
+        portions = portions.filter(pt => pt !== p.serving_size);
+    }
+
+    optionsHtml += portions.map(amt => `
         <button class="btn btn-secondary" onclick="consumeAmount(${amt})">${amt}${unit}</button>
-    `).join('') + `<button class="btn btn-del" onclick="consumeAmount(${p.stock})">Terminar (${p.stock}${unit})</button>`;
+    `).join('') + `<button class="btn btn-del" onclick="consumeAmount(${p.stock})">Terminar (${p.stock.toFixed(2).replace(/\.00$/, '')}${unit})</button>`;
     
     document.getElementById('portion-options').innerHTML = optionsHtml;
     document.getElementById('custom-portion-qty').placeholder = `Cant en ${unit}`;

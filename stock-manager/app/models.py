@@ -24,6 +24,7 @@ class Product(BaseModel):
     proteins_100g: Optional[float] = None
     carbs_100g: Optional[float] = None
     fat_100g: Optional[float] = None
+    serving_size: Optional[float] = None # Cantidad usual/paquete
     batches: List[Batch] = []
     last_updated: Optional[datetime] = None
 
@@ -40,6 +41,7 @@ class ProductCreate(BaseModel):
     proteins_100g: Optional[float] = None
     carbs_100g: Optional[float] = None
     fat_100g: Optional[float] = None
+    serving_size: Optional[float] = None
 
 class StockUpdate(BaseModel):
     quantity: float
@@ -58,6 +60,7 @@ class ProductUpdate(BaseModel):
     proteins_100g: Optional[float] = None
     carbs_100g: Optional[float] = None
     fat_100g: Optional[float] = None
+    serving_size: Optional[float] = None
 
 class BatchUpdate(BaseModel):
     expiry_date: Optional[str] = None
