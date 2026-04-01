@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Stock Manager v0.5.45</title>
-    <link rel="stylesheet" href="static/styles.css?v=0.5.45">
+    <title>Stock Manager v0.5.46</title>
+    <link rel="stylesheet" href="static/styles.css?v=0.5.46">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 </head>
@@ -106,8 +106,8 @@
                         </div>
                         <div id="search-results" class="search-results hidden"></div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px;">
-                            <button class="btn btn-secondary" id="direct-scan-btn">📸 Escáner</button>
-                            <button class="btn btn-secondary" id="direct-ticket-btn">🧾 Ticket</button>
+                            <button class="btn btn-secondary" onclick="window.quickStartScan('scan')">📸 Escáner</button>
+                            <button class="btn btn-secondary" onclick="window.quickStartScan('ticket')">🧾 Ticket</button>
                         </div>
                     </div>
 
@@ -484,11 +484,11 @@
     </div>
 
     <div style="text-align:center; padding: 40px 0; opacity: 0.2; font-size: 10px; letter-spacing: 0.1em;">
-        STOCK MANAGER v0.5.45
+        STOCK MANAGER v0.5.46
     </div>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/tesseract.js@v4.0.2/dist/tesseract.min.js"></script>
-    <script src="static/app.js?v=0.5.45"></script>
+    <script src="static/app.js?v=0.5.46"></script>
 </body>
 </html>

@@ -1,5 +1,5 @@
 /* 
-   Stock Manager v0.5.45 
+   Stock Manager v0.5.46 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
@@ -20,28 +20,51 @@ let fullKcalChart = null;
 
 window.quickStartScan = (type) => {
     console.log("Stock Manager [Direct-Command]: Start", type);
-    if (typeof showPage !== 'function') {
+    if (typeof window.showPage !== 'function') {
         console.error("Dashboard Error: showPage no disponible");
         return;
     }
-    showPage('scan');
+    window.showPage('scan');
     
     let attempts = 0;
     const tryToClick = () => {
         const id = type === 'scan' ? 'start-scan' : 'start-ticket';
         const targetBtn = document.getElementById(id);
         if (targetBtn) {
-            console.log("Stock Manager [Direct-Command]: Button found, clicking", id);
+            console.log("Stock Manager [Direct-Command]: Pulsando automáticamente", id);
             targetBtn.click();
-        } else if (attempts < 5) {
+        } else if (attempts < 10) {
             attempts++;
-            setTimeout(tryToClick, 150);
+            setTimeout(tryToClick, 100);
         } else {
-            console.warn("Stock Manager [Direct-Command]: Timeout buscando botón", id);
+            console.warn("Stock Manager [Direct-Command]: No se encontró el botón tras 10 intentos");
         }
     };
-    setTimeout(tryToClick, 350);
+    setTimeout(tryToClick, 400); // Retraso inicial para dar tiempo al cambio de pestaña
 };
+
+async function stopAllCameras() {
+    console.log("Stock Manager: Deteniendo todas las cámaras...");
+    // Detener Scanner QR
+    if (html5QrCode) {
+        try { await html5QrCode.stop(); } catch(e) { console.debug("Error deteniendo QR:", e); }
+    }
+    // Detener Stream de Ticket
+    if (currentTicketStream) {
+        try {
+            currentTicketStream.getTracks().forEach(track => track.stop());
+            console.log("Stock Manager: Stream de ticket detenido manualmente.");
+        } catch(e) { console.error("Error deteniendo stream:", e); }
+        currentTicketStream = null;
+    }
+    // Limpiar UI
+    const container = document.getElementById('scanner-container');
+    if (container) container.innerHTML = '';
+    
+    ['start-scan', 'start-ticket'].forEach(id => document.getElementById(id)?.classList.remove('hidden'));
+    document.getElementById('stop-scan')?.classList.add('hidden');
+}
+window.stopAllCameras = stopAllCameras;
 
 let scanSessionChanges = { batches: {}, newQty: 0, newExpiry: null };
 let currentTicketItems = [];
@@ -813,14 +836,7 @@ function setupEventListeners() {
     };
 
     const stopBtn = document.getElementById('stop-scan');
-    if (stopBtn) stopBtn.onclick = async () => { 
-        if (html5QrCode) { try { await html5QrCode.stop(); } catch(e){} }
-        if (currentTicketStream) { currentTicketStream.getTracks().forEach(t => t.stop()); currentTicketStream = null; }
-        document.getElementById('scanner-container').innerHTML = '';
-        document.getElementById('start-scan').classList.remove('hidden'); 
-        document.getElementById('start-ticket').classList.remove('hidden'); 
-        document.getElementById('stop-scan').classList.add('hidden'); 
-    };
+    if (stopBtn) stopBtn.onclick = stopAllCameras;
 
     const ticketBtn = document.getElementById('start-ticket');
     if (ticketBtn) ticketBtn.onclick = async () => {
