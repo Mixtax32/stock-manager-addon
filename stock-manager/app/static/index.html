@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Stock Manager</title>
-    <link rel="stylesheet" href="static/styles.css?v=0.5.28">
+    <link rel="stylesheet" href="static/styles.css?v=0.5.30">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 </head>
@@ -208,10 +208,12 @@
                                 <label>Stock Mínimo</label>
                                 <input type="number" id="min-stock" value="2">
                             </div>
-                            <div class="form-group">
+                             <div class="form-group">
                                 <label>Cantidad Inicial</label>
                                 <input type="number" id="quantity" value="1">
-                                        <div class="form-group" style="grid-column: span 2; margin-top: 8px; border-top: 1px dashed var(--border); padding-top: 12px; margin-bottom: 4px;">
+                            </div>
+
+                            <div class="form-group" style="grid-column: span 2; margin-top: 8px; border-top: 1px dashed var(--border); padding-top: 12px; margin-bottom: 4px;">
                                 <label style="color:var(--accent); font-size:12px; font-weight: 700;">VALORES NUTRICIONALES (100g)</label>
                                 <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top:12px;">
                                     <div class="form-group"><label style="font-size:10px;">Peso total (g)</label><input type="number" id="new-weight" placeholder="Ej: 500"></div>
@@ -221,6 +223,7 @@
                                     <div class="form-group"><label style="font-size:10px;">Grasas (g)</label><input type="number" step="0.1" id="new-fat" placeholder="g"></div>
                                 </div>
                             </div>
+
                             <div class="form-group" style="grid-column: span 2;">
                                 <label>Fecha de Caducidad</label>
                                 <input type="date" id="expiry-date">
@@ -233,6 +236,7 @@
                     </div>
                 </div>
             </div>
+
 
             <!-- PAGE: COMPRA -->
             <div class="page hidden" data-page="compra">
@@ -432,11 +436,11 @@
     </div>
 
     <div style="text-align:center; padding: 40px 0; opacity: 0.2; font-size: 10px; letter-spacing: 0.1em;">
-        STOCK MANAGER v0.5.29
+        STOCK MANAGER v0.5.30
     </div>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/tesseract.js@v4.0.2/dist/tesseract.min.js"></script>
-    <script src="static/app.js?v=0.5.29"></script>
+    <script src="static/app.js?v=0.5.30"></script>
 </body>
 </html>
