@@ -1,5 +1,5 @@
 /* 
-   Stock Manager v0.5.30 
+   Stock Manager v0.5.31 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
@@ -804,7 +804,7 @@ function setupEventListeners() {
 
 async function init() {
     try {
-        console.log("Stock Manager: Initializing Monolith v0.5.30...");
+        console.log("Stock Manager: Initializing Monolith v0.5.31...");
         initializeDatePicker();
         wrapDateInputsWithPicker();
         setupEventListeners();
@@ -878,14 +878,14 @@ window.addStock = async () => {
     const p = products.find(prod => prod.barcode === bc);
     if (!p) await apiCall('/products', 'POST', { barcode: bc, name, category: document.getElementById('product-category').value, location: document.getElementById('product-location').value.trim() || null, min_stock: parseInt(document.getElementById('min-stock').value) || 2, weight_g: parseFloat(document.getElementById('new-weight').value) || null, kcal_100g: parseFloat(document.getElementById('new-kcal').value) || null, proteins_100g: parseFloat(document.getElementById('new-proteins').value) || null, carbs_100g: parseFloat(document.getElementById('new-carbs').value) || null, fat_100g: parseFloat(document.getElementById('new-fat').value) || null, image_url: currentScannedImageUrl });
     await apiCall(`/products/${bc}/stock`, 'POST', { quantity: parseInt(document.getElementById('quantity').value) || 1, expiry_date: document.getElementById('expiry-date').value || null });
-    await loadProducts(); resetScanner();
+    await loadProducts(); resetScanner(); window.showPage('dashboard');
 };
 window.addNewBatch = async () => {
     const bc = currentBarcode; if (!bc) return;
     for (const [id, delta] of Object.entries(scanSessionChanges.batches)) if (delta !== 0) await apiCall(`/batches/${id}/stock`, 'POST', { quantity: delta });
     const qty = parseInt(document.getElementById('new-batch-qty').value) || 0;
     if (qty > 0) await apiCall(`/products/${bc}/stock`, 'POST', { quantity: qty, expiry_date: document.getElementById('new-batch-expiry').value || null });
-    await loadProducts(); resetScanner();
+    await loadProducts(); resetScanner(); window.showPage('dashboard');
 };
 function showTicketResults(items, rawText) {
     const matched = items.filter(t => t.match), unmatched = items.filter(t => !t.match);
