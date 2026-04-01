@@ -31,13 +31,19 @@ let pickerState = {
 
 
 // ===== API Functions =====
-async function apiCall(endpoint, method = 'GET', body = null) {
+async function apiCall(endpoint, method = 'GET', body = null, retries = 3) {
     const options = { method, headers: { 'Content-Type': 'application/json' } };
     if (body) options.body = JSON.stringify(body);
     const url = `${API_BASE}${endpoint}`;
     try {
         const response = await fetch(url, options);
         if (!response.ok) {
+            // Retry on temporary server errors (502, 503, 504)
+            if (retries > 0 && [502, 503, 504].includes(response.status)) {
+                console.warn(`Servidor ocupado (${response.status}). Reintentando... (${retries})`);
+                await new Promise(r => setTimeout(r, 1500));
+                return apiCall(endpoint, method, body, retries - 1);
+            }
             const text = await response.text().catch(() => '');
             let msg;
             try { msg = JSON.parse(text).detail || `Error ${response.status}`; }
@@ -47,6 +53,11 @@ async function apiCall(endpoint, method = 'GET', body = null) {
         if (method === 'DELETE') return true;
         return await response.json().catch(() => { throw new Error('Respuesta inválida'); });
     } catch (error) {
+        if (retries > 0 && error.message.includes('Failed to fetch')) {
+            console.warn(`Error de conexión. Reintentando... (${retries})`);
+            await new Promise(r => setTimeout(r, 2000));
+            return apiCall(endpoint, method, body, retries - 1);
+        }
         console.error(`API Error [${method} ${url}]:`, error);
         showToast(error.message, 'error');
         throw error;
@@ -307,7 +318,7 @@ function updateShoppingList() {
     products.forEach(p => p.batches?.forEach(b => {
         if (b.expiry_date) {
             const exp = new Date(b.expiry_date + 'T00:00:00');
-            if (exp >= today && exp <= nextWeek) expiringSoon.push({ name: p.name, expiry_date: b.expiry_date, quantity: b.quantity });
+            if (exp >= today && exp <= nextWeek) expiringSoon.push({ name: p.name, expiry_date: b.expiry_date, quantity: b.quantity, unit_type: p.unit_type });
         }
     }));
 
@@ -766,33 +777,19 @@ function setupEventListeners() {
     const startBtn = document.getElementById('start-scan');
     if (startBtn) startBtn.onclick = async () => {
         try {
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                throw new Error('Cámara bloqueada por el navegador. Asegúrate de entrar por una URL segura (HTTPS).');
-            }
-            // First check permission
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }); 
-            stream.getTracks().forEach(track => track.stop());
-            
-            html5QrCode = new Html5Qrcode("scanner-container"); 
-            await html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, onScanSuccess);
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }); stream.getTracks().forEach(track => track.stop());
+            html5QrCode = new Html5Qrcode("scanner-container"); await html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, onScanSuccess);
             document.getElementById('scanner-container').scrollIntoView({ behavior: 'smooth', block: 'center' });
-            document.getElementById('start-scan').classList.add('hidden'); 
-            document.getElementById('start-ticket').classList.add('hidden'); 
-            document.getElementById('stop-scan').classList.remove('hidden');
-        } catch (err) { 
-            console.error(err);
-            showToast('Error: ' + err.message, 'error'); 
-        }
+            document.getElementById('start-scan').classList.add('hidden'); document.getElementById('start-ticket').classList.add('hidden'); document.getElementById('stop-scan').classList.remove('hidden');
+        } catch (err) { showToast('Error cámara: ' + err.message, 'error'); }
     };
 
     const stopBtn = document.getElementById('stop-scan');
     if (stopBtn) stopBtn.onclick = async () => { if (html5QrCode) { await html5QrCode.stop(); document.getElementById('start-scan').classList.remove('hidden'); document.getElementById('start-ticket').classList.remove('hidden'); document.getElementById('stop-scan').classList.add('hidden'); } };
 
+    const ticketBtn = document.getElementById('start-ticket');
     if (ticketBtn) ticketBtn.onclick = async () => {
         try {
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                throw new Error('Cámara bloqueada. Usa HTTPS para activar la captura de tickets.');
-            }
             const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } } });
             const video = document.createElement('video'); video.srcObject = stream; video.setAttribute('playsinline', 'true'); await video.play();
             const container = document.getElementById('scanner-container'); container.innerHTML = ''; video.style.width = '100%'; video.style.borderRadius = '8px'; container.appendChild(video);
@@ -802,7 +799,7 @@ function setupEventListeners() {
                 const canvas = document.createElement('canvas'); canvas.width = video.videoWidth; canvas.height = video.videoHeight; canvas.getContext('2d').drawImage(video, 0, 0); stream.getTracks().forEach(t => t.stop()); container.innerHTML = ''; document.getElementById('start-scan').classList.remove('hidden'); document.getElementById('start-ticket').classList.remove('hidden'); document.getElementById('stop-scan').classList.add('hidden');
                 await processTicketImage(canvas);
             };
-        } catch (err) { showToast('Error: ' + err.message, 'error'); }
+        } catch (err) { showToast('Error cámara: ' + err.message, 'error'); }
     };
 
     document.addEventListener('change', e => {
@@ -841,14 +838,26 @@ function setupEventListeners() {
 
 async function init() {
     try {
-        console.log("Stock Manager: Initializing Monolith v0.5.38...");
+        console.log("Stock Manager: Initializing Monolith v0.5.38 (Robust Mode)...");
         initializeDatePicker();
         wrapDateInputsWithPicker();
         setupEventListeners();
         initNavigation();
-        await loadProducts().catch(e => console.error("Error cargando productos iniciales:", e));
+        
+        // Show initial loading state
+        const loadingOverlay = document.getElementById('loading-overlay');
+        if (loadingOverlay) {
+            loadingOverlay.classList.remove('hidden');
+            document.getElementById('loading-text').textContent = "Sincronizando con Home Assistant...";
+        }
+
+        await loadProducts();
+        
+        if (loadingOverlay) loadingOverlay.classList.add('hidden');
+        console.log("Stock Manager: Ready.");
     } catch (err) {
         console.error("Fallo crítico en init:", err);
+        showToast("Error al iniciar. Pulsa aquí para reintentar.", "error", 0);
     }
 }
 window.useManualBarcode = () => {
