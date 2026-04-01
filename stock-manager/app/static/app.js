@@ -1,5 +1,5 @@
 /* 
-   Stock Manager v0.5.39 
+   Stock Manager v0.5.40 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
@@ -34,14 +34,16 @@ let pickerState = {
 async function apiCall(endpoint, method = 'GET', body = null, retries = 3) {
     const options = { method, headers: { 'Content-Type': 'application/json' } };
     if (body) options.body = JSON.stringify(body);
-    const url = `${API_BASE}${endpoint}`;
+    
+    // Cache busting for GET requests to prevent HA Proxy from serving empty/stale data
+    const url = `${API_BASE}${endpoint}${method === 'GET' ? (endpoint.includes('?') ? '&' : '?') + 't=' + Date.now() : ''}`;
+    
     try {
         const response = await fetch(url, options);
         if (!response.ok) {
-            // Retry on temporary server errors (502, 503, 504)
             if (retries > 0 && [502, 503, 504].includes(response.status)) {
-                console.warn(`Servidor ocupado (${response.status}). Reintentando... (${retries})`);
-                await new Promise(r => setTimeout(r, 1500));
+                console.warn(`Servidor despertando (${response.status}). Reintentando en 2s...`);
+                await new Promise(r => setTimeout(r, 2000));
                 return apiCall(endpoint, method, body, retries - 1);
             }
             const text = await response.text().catch(() => '');
@@ -53,13 +55,12 @@ async function apiCall(endpoint, method = 'GET', body = null, retries = 3) {
         if (method === 'DELETE') return true;
         return await response.json().catch(() => { throw new Error('Respuesta inválida'); });
     } catch (error) {
-        if (retries > 0 && error.message.includes('Failed to fetch')) {
-            console.warn(`Error de conexión. Reintentando... (${retries})`);
+        if (retries > 0) {
+            console.warn(`Error de red o servidor. Reintentando (${retries})...`, error.message);
             await new Promise(r => setTimeout(r, 2000));
             return apiCall(endpoint, method, body, retries - 1);
         }
-        console.error(`API Error [${method} ${url}]:`, error);
-        showToast(error.message, 'error');
+        console.error(`API Error Fatal [${method} ${url}]:`, error);
         throw error;
     }
 }
@@ -838,26 +839,30 @@ function setupEventListeners() {
 
 async function init() {
     try {
-        console.log("Stock Manager: Initializing Monolith v0.5.39 (Robust Mode)...");
+        console.log("Stock Manager: Initializing Monolith v0.5.40 (Ultra-Robust)...");
         initializeDatePicker();
         wrapDateInputsWithPicker();
         setupEventListeners();
         initNavigation();
         
-        // Show initial loading state
-        const loadingOverlay = document.getElementById('loading-overlay');
-        if (loadingOverlay) {
-            loadingOverlay.classList.remove('hidden');
-            document.getElementById('loading-text').textContent = "Sincronizando con Home Assistant...";
+        const overlay = document.getElementById('loading-overlay');
+        const text = document.getElementById('loading-text');
+        if (overlay) {
+            overlay.classList.remove('hidden');
+            text.textContent = "Sincronizando con Home Assistant...";
         }
 
+        // Sequential load to ensure stability
         await loadProducts();
         
-        if (loadingOverlay) loadingOverlay.classList.add('hidden');
+        if (overlay) overlay.classList.add('hidden');
         console.log("Stock Manager: Ready.");
     } catch (err) {
         console.error("Fallo crítico en init:", err);
-        showToast("Error al iniciar. Pulsa aquí para reintentar.", "error", 0);
+        const text = document.getElementById('loading-text');
+        if (text) text.innerHTML = `<div style="color:#ef4444; margin-bottom:15px;">Fallo al conectar con el servidor</div>
+            <button class="btn btn-add" onclick="location.reload()">Reintentar ahora</button>`;
+        showToast("Error de conexión inicial", "error");
     }
 }
 window.useManualBarcode = () => {
