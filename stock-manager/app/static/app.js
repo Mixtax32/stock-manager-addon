@@ -1,22 +1,22 @@
 /* 
-   Stock Manager v0.5.42 
+   Stock Manager v0.5.43 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
 // ===== Global State & Config =====
 const API_BASE = `${window.location.pathname.replace(/\/$/, '')}/api`;
 let products = [];
-let filteredLocation = null;
 let allLocations = [];
+let currentBarcode = null;
+let html5QrCode = null;
+let currentTicketStream = null;
+let currentScannedImageUrl = null;
 let selectedProducts = new Set();
 let isSelectionMode = false;
 let manageFilter = { name: '', location: '', category: '' };
 let consumptionChart = null;
 let kcalChart = null;
 let fullKcalChart = null;
-let html5QrCode;
-let currentBarcode = null;
-let currentScannedImageUrl = null;
 let scanSessionChanges = { batches: {}, newQty: 0, newExpiry: null };
 let currentTicketItems = [];
 let dateModalCallback = null;
@@ -778,26 +778,36 @@ function setupEventListeners() {
     const startBtn = document.getElementById('start-scan');
     if (startBtn) startBtn.onclick = async () => {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }); stream.getTracks().forEach(track => track.stop());
-            html5QrCode = new Html5Qrcode("scanner-container"); await html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, onScanSuccess);
+            if (html5QrCode) { try { await html5QrCode.stop(); } catch(e){} }
+            html5QrCode = new Html5Qrcode("scanner-container"); 
+            await html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, onScanSuccess);
             document.getElementById('scanner-container').scrollIntoView({ behavior: 'smooth', block: 'center' });
             document.getElementById('start-scan').classList.add('hidden'); document.getElementById('start-ticket').classList.add('hidden'); document.getElementById('stop-scan').classList.remove('hidden');
         } catch (err) { showToast('Error cámara: ' + err.message, 'error'); }
     };
 
     const stopBtn = document.getElementById('stop-scan');
-    if (stopBtn) stopBtn.onclick = async () => { if (html5QrCode) { await html5QrCode.stop(); document.getElementById('start-scan').classList.remove('hidden'); document.getElementById('start-ticket').classList.remove('hidden'); document.getElementById('stop-scan').classList.add('hidden'); } };
+    if (stopBtn) stopBtn.onclick = async () => { 
+        if (html5QrCode) { try { await html5QrCode.stop(); } catch(e){} }
+        if (currentTicketStream) { currentTicketStream.getTracks().forEach(t => t.stop()); currentTicketStream = null; }
+        document.getElementById('scanner-container').innerHTML = '';
+        document.getElementById('start-scan').classList.remove('hidden'); 
+        document.getElementById('start-ticket').classList.remove('hidden'); 
+        document.getElementById('stop-scan').classList.add('hidden'); 
+    };
 
     const ticketBtn = document.getElementById('start-ticket');
     if (ticketBtn) ticketBtn.onclick = async () => {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } } });
-            const video = document.createElement('video'); video.srcObject = stream; video.setAttribute('playsinline', 'true'); await video.play();
+            currentTicketStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } } });
+            const video = document.createElement('video'); video.srcObject = currentTicketStream; video.setAttribute('playsinline', 'true'); await video.play();
             const container = document.getElementById('scanner-container'); container.innerHTML = ''; video.style.width = '100%'; video.style.borderRadius = '8px'; container.appendChild(video);
-            const captureBtn = document.createElement('button'); captureBtn.className = 'btn btn-add'; captureBtn.style.cssText = 'width:100%;margin-top:8px;'; captureBtn.textContent = 'Capturar ticket'; container.appendChild(captureBtn);
+            const captureBtn = document.createElement('button'); captureBtn.className = 'btn btn-add'; captureBtn.id = 'capture-ticket-btn'; captureBtn.style.cssText = 'width:100%;margin-top:8px;'; captureBtn.textContent = 'Capturar ticket'; container.appendChild(captureBtn);
             document.getElementById('start-scan').classList.add('hidden'); document.getElementById('start-ticket').classList.add('hidden'); document.getElementById('stop-scan').classList.remove('hidden'); container.scrollIntoView({ behavior: 'smooth', block: 'center' });
             captureBtn.onclick = async () => {
-                const canvas = document.createElement('canvas'); canvas.width = video.videoWidth; canvas.height = video.videoHeight; canvas.getContext('2d').drawImage(video, 0, 0); stream.getTracks().forEach(t => t.stop()); container.innerHTML = ''; document.getElementById('start-scan').classList.remove('hidden'); document.getElementById('start-ticket').classList.remove('hidden'); document.getElementById('stop-scan').classList.add('hidden');
+                const canvas = document.createElement('canvas'); canvas.width = video.videoWidth; canvas.height = video.videoHeight; canvas.getContext('2d').drawImage(video, 0, 0); 
+                if (currentTicketStream) { currentTicketStream.getTracks().forEach(t => t.stop()); currentTicketStream = null; }
+                container.innerHTML = ''; document.getElementById('start-scan').classList.remove('hidden'); document.getElementById('start-ticket').classList.remove('hidden'); document.getElementById('stop-scan').classList.add('hidden');
                 await processTicketImage(canvas);
             };
         } catch (err) { showToast('Error cámara: ' + err.message, 'error'); }
@@ -839,7 +849,7 @@ function setupEventListeners() {
 
 async function init() {
     try {
-        console.log("Stock Manager: Initializing Monolith v0.5.42 (Scanner Fix)...");
+        console.log("Stock Manager: Initializing Monolith v0.5.43 (Direct Flow)...");
         initializeDatePicker();
         wrapDateInputsWithPicker();
         setupEventListeners();
@@ -1224,6 +1234,19 @@ window.snapToNearestValue = snapToNearestValue;
 window.openDatePicker = openDatePicker;
 window.closeDatePicker = closeDatePicker;
 window.confirmDatePicker = confirmDatePicker;
+
+window.quickStartScan = (type) => {
+    showPage('scan');
+    setTimeout(() => {
+        if (type === 'scan') {
+            const btn = document.getElementById('start-scan');
+            if (btn) btn.click();
+        } else {
+            const btn = document.getElementById('start-ticket');
+            if (btn) btn.click();
+        }
+    }, 200);
+};
 window.openDateModal = openDateModal;
 window.wrapDateInputsWithPicker = wrapDateInputsWithPicker;
 window.setupEventListeners = setupEventListeners;
