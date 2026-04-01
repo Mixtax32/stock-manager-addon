@@ -1,5 +1,5 @@
 /* 
-   Stock Manager v0.5.34 
+   Stock Manager v0.5.35 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
@@ -589,7 +589,16 @@ async function onScanSuccess(decodedText) {
                 document.getElementById('product-name').value = barcodeData.name || '';
                 const apiCategory = barcodeData.category || '';
                 const valid = ['Alimentos', 'Bebidas', 'Limpieza', 'Higiene', 'Otros'];
-                document.getElementById('product-category').value = valid.includes(apiCategory) ? apiCategory : 'Otros';
+                const finalCategory = valid.includes(apiCategory) ? apiCategory : 'Otros';
+                document.getElementById('product-category').value = finalCategory;
+                
+                // Smart Unit Suggestion based on category
+                const unitEl = document.getElementById('product-unit');
+                if (unitEl) {
+                    if (finalCategory === 'Alimentos') unitEl.value = 'g';
+                    else if (finalCategory === 'Bebidas') unitEl.value = 'ml';
+                    else unitEl.value = 'uds';
+                }
                 document.getElementById('new-weight').value = barcodeData.weight_g ?? '';
                 document.getElementById('new-kcal').value = barcodeData.kcal_100g ?? '';
                 document.getElementById('new-proteins').value = barcodeData.proteins_100g ?? '';
@@ -802,11 +811,23 @@ function setupEventListeners() {
         if (t.classList.contains('product-checkbox')) { e.stopPropagation(); toggleSelect(t.closest('.product-grid-row').dataset.barcode); }
         if (e.target.id === 'btn-save-all') saveAllChanges();
     });
+
+    const catSelect = document.getElementById('product-category');
+    if (catSelect) {
+        catSelect.onchange = () => {
+            const unitEl = document.getElementById('product-unit');
+            if (unitEl) {
+                if (catSelect.value === 'Alimentos') unitEl.value = 'g';
+                else if (catSelect.value === 'Bebidas') unitEl.value = 'ml';
+                else unitEl.value = 'uds';
+            }
+        };
+    }
 }
 
 async function init() {
     try {
-        console.log("Stock Manager: Initializing Monolith v0.5.34...");
+        console.log("Stock Manager: Initializing Monolith v0.5.35...");
         initializeDatePicker();
         wrapDateInputsWithPicker();
         setupEventListeners();
