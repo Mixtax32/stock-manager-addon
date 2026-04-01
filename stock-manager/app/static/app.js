@@ -1,5 +1,5 @@
 /* 
-   Stock Manager v0.5.44 
+   Stock Manager v0.5.45 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
@@ -17,6 +17,32 @@ let manageFilter = { name: '', location: '', category: '' };
 let consumptionChart = null;
 let kcalChart = null;
 let fullKcalChart = null;
+
+window.quickStartScan = (type) => {
+    console.log("Stock Manager [Direct-Command]: Start", type);
+    if (typeof showPage !== 'function') {
+        console.error("Dashboard Error: showPage no disponible");
+        return;
+    }
+    showPage('scan');
+    
+    let attempts = 0;
+    const tryToClick = () => {
+        const id = type === 'scan' ? 'start-scan' : 'start-ticket';
+        const targetBtn = document.getElementById(id);
+        if (targetBtn) {
+            console.log("Stock Manager [Direct-Command]: Button found, clicking", id);
+            targetBtn.click();
+        } else if (attempts < 5) {
+            attempts++;
+            setTimeout(tryToClick, 150);
+        } else {
+            console.warn("Stock Manager [Direct-Command]: Timeout buscando botón", id);
+        }
+    };
+    setTimeout(tryToClick, 350);
+};
+
 let scanSessionChanges = { batches: {}, newQty: 0, newExpiry: null };
 let currentTicketItems = [];
 let dateModalCallback = null;
@@ -845,11 +871,18 @@ function setupEventListeners() {
             }
         };
     }
+
+    // Direct Dashboard Buttons (Secure binding for HASS)
+    const directScan = document.getElementById('direct-scan-btn');
+    const directTicket = document.getElementById('direct-ticket-btn');
+    if (directScan) directScan.onclick = () => window.quickStartScan('scan');
+    if (directScan) directScan.addEventListener('click', () => window.quickStartScan('scan'));
+    if (directTicket) directTicket.addEventListener('click', () => window.quickStartScan('ticket'));
 }
 
 async function init() {
     try {
-        console.log("Stock Manager: Initializing Monolith v0.5.43 (Direct Flow)...");
+        console.log("Stock Manager: Initializing Monolith v0.5.45 (HASS-Protected Flow)...");
         initializeDatePicker();
         wrapDateInputsWithPicker();
         setupEventListeners();
@@ -1235,23 +1268,9 @@ window.openDatePicker = openDatePicker;
 window.closeDatePicker = closeDatePicker;
 window.confirmDatePicker = confirmDatePicker;
 
-window.quickStartScan = (type) => {
-    console.log("Stock Manager: Iniciando flujo rápido para:", type);
-    showPage('scan');
-    
-    const clickAttempt = (retries) => {
-        const id = type === 'scan' ? 'start-scan' : 'start-ticket';
-        const btn = document.getElementById(id);
-        if (btn) {
-            btn.click();
-        } else if (retries > 0) {
-            setTimeout(() => clickAttempt(retries - 1), 100);
-        }
-    };
-    
-    // Inicia intentos de click tras un breve retardo para asegurar renderizado
-    setTimeout(() => clickAttempt(3), 300);
-};
+window.closeDatePicker = closeDatePicker;
+window.confirmDatePicker = confirmDatePicker;
+
 window.openDateModal = openDateModal;
 window.wrapDateInputsWithPicker = wrapDateInputsWithPicker;
 window.setupEventListeners = setupEventListeners;
