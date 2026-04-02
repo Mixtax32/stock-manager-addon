@@ -221,6 +221,7 @@ window.updateUI = async () => {
     window.updateShoppingList();
     if (window.updateProductList) window.updateProductList();
     if (window.updateStockPageSearch) window.updateStockPageSearch();
+    if (document.getElementById('manual-barcode')?.value.trim()) window.useManualBarcode();
 };
 
 window.setLocationFilter = (loc) => { window.filteredLocation = loc || null; window.updateProductList(); };
