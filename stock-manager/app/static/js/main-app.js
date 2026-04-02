@@ -1,20 +1,10 @@
 /* 
-   Main App Entry Point & Event Scoping
-   v0.6.0
+   Main App Entry Point & Initialization
+   v0.6.1
 */
 
-// Initialization Wheel Picker Logic
-let dateModalCallback = null;
-let pickerState = { 
-    inputId: null, 
-    year: new Date().getFullYear(), 
-    month: new Date().getMonth() + 1, 
-    day: new Date().getDate(), 
-    scrollOffset: {} 
-};
-
 window.initializeDatePicker = () => {
-    initializeWheel('day', 1, getDaysInMonth(pickerState.month, pickerState.year));
+    initializeWheel('day', 1, getDaysInMonth(window.pickerState.month, window.pickerState.year));
     initializeWheel('month', 1, 12);
     initializeWheel('year', new Date().getFullYear() - 5, 2099);
 };
@@ -31,59 +21,59 @@ function setupWheelScroller(type) {
     const scroller = document.getElementById(`${type}-wheel`), items = document.getElementById(`${type}-items`);
     if (!scroller || !items) return;
     let startY = 0, currentOffset = 0;
-    scroller.addEventListener('touchstart', e => { startY = e.touches[0].clientY; currentOffset = pickerState.scrollOffset[type] || 0; items.classList.remove('snapping'); });
+    scroller.addEventListener('touchstart', e => { startY = e.touches[0].clientY; currentOffset = window.pickerState.scrollOffset[type] || 0; items.classList.remove('snapping'); });
     scroller.addEventListener('touchmove', e => { e.preventDefault(); updateWheelScroll(type, currentOffset + (e.touches[0].clientY - startY)); });
-    scroller.addEventListener('touchend', () => { items.classList.add('snapping'); snapToNearestValue(type); });
+    scroller.addEventListener('touchend', () => { items.classList.add('snapping'); window.snapToNearestValue(type); });
     scroller.addEventListener('mousedown', e => {
-        startY = e.clientY; currentOffset = pickerState.scrollOffset[type] || 0; items.classList.remove('snapping');
+        startY = e.clientY; currentOffset = window.pickerState.scrollOffset[type] || 0; items.classList.remove('snapping');
         const move = me => updateWheelScroll(type, currentOffset + (me.clientY - startY));
-        const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); items.classList.add('snapping'); snapToNearestValue(type); };
+        const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); items.classList.add('snapping'); window.snapToNearestValue(type); };
         document.addEventListener('mousemove', move); document.addEventListener('mouseup', up);
     });
-    scroller.addEventListener('wheel', e => { e.preventDefault(); window.updateWheelPosition(type, pickerState[type] - (e.deltaY > 0 ? -1 : 1)); }, { passive: false });
+    scroller.addEventListener('wheel', e => { e.preventDefault(); window.updateWheelPosition(type, window.pickerState[type] - (e.deltaY > 0 ? -1 : 1)); }, { passive: false });
 }
 
 function updateWheelScroll(type, offset) {
     const items = document.getElementById(`${type}-items`); if (!items) return;
-    pickerState.scrollOffset[type] = offset; items.style.transform = `translateY(${offset}px)`;
+    window.pickerState.scrollOffset[type] = offset; items.style.transform = `translateY(${offset}px)`;
 }
 
-function snapToNearestValue(type) {
+window.snapToNearestValue = (type) => {
     const items = document.getElementById(`${type}-items`), children = items.querySelectorAll('.wheel-item:not(.spacer)');
     let bestChild = children[0], bestDist = Infinity;
-    children.forEach(child => { const dist = Math.abs(pickerState.scrollOffset[type] - (64 - Array.from(items.children).indexOf(child) * 32)); if (dist < bestDist) { bestDist = dist; bestChild = child; } });
-    window.updateWheelPosition(type, parseInt(bestChild.dataset.value));
+    children.forEach(child => { const dist = Math.abs(window.pickerState.scrollOffset[type] - (64 - Array.from(items.children).indexOf(child) * 32)); if (dist < bestDist) { bestDist = dist; bestChild = child; } });
+    if (bestChild) window.updateWheelPosition(type, parseInt(bestChild.dataset.value));
 }
 
 window.updateWheelPosition = (type, val) => {
     const items = document.getElementById(`${type}-items`); if (!items) return;
     const children = Array.from(items.children); const idx = children.findIndex(c => c.dataset.value == val); if (idx === -1) return;
     updateWheelScroll(type, 64 - idx * 32); children.forEach((c, i) => c.classList.toggle('active', i === idx));
-    pickerState[type] = val;
+    window.pickerState[type] = val;
     if (type !== 'day') {
-        const max = getDaysInMonth(pickerState.month, pickerState.year);
+        const max = getDaysInMonth(window.pickerState.month, window.pickerState.year);
         if (document.getElementById('day-items')?.querySelectorAll('.wheel-item:not(.spacer)').length !== max) {
-            initializeWheel('day', 1, max); if (pickerState.day > max) pickerState.day = max; window.updateWheelPosition('day', pickerState.day);
+            initializeWheel('day', 1, max); if (window.pickerState.day > max) window.pickerState.day = max; window.updateWheelPosition('day', window.pickerState.day);
         }
     }
-    const el = document.getElementById('date-preview'); if (el) el.textContent = `${String(pickerState.day).padStart(2, '0')} / ${String(pickerState.month).padStart(2, '0')} / ${pickerState.year}`;
+    const el = document.getElementById('date-preview'); if (el) el.textContent = `${String(window.pickerState.day).padStart(2, '0')} / ${String(window.pickerState.month).padStart(2, '0')} / ${window.pickerState.year}`;
 };
 
 window.openDatePicker = (id) => {
-    pickerState.inputId = id; const input = document.getElementById(id); if (input?.value) { const [y, m, d] = input.value.split('-').map(Number); pickerState.year = y; pickerState.month = m; pickerState.day = d; }
-    window.updateWheelPosition('day', pickerState.day); window.updateWheelPosition('month', pickerState.month); window.updateWheelPosition('year', pickerState.year);
+    window.pickerState.inputId = id; const input = document.getElementById(id); if (input?.value) { const [y, m, d] = input.value.split('-').map(Number); window.pickerState.year = y; window.pickerState.month = m; window.pickerState.day = d; }
+    window.updateWheelPosition('day', window.pickerState.day); window.updateWheelPosition('month', window.pickerState.month); window.updateWheelPosition('year', window.pickerState.year);
     document.getElementById('date-picker-modal').classList.add('show');
 };
 
-window.closeDatePicker = () => { document.getElementById('date-picker-modal').classList.remove('show'); pickerState.inputId = null; };
+window.closeDatePicker = () => { document.getElementById('date-picker-modal').classList.remove('show'); window.pickerState.inputId = null; };
 
 window.confirmDatePicker = () => {
-    const date = `${pickerState.year}-${String(pickerState.month).padStart(2, '0')}-${String(pickerState.day).padStart(2, '0')}`;
-    if (pickerState.inputId === '__modal__') { window.closeDatePicker(); if (dateModalCallback) dateModalCallback(date); }
-    else { const input = document.getElementById(pickerState.inputId); if (input) { input.value = date; input.dispatchEvent(new Event('change', { bubbles: true })); } window.closeDatePicker(); }
+    const date = `${window.pickerState.year}-${String(window.pickerState.month).padStart(2, '0')}-${String(window.pickerState.day).padStart(2, '0')}`;
+    if (window.pickerState.inputId === '__modal__') { window.closeDatePicker(); if (window.dateModalCallback) window.dateModalCallback(date); }
+    else { const input = document.getElementById(window.pickerState.inputId); if (input) { input.value = date; input.dispatchEvent(new Event('change', { bubbles: true })); } window.closeDatePicker(); }
 };
 
-window.openDateModal = (callback) => { dateModalCallback = callback; const today = new Date(); pickerState.year = today.getFullYear(); pickerState.month = today.getMonth() + 1; pickerState.day = today.getDate(); pickerState.inputId = '__modal__'; window.updateWheelPosition('day', pickerState.day); window.updateWheelPosition('month', pickerState.month); window.updateWheelPosition('year', pickerState.year); document.getElementById('date-picker-modal').classList.add('show'); };
+window.openDateModal = (callback) => { window.dateModalCallback = callback; const today = new Date(); window.pickerState.year = today.getFullYear(); window.pickerState.month = today.getMonth() + 1; window.pickerState.day = today.getDate(); window.pickerState.inputId = '__modal__'; window.updateWheelPosition('day', window.pickerState.day); window.updateWheelPosition('month', window.pickerState.month); window.updateWheelPosition('year', window.pickerState.year); document.getElementById('date-picker-modal').classList.add('show'); };
 
 window.wrapDateInputsWithPicker = () => {
     document.querySelectorAll('input[type="date"]').forEach(input => {
@@ -97,7 +87,7 @@ window.wrapDateInputsWithPicker = () => {
 };
 
 function setupEventListeners() {
-    document.addEventListener('change', e => {
+    document.addEventListener('change', (e) => {
         if (e.target.id === 'location-select') window.setLocationFilter(e.target.value);
         if (e.target.id === 'manage-filter-location' || e.target.id === 'manage-filter-category') window.updateManageFilter();
         if (e.target.classList.contains('edit-field')) {
@@ -109,13 +99,19 @@ function setupEventListeners() {
         }
         if (e.target.classList.contains('edit-batch-field')) window.checkBatchChange(e.target.dataset.batchId, e.target.dataset.barcode, e.target.value);
     });
+    
     document.addEventListener('input', e => { if (e.target.id === 'manage-filter-name') window.updateManageFilter(); });
+    
     document.addEventListener('click', e => {
         const t = e.target.closest('.product-grid-row') || e.target;
-        if (t.classList.contains('product-grid-row') && window.isSelectionMode) window.toggleSelect(t.dataset.barcode);
-        if (t.classList.contains('product-checkbox')) { e.stopPropagation(); window.toggleSelect(t.closest('.product-grid-row').dataset.barcode); }
+        if (t && t.classList && t.classList.contains('product-grid-row') && window.isSelectionMode) window.toggleSelect(t.dataset.barcode);
+        if (t && t.classList && t.classList.contains('product-checkbox')) { e.stopPropagation(); window.toggleSelect(t.closest('.product-grid-row').dataset.barcode); }
         if (e.target.id === 'btn-save-all') window.saveAllChanges();
+        if (e.target.id === 'start-scan') window.startScanner();
+        if (e.target.id === 'start-ticket') window.startTicketScanner();
+        if (e.target.id === 'stop-scan') window.stopAllCameras();
     });
+
     const catSelect = document.getElementById('product-category');
     if (catSelect) {
         catSelect.onchange = () => {
@@ -130,7 +126,9 @@ function setupEventListeners() {
 }
 
 window.useManualBarcode = () => {
-    const input = document.getElementById('manual-barcode').value.trim();
+    const inputEL = document.getElementById('manual-barcode');
+    if (!inputEL) return;
+    const input = inputEL.value.trim();
     const resultsEl = document.getElementById('search-results');
     if (!input) { resultsEl.classList.add('hidden'); return; }
     const query = window.normalizeText(input);
@@ -181,7 +179,7 @@ window.addNewBatch = async () => {
 
 async function init() {
     try {
-        console.log("Stock Manager: Initializing Refactored v0.6.0...");
+        console.log("Stock Manager: Initializing 0.6.1...");
         window.initializeDatePicker();
         window.wrapDateInputsWithPicker();
         setupEventListeners();
@@ -194,7 +192,7 @@ async function init() {
     } catch (err) {
         console.error("Fallo crítico:", err);
         const text = document.getElementById('loading-text');
-        if (text) text.innerHTML = `<div style="color:#ef4444;">Error al conectar</div>`;
+        if (text) text.innerHTML = `<div style="color:#ef4444;">Error al conectar con servidor</div>`;
     }
 }
 
@@ -202,8 +200,8 @@ window.updateUI = async () => {
     window.allLocations = await window.apiCall('/locations').catch(() => []);
     window.updateLocationFilter();
     window.updateShoppingList();
-    window.updateProductList();
-    window.updateStockPageSearch();
+    if (window.updateProductList) window.updateProductList();
+    if (window.updateStockPageSearch) window.updateStockPageSearch();
 };
 
 window.setLocationFilter = (loc) => { window.filteredLocation = loc || null; window.updateProductList(); };
@@ -214,11 +212,13 @@ window.updateLocationFilter = () => {
 };
 
 window.deleteMovement = async (id) => {
-    if (!confirm('¿Eliminar?')) return;
+    if (!confirm('¿Eliminar registro?')) return;
     const restore = confirm('¿Devolver al stock?');
     try {
         await window.apiCall(`/movements/${id}?restore_stock=${restore}`, 'DELETE');
-        window.updateTodayMovements(); window.updateMacros(); await window.loadProducts();
+        if (window.updateTodayMovements) window.updateTodayMovements(); 
+        if (window.updateMacros) window.updateMacros(); 
+        await window.loadProducts();
     } catch (e) { window.showToast('Error: ' + e.message, 'error'); }
 };
 
@@ -228,7 +228,7 @@ window.updateManageFilter = () => {
         location: document.getElementById('manage-filter-location').value, 
         category: document.getElementById('manage-filter-category').value 
     };
-    window.renderManageList();
+    if (window.renderManageList) window.renderManageList();
 };
 
 window.toggleSelect = (barcode) => {
@@ -238,13 +238,13 @@ window.toggleSelect = (barcode) => {
 
 window.updateSelectionBar = () => {
     const bar = document.getElementById('selection-bar'), countEl = document.getElementById('selection-count');
-    if (window.selectedProducts.size > 0 && window.isSelectionMode) { bar.classList.remove('hidden'); countEl.textContent = `${window.selectedProducts.size} seleccionados`; } else bar.classList.add('hidden');
+    if (window.selectedProducts.size > 0 && window.isSelectionMode) { bar.classList.remove('hidden'); if (countEl) countEl.textContent = `${window.selectedProducts.size} seleccionados`; } else bar?.classList.add('hidden');
 };
 
 window.assignTicketMatch = (i, bc) => { 
     window.currentTicketItems[i].match = window.products.find(p=>p.barcode===bc); 
     window.currentTicketItems[i].checked = !!window.currentTicketItems[i].match; 
-    window.showTicketResults(window.currentTicketItems);
+    if (window.showTicketResults) window.showTicketResults(window.currentTicketItems);
 };
 
 window.updateTicketCheck = (i, c) => window.currentTicketItems[i].checked = c;
@@ -252,16 +252,18 @@ window.updateTicketQty = (i, q) => window.currentTicketItems[i].qty = parseInt(q
 
 window.confirmTicketItems = async () => { 
     for (const it of window.currentTicketItems.filter(t=>t.checked && t.match)) await window.apiCall(`/products/${it.match.barcode}/stock`, 'POST', { quantity: it.qty }); 
-    await window.loadProducts(); window.closeTicketPanel(); window.showToast('Actualizado', 'success'); 
+    await window.loadProducts(); window.closeTicketPanel(); window.showToast('Stock actualizado', 'success'); 
 };
 window.closeTicketPanel = () => document.getElementById('ticket-panel').classList.remove('active');
 
 window.resetScanner = () => {
     window.currentBarcode = null;
-    ['scanned-code', 'product-action', 'existing-product-view', 'new-product-fields'].forEach(id => document.getElementById(id).classList.add('hidden'));
+    ['scanned-code', 'product-action', 'existing-product-view', 'new-product-fields'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.classList.add('hidden');
+    });
 };
 
-window.deleteMacroHistory = async () => { if (confirm('¿Limpiar?')) { await window.apiCall('/movements/today', 'DELETE'); window.updateTodayMovements(); window.updateMacros(); } };
+window.deleteMacroHistory = async () => { if (confirm('¿Limpiar historial de consumo de hoy?')) { await window.apiCall('/movements/today', 'DELETE'); window.updateTodayMovements(); window.updateMacros(); } };
 
 window.toggleAdvancedFields = () => {
     const fields = document.getElementById('advanced-fields'), chevron = document.getElementById('advanced-chevron');
@@ -273,24 +275,25 @@ window.openPortionPanel = (barcode) => {
     if (!p) return;
     window.currentPortionBarcode = barcode;
     const unit = p.unit_type || 'g';
-    document.getElementById('portion-title').innerText = `Consumir ${p.name}`;
-    document.getElementById('portion-stock-info').innerText = `Stock actual: ${p.stock.toFixed(2)}${unit}`;
+    const title = document.getElementById('portion-title');
+    const info = document.getElementById('portion-stock-info');
+    if (title) title.innerText = `Consumir ${p.name}`;
+    if (info) info.innerText = `Stock actual: ${p.stock.toFixed(2)}${unit}`;
     let portions = unit === 'g' ? [50, 100, 200, 250, 500] : [100, 200, 250, 330, 500];
     let optionsHtml = p.serving_size ? `<button class="btn btn-add" style="grid-column: span 2; margin-bottom: 8px;" onclick="window.consumeAmount(${p.serving_size})">🍕 Ración Sugerida: ${p.serving_size}${unit}</button>` : '';
-    optionsHtml += portions.map(amt => `<button class="btn btn-secondary" onclick="window.consumeAmount(${amt})">${amt}${unit}</button>`).join('') + `<button class="btn btn-del" onclick="window.consumeAmount(${p.stock})">Terminar todo</button>`;
-    document.getElementById('portion-options').innerHTML = optionsHtml;
+    optionsHtml += portions.map(amt => `<button class="btn btn-secondary" onclick="window.consumeAmount(${amt})">${amt}${unit}</button>`).join('') + `<button class="btn btn-del" onclick="window.consumeAmount(${p.stock})">Terminar producto</button>`;
+    const opts = document.getElementById('portion-options');
+    if (opts) opts.innerHTML = optionsHtml;
     document.getElementById('portion-panel').classList.add('active');
 };
 
-window.closePortionPanel = () => { document.getElementById('portion-panel').classList.remove('active'); };
+window.closePortionPanel = () => { document.getElementById('portion-panel')?.classList.remove('active'); };
 
 window.consumeAmount = async (amount) => {
     if (!window.currentPortionBarcode) return;
     await window.apiCall(`/products/${window.currentPortionBarcode}/stock`, 'POST', { quantity: -amount, reason: 'consumed' });
     window.closePortionPanel(); await window.loadProducts();
 };
-
-window.tryClosePanel = () => { if (confirm('¿Cerrar?')) document.getElementById('manage-panel').classList.remove('active'); };
 
 window.openMacroGoalsPanel = async () => {
     try {
@@ -301,9 +304,10 @@ window.openMacroGoalsPanel = async () => {
         document.getElementById('goal-fat').value = goals.fat;
         document.getElementById('macro-goals-panel').classList.add('active');
         window.updateTodayMovements();
-    } catch (e) { window.showToast('Error', 'error'); }
+    } catch (e) { window.showToast('Error cargando objetivos', 'error'); }
 };
 
-window.closeMacroGoalsPanel = () => document.getElementById('macro-goals-panel').classList.remove('active');
+window.closeMacroGoalsPanel = () => document.getElementById('macro-goals-panel')?.classList.remove('active');
 
 document.addEventListener('DOMContentLoaded', init);
+if (document.readyState !== 'loading') init();

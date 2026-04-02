@@ -1,10 +1,12 @@
 /* 
    Inventory Management & Product Lists
-   v0.6.0
+   v0.6.1
 */
 
-function updateProductList() {
+window.updateProductList = () => {
     const list = document.getElementById('product-list');
+    if (!list) return;
+
     let filtered = window.filteredLocation ? window.products.filter(p => p.location === window.filteredLocation) : window.products;
     
     if (!filtered.length) { 
@@ -73,8 +75,7 @@ function updateProductList() {
     }).join('');
     
     list.innerHTML = html;
-}
-window.updateProductList = updateProductList;
+};
 
 window.updateShoppingList = () => {
     const lowStock = window.products.filter(p => p.min_stock !== null && (p.stock || 0) < p.min_stock);
@@ -124,8 +125,16 @@ window.updateShoppingList = () => {
 
 window.quickAdd = async (barcode) => {
     const p = window.products.find(prod => prod.barcode === barcode);
-    if (p && p.batches?.length) { await window.apiCall(`/batches/${p.batches[0].id}/stock`, 'POST', { quantity: 1 }); await window.loadProducts(); }
-    else if (window.openDateModal) window.openDateModal(async exp => { await window.apiCall(`/products/${barcode}/stock`, 'POST', { quantity: 1, expiry_date: exp }); await window.loadProducts(); });
+    if (p && p.batches?.length) { 
+        await window.apiCall(`/batches/${p.batches[0].id}/stock`, 'POST', { quantity: 1 }); 
+        await window.loadProducts(); 
+    }
+    else if (window.openDateModal) {
+        window.openDateModal(async exp => { 
+            await window.apiCall(`/products/${barcode}/stock`, 'POST', { quantity: 1, expiry_date: exp }); 
+            await window.loadProducts(); 
+        });
+    }
 };
 
 window.quickRemove = async (barcode) => {
@@ -133,12 +142,17 @@ window.quickRemove = async (barcode) => {
     if (p && p.stock > 0 && p.batches?.length) { 
         await window.apiCall(`/batches/${p.batches[0].id}/stock`, 'POST', { quantity: -1, reason: 'removed' }); 
         await window.loadProducts(); 
+    } else {
+        window.showToast("No hay stock para quitar", "info");
     }
 };
 
 window.quickConsume = async (barcode) => {
     const p = window.products.find(prod => prod.barcode === barcode);
-    if (!p || p.stock <= 0) return;
+    if (!p || p.stock <= 0) {
+        window.showToast("No hay stock para consumir", "info");
+        return;
+    }
     
     if (p.unit_type === 'uds') {
         await window.apiCall(`/products/${barcode}/stock`, 'POST', { quantity: -1, reason: 'consumed' }); 
@@ -167,35 +181,38 @@ window.updateStockPageSearch = () => {
     });
 };
 
-// Panel and Edit Management
-let pendingChanges = {}, pendingBatchChanges = {}, originalData = {}, originalBatchData = {};
-
 window.openManagePanel = (barcode = null) => {
-    pendingChanges = {}; pendingBatchChanges = {};
+    window.pendingChanges = {}; window.pendingBatchChanges = {};
     window.products.forEach(p => {
-        originalData[p.barcode] = { 
+        window.originalData[p.barcode] = { 
             name: p.name, category: p.category, min_stock: p.min_stock, location: p.location || '',
             weight_g: p.weight_g || null, kcal_100g: p.kcal_100g || null, proteins_100g: p.proteins_100g || null,
             carbs_100g: p.carbs_100g || null, fat_100g: p.fat_100g || null, serving_size: p.serving_size || null
         };
-        p.batches?.forEach(b => originalBatchData[b.id] = b.expiry_date || '');
+        p.batches?.forEach(b => window.originalBatchData[b.id] = b.expiry_date || '');
     });
     
     if (barcode) document.getElementById('manage-filter-name').value = barcode;
     
     const locSelect = document.getElementById('manage-filter-location');
-    const locs = [...new Set(window.products.map(p => p.location).filter(l => l))];
-    locSelect.innerHTML = '<option value="">Todas</option>' + locs.map(l => `<option value="${l}">${l}</option>`).join('');
+    if (locSelect) {
+        const locs = [...new Set(window.products.map(p => p.location).filter(l => l))];
+        locSelect.innerHTML = '<option value="">Todas</option>' + locs.map(l => `<option value="${l}">${l}</option>`).join('');
+    }
+    
     document.getElementById('manage-panel').classList.add('active');
     window.renderManageList(); window.updateChangesUI();
 };
 
 window.renderManageList = () => {
     const list = document.getElementById('manage-list');
+    if (!list) return;
+
     let filtered = window.products.filter(p => (!window.manageFilter.name || p.name.toLowerCase().includes(window.manageFilter.name)) && (!window.manageFilter.location || p.location === window.manageFilter.location) && (!window.manageFilter.category || p.category === window.manageFilter.category));
     filtered.sort((a, b) => a.name.localeCompare(b.name));
+    
     list.innerHTML = filtered.map(p => {
-        const isDel = pendingChanges[p.barcode]?.type === 'delete';
+        const isDel = window.pendingChanges[p.barcode]?.type === 'delete';
         return `<div class="edit-card ${isDel ? 'to-delete' : ''}" id="edit-${p.barcode}">
             <div class="edit-card-header"><div><span class="name">${p.name}</span><br><span class="barcode">${p.barcode}</span></div></div>
             <div class="edit-grid">
@@ -222,29 +239,32 @@ window.renderManageList = () => {
                 </div>
             </div>
             <div class="edit-batch-list">${p.batches?.map(b => `<div class="edit-batch-row"><span class="batch-qty-label">${b.quantity} ud</span><input type="date" class="edit-batch-field" data-batch-id="${b.id}" data-barcode="${p.barcode}" value="${b.expiry_date || ''}"></div>`).join('')}</div>
-            <div class="edit-actions">${isDel ? `<button class="btn-undo-sm undo-delete" data-barcode="${p.barcode}" onclick="window.undoDelete('${p.barcode}')">Deshacer</button>` : `<button class="btn-delete-sm mark-delete" data-barcode="${p.barcode}" onclick="window.markForDelete('${p.barcode}')">Eliminar</button>`}</div>
+            <div class="edit-actions">${isDel ? `<button class="btn-undo-sm undo-delete" onclick="window.undoDelete('${p.barcode}')">Deshacer</button>` : `<button class="btn-delete-sm mark-delete" onclick="window.markForDelete('${p.barcode}')">Eliminar</button>`}</div>
         </div>`;
     }).join('');
     if (window.wrapDateInputsWithPicker) setTimeout(window.wrapDateInputsWithPicker, 0);
 };
 
 window.checkProductChanges = (bc, values) => {
-    const orig = originalData[bc]; if (!orig || pendingChanges[bc]?.type === 'delete') return;
-    const same = Object.keys(values).every(k => values[k] === orig[k]);
-    if (!same) pendingChanges[bc] = { type: 'edit', name: values.name, data: values }; else delete pendingChanges[bc];
+    const orig = window.originalData[bc]; 
+    if (!orig || window.pendingChanges[bc]?.type === 'delete') return;
+    const same = Object.keys(values).every(k => values[k] == orig[k]); // Use loosely comparison for numbers string in input
+    if (!same) window.pendingChanges[bc] = { type: 'edit', name: values.name, data: values }; 
+    else delete window.pendingChanges[bc];
     window.updateChangesUI();
 };
 
 window.checkBatchChange = (id, bc, val) => {
-    if (val !== (originalBatchData[id] || '')) pendingBatchChanges[id] = { barcode: bc, newExpiry: val }; else delete pendingBatchChanges[id];
+    if (val !== (window.originalBatchData[id] || '')) window.pendingBatchChanges[id] = { barcode: bc, newExpiry: val }; 
+    else delete window.pendingBatchChanges[id];
     window.updateChangesUI();
 };
 
-window.markForDelete = (bc) => { pendingChanges[bc] = { type: 'delete', name: originalData[bc].name }; window.updateChangesUI(); window.renderManageList(); };
-window.undoDelete = (bc) => { delete pendingChanges[bc]; window.updateChangesUI(); window.renderManageList(); };
+window.markForDelete = (bc) => { window.pendingChanges[bc] = { type: 'delete', name: window.originalData[bc].name }; window.updateChangesUI(); window.renderManageList(); };
+window.undoDelete = (bc) => { delete window.pendingChanges[bc]; window.updateChangesUI(); window.renderManageList(); };
 
 window.updateChangesUI = () => {
-    const total = Object.keys(pendingChanges).length + Object.keys(pendingBatchChanges).length;
+    const total = Object.keys(window.pendingChanges).length + Object.keys(window.pendingBatchChanges).length;
     const btn = document.getElementById('btn-save-all');
     const container = document.getElementById('changes-container');
     if (btn) btn.disabled = total === 0;
@@ -255,9 +275,18 @@ window.updateChangesUI = () => {
 };
 
 window.saveAllChanges = async () => {
-    for (const [bc, c] of Object.entries(pendingChanges)) {
-        if (c.type === 'delete') await window.apiCall(`/products/${bc}`, 'DELETE'); else await window.apiCall(`/products/${bc}`, 'PATCH', c.data);
+    for (const [bc, c] of Object.entries(window.pendingChanges)) {
+        if (c.type === 'delete') await window.apiCall(`/products/${bc}`, 'DELETE'); 
+        else await window.apiCall(`/products/${bc}`, 'PATCH', c.data);
     }
-    for (const [id, c] of Object.entries(pendingBatchChanges)) await window.apiCall(`/batches/${id}`, 'PATCH', { expiry_date: c.newExpiry || null });
-    pendingChanges = {}; pendingBatchChanges = {}; await window.loadProducts(); document.getElementById('manage-panel').classList.remove('active');
+    for (const [id, c] of Object.entries(window.pendingBatchChanges)) await window.apiCall(`/batches/${id}`, 'PATCH', { expiry_date: c.newExpiry || null });
+    window.pendingChanges = {}; window.pendingBatchChanges = {}; 
+    await window.loadProducts(); 
+    document.getElementById('manage-panel').classList.remove('active');
+};
+
+window.tryClosePanel = () => { 
+    if ((!Object.keys(window.pendingChanges).length && !Object.keys(window.pendingBatchChanges).length) || confirm('¿Salir sin guardar cambios?')) {
+        document.getElementById('manage-panel').classList.remove('active'); 
+    }
 };

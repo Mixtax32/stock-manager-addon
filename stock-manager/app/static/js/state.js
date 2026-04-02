@@ -1,6 +1,6 @@
 /* 
    State & Global Configuration
-   v0.6.0
+   v0.6.1
 */
 window.API_BASE = `${window.location.pathname.replace(/\/$/, '')}/api`;
 window.products = [];
@@ -17,18 +17,23 @@ window.kcalChart = null;
 window.fullKcalChart = null;
 window.filteredLocation = window.filteredLocation || null;
 
-// Temporary bridge for functions that still expect product as global var 
-// but define it as window.products for clarity
-var products = window.products;
-var allLocations = window.allLocations;
-var currentBarcode = window.currentBarcode;
-var html5QrCode = window.html5QrCode;
-var currentTicketStream = window.currentTicketStream;
-var currentScannedImageUrl = window.currentScannedImageUrl;
-var selectedProducts = window.selectedProducts;
-var isSelectionMode = window.isSelectionMode;
-var manageFilter = window.manageFilter;
-var consumptionChart = window.consumptionChart;
-var kcalChart = window.kcalChart;
-var fullKcalChart = window.fullKcalChart;
-var filteredLocation = window.filteredLocation;
+// Persistence for modular logic
+window.pendingChanges = {};
+window.pendingBatchChanges = {};
+window.originalData = {};
+window.originalBatchData = {};
+window.currentTicketItems = [];
+window.currentPortionBarcode = null;
+window.recipes = [];
+window.plannerWeekOffset = 0;
+window.currentRecipeEditorIngredients = [];
+window.planType = 'recipe';
+window.scanSessionChanges = { batches: {}, newQty: 0, newExpiry: null };
+window.dateModalCallback = null;
+window.pickerState = { 
+    inputId: null, 
+    year: new Date().getFullYear(), 
+    month: new Date().getMonth() + 1, 
+    day: new Date().getDate(), 
+    scrollOffset: {} 
+};
