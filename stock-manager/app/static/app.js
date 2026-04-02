@@ -1,5 +1,5 @@
 /* 
-   Stock Manager v0.5.47 
+   Stock Manager v0.5.48 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
@@ -920,20 +920,7 @@ function setupEventListeners() {
     document.addEventListener('click', e => {
         const t = e.target.closest('.product-grid-row') || e.target;
         
-        // Dashboard Direct Actions
-        if (e.target.closest('#direct-scan-btn')) {
-            e.preventDefault();
-            console.log("Stock Manager: Interface Click - Scan");
-            window.quickStartScan('scan');
-            return;
-        }
-        if (e.target.closest('#direct-ticket-btn')) {
-            e.preventDefault();
-            console.log("Stock Manager: Interface Click - Ticket");
-            window.quickStartScan('ticket');
-            return;
-        }
-
+        // Global delegation for selection mode remains
         if (t.classList.contains('product-grid-row') && isSelectionMode) toggleSelect(t.dataset.barcode);
         if (t.classList.contains('product-checkbox')) { e.stopPropagation(); toggleSelect(t.closest('.product-grid-row').dataset.barcode); }
         if (e.target.id === 'btn-save-all') saveAllChanges();
@@ -957,7 +944,7 @@ function setupEventListeners() {
 
 async function init() {
     try {
-        console.log("Stock Manager: Initializing Monolith v0.5.47 (HASS-Protected Flow)...");
+        console.log("Stock Manager: Initializing Monolith v0.5.48 (HASS-Protected Flow)...");
         initializeDatePicker();
         wrapDateInputsWithPicker();
         setupEventListeners();
@@ -1354,7 +1341,7 @@ window.quickRemove = quickRemove;
 window.quickConsume = quickConsume;
 window.deleteProduct = deleteProduct;
 window.showTicketResults = showTicketResults;
-window.showPage = showPage;
+window.showPage = window.showPage;
 window.initNavigation = initNavigation;
 window.updateStockPageSearch = updateStockPageSearch;
 window.toggleTheme = () => {
