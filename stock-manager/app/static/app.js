@@ -1,5 +1,5 @@
 /* 
-   Stock Manager v0.5.49 
+   Stock Manager v0.5.50 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
@@ -42,25 +42,50 @@ window.quickStartScan = async (type) => {
 };
 
 async function stopAllCameras() {
-    console.log("Stock Manager: Deteniendo todas las cámaras...");
-    // Detener Scanner QR
-    if (html5QrCode) {
-        try { await html5QrCode.stop(); } catch(e) { console.debug("Error deteniendo QR:", e); }
-    }
-    // Detener Stream de Ticket
-    if (currentTicketStream) {
-        try {
-            currentTicketStream.getTracks().forEach(track => track.stop());
-            console.log("Stock Manager: Stream de ticket detenido manualmente.");
-        } catch(e) { console.error("Error deteniendo stream:", e); }
-        currentTicketStream = null;
-    }
-    // Limpiar UI
+    console.log("Stock Manager: Iniciando proceso de parada de cámaras...");
+    
+    // UI Cleanup first for immediate user feedback
     const container = document.getElementById('scanner-container');
     if (container) container.innerHTML = '';
     
-    ['start-scan', 'start-ticket'].forEach(id => document.getElementById(id)?.classList.remove('hidden'));
-    document.getElementById('stop-scan')?.classList.add('hidden');
+    // Reset buttons immediately
+    const startScan = document.getElementById('start-scan');
+    const startTicket = document.getElementById('start-ticket');
+    const stopBtn = document.getElementById('stop-scan');
+    
+    if (startScan) startScan.classList.remove('hidden');
+    if (startTicket) startTicket.classList.remove('hidden');
+    if (stopBtn) stopBtn.classList.add('hidden');
+    
+    // Stop Stream (Ticket Scanner) - No library dependencies, very fast
+    if (currentTicketStream) {
+        try {
+            console.log("Stock Manager: Deteniendo stream de ticket...");
+            currentTicketStream.getTracks().forEach(track => {
+                track.stop();
+                track.enabled = false;
+            });
+            currentTicketStream = null;
+        } catch(e) { 
+            console.error("Error deteniendo stream:", e); 
+        }
+    }
+
+    // Stop Product Scanner (Html5Qrcode) - Can be slow/async
+    if (html5QrCode) {
+        try { 
+            // In library v2, stop() returns a Promise
+            // We check if scanning state is active if possible (library dependent)
+            // If not, we just call it in a try/catch and don't await it if we want fast UI
+            // But for stability, we call it and let it run.
+            await html5QrCode.stop(); 
+            console.log("Stock Manager: Scanner QR detenido.");
+        } catch(e) { 
+            // This usually happens if the scanner is already stopped
+            console.debug("Scanner QR ya estaba detenido o fallo controlado:", e); 
+        }
+        // Note: we don't null it because it's a reusable instance for this session
+    }
 }
 window.stopAllCameras = stopAllCameras;
 
@@ -944,7 +969,7 @@ function setupEventListeners() {
 
 async function init() {
     try {
-        console.log("Stock Manager: Initializing Monolith v0.5.49 (HASS-Protected Flow)...");
+        console.log("Stock Manager: Initializing Monolith v0.5.50 (HASS-Protected Flow)...");
         initializeDatePicker();
         wrapDateInputsWithPicker();
         setupEventListeners();
