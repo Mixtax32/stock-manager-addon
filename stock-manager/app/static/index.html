@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Stock Manager v0.5.46</title>
-    <link rel="stylesheet" href="static/styles.css?v=0.5.46">
+    <title>Stock Manager v0.5.47</title>
+    <link rel="stylesheet" href="static/styles.css?v=0.5.47">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 </head>
@@ -15,11 +15,11 @@
     <div class="selection-bar hidden" id="selection-bar">
         <div class="selection-count" id="selection-count">0 seleccionados</div>
         <div class="selection-actions">
-            <button class="btn btn-secondary" onclick="bulkAction('location')">Mover</button>
-            <button class="btn btn-secondary" onclick="bulkAction('category')">Categoría</button>
-            <button class="btn btn-del" onclick="bulkAction('delete')">Eliminar</button>
+            <button class="btn btn-secondary" onclick="window.bulkAction('location')">Mover</button>
+            <button class="btn btn-secondary" onclick="window.bulkAction('category')">Categoría</button>
+            <button class="btn btn-del" onclick="window.bulkAction('delete')">Eliminar</button>
         </div>
-        <button class="btn btn-secondary" onclick="clearSelection()">✕</button>
+        <button class="btn btn-secondary" onclick="window.clearSelection()">✕</button>
     </div>
 
     <nav class="sidebar">
@@ -58,7 +58,7 @@
         <header class="top-bar">
             <h1 id="page-title">Panel de Control</h1>
             <div class="top-bar-actions">
-                <button class="btn btn-add" onclick="showPage('scan')">+ Escanear</button>
+                <button class="btn btn-add" onclick="window.showPage('scan')">+ Escanear</button>
             </div>
         </header>
 
@@ -70,7 +70,7 @@
                     <div class="column-card macro-widget">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                             <h3>Macros de Hoy</h3>
-                            <button class="btn-action-sm" onclick="openMacroGoalsPanel()">⚙</button>
+                            <button class="btn-action-sm" onclick="window.openMacroGoalsPanel()">⚙</button>
                         </div>
                         <div class="macros-dashboard">
                             <div style="position: relative; width: 100px; height: 100px;">
@@ -102,12 +102,12 @@
                         <h3>Gestión Rápida</h3>
                         <div class="barcode-input" style="margin-top: 16px;">
                             <input type="text" id="manual-barcode" placeholder="Código o nombre..." autocomplete="off">
-                            <button class="btn btn-primary" onclick="useManualBarcode()">Buscar</button>
+                            <button class="btn btn-primary" onclick="window.useManualBarcode()">Buscar</button>
                         </div>
                         <div id="search-results" class="search-results hidden"></div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px;">
-                            <button class="btn btn-secondary" onclick="window.quickStartScan('scan')">📸 Escáner</button>
-                            <button class="btn btn-secondary" onclick="window.quickStartScan('ticket')">🧾 Ticket</button>
+                            <button class="btn btn-secondary" id="direct-scan-btn" onclick="window.quickStartScan('scan'); return false;">📸 Escáner</button>
+                            <button class="btn btn-secondary" id="direct-ticket-btn" onclick="window.quickStartScan('ticket'); return false;">🧾 Ticket</button>
                         </div>
                     </div>
 
@@ -136,8 +136,8 @@
                             <option value="">Todas las ubicaciones</option>
                         </select>
                     </div>
-                    <button class="btn btn-secondary" id="select-mode-btn" onclick="toggleSelectionMode()">Seleccionar</button>
-                    <button class="btn btn-secondary" onclick="openManagePanel()">⚙</button>
+                    <button class="btn btn-secondary" id="select-mode-btn" onclick="window.toggleSelectionMode()">Seleccionar</button>
+                    <button class="btn btn-secondary" onclick="window.openManagePanel()">⚙</button>
                 </div>
 
                 <div class="inventory-table-container">
@@ -178,8 +178,8 @@
                             </div>
                         </div>
                         <div style="display: flex; gap: 12px;">
-                            <button class="btn btn-secondary" style="flex:1" onclick="resetScanner()">Cancelar</button>
-                            <button class="btn btn-add" style="flex:1" onclick="addNewBatch()">Guardar</button>
+                            <button class="btn btn-secondary" style="flex:1" onclick="window.resetScanner()">Cancelar</button>
+                            <button class="btn btn-add" style="flex:1" onclick="window.addNewBatch()">Guardar</button>
                         </div>
                     </div>
 
@@ -223,7 +223,7 @@
                             </div>
 
                              <!-- Advanced Options Toggle -->
-                             <div class="advanced-toggle" onclick="toggleAdvancedFields()">
+                             <div class="advanced-toggle" onclick="window.toggleAdvancedFields()">
                                  <span>⚙️ Opciones avanzadas</span>
                                  <span id="advanced-chevron">▼</span>
                              </div>
@@ -256,8 +256,8 @@
                              </div>
                         </div>
                         <div style="display: flex; gap: 12px; margin-top: 24px;">
-                            <button class="btn btn-secondary" style="flex:1" onclick="resetScanner()">Cancelar</button>
-                            <button class="btn btn-add" style="flex:1" onclick="addStock()">Registrar</button>
+                             <button class="btn btn-secondary" style="flex:1" onclick="window.resetScanner()">Cancelar</button>
+                            <button class="btn btn-add" style="flex:1" onclick="window.addStock()">Registrar</button>
                         </div>
                     </div>
                 </div>
@@ -298,15 +298,15 @@
                 <div class="column-card" style="margin-top:20px;">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <h3>Autocompletado Nutricional</h3>
-                        <button class="btn btn-secondary btn-sm" onclick="startMacroFillPreview()" id="btn-macro-auto">🔍 Buscar Macros Faltantes</button>
+                        <button class="btn btn-secondary btn-sm" onclick="window.startMacroFillPreview()" id="btn-macro-auto">🔍 Buscar Macros Faltantes</button>
                     </div>
                     <p style="font-size:12px; color:var(--text-dim); margin-top:8px;">Escanea tu base de datos en busca de productos sin información nutricional y busca coincidencias en Open Food Facts.</p>
                     
                     <div id="macro-fill-preview-area" class="hidden" style="margin-top:20px; border-top: 1px solid #222; padding-top:20px;">
                         <div id="macro-fill-results" class="macro-fill-grid"></div>
                         <div style="margin-top:20px; display:flex; gap:12px;">
-                            <button class="btn btn-primary" style="flex:1" onclick="confirmMacroFill()" id="btn-confirm-macro-fill">Actualizar Seleccionados</button>
-                            <button class="btn btn-secondary" style="flex:1" onclick="hideMacroFillArea()">Cancelar</button>
+                            <button class="btn btn-primary" style="flex:1" onclick="window.confirmMacroFill()" id="btn-confirm-macro-fill">Actualizar Seleccionados</button>
+                            <button class="btn btn-secondary" style="flex:1" onclick="window.hideMacroFillArea()">Cancelar</button>
                         </div>
                     </div>
                 </div>
@@ -317,8 +317,8 @@
                     </div>
                 </div>
                 <div style="display: flex; gap: 12px;">
-                    <button class="btn btn-secondary" style="flex:1" onclick="exportInventory()">📥 Exportar CSV</button>
-                    <button class="btn btn-secondary" style="flex:1" onclick="importInventory()">📤 Importar CSV</button>
+                    <button class="btn btn-secondary" style="flex:1" onclick="window.exportInventory()">📥 Exportar CSV</button>
+                    <button class="btn btn-secondary" style="flex:1" onclick="window.importInventory()">📤 Importar CSV</button>
                 </div>
             </div>
 
@@ -328,7 +328,7 @@
                     <div class="column-card">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                             <h3>Objetivos Nutricionales</h3>
-                            <button class="btn btn-primary btn-sm" onclick="openMacroGoalsPanel()">Editar</button>
+                            <button class="btn btn-primary btn-sm" onclick="window.openMacroGoalsPanel()">Editar</button>
                         </div>
                         <div class="macros-dashboard" style="gap:40px;">
                             <div style="position: relative; width: 140px; height: 140px;">
@@ -378,8 +378,8 @@
             <div class="panel-header">
                 <h2>Gestionar Inventario</h2>
                 <div style="display:flex; gap:8px;">
-                    <button class="btn btn-primary" id="btn-save-all" onclick="saveAllChanges()" disabled>Guardar</button>
-                    <button class="btn btn-secondary" onclick="tryClosePanel()">✕</button>
+                    <button class="btn btn-primary" id="btn-save-all" onclick="window.saveAllChanges()" disabled>Guardar</button>
+                    <button class="btn btn-secondary" onclick="window.tryClosePanel()">✕</button>
                 </div>
             </div>
             <div id="changes-container" class="hidden" style="padding:10px 24px; background:var(--accent); color:white; font-size:12px;"></div>
@@ -403,11 +403,11 @@
         <div class="ticket-panel">
             <div class="ticket-header">
                 <h2>Ticket detectado</h2>
-                <button class="btn btn-secondary" onclick="closeTicketPanel()">✕</button>
+                <button class="btn btn-secondary" onclick="window.closeTicketPanel()">✕</button>
             </div>
             <div id="ticket-matched" style="flex:1; overflow-y:auto; padding:24px;"></div>
             <div style="padding: 24px; border-top: 1px solid var(--border);">
-                <button class="btn btn-add" style="width:100%" onclick="confirmTicketItems()">Añadir seleccionados</button>
+                <button class="btn btn-add" style="width:100%" onclick="window.confirmTicketItems()">Añadir seleccionados</button>
             </div>
         </div>
     </div>
@@ -422,8 +422,8 @@
                 <div class="picker-wheel" id="year-wheel"><div id="year-items" class="wheel-items"></div></div>
             </div>
             <div style="display: flex; gap: 12px; margin-top: 24px;">
-                <button class="btn btn-secondary" style="flex:1" onclick="closeDatePicker()">Cancelar</button>
-                <button class="btn btn-primary" style="flex:1" onclick="confirmDatePicker()">Aceptar</button>
+                <button class="btn btn-secondary" style="flex:1" onclick="window.closeDatePicker()">Cancelar</button>
+                <button class="btn btn-primary" style="flex:1" onclick="window.confirmDatePicker()">Aceptar</button>
             </div>
         </div>
     </div>
@@ -432,7 +432,7 @@
         <div class="panel" style="max-width: 400px; height: auto; bottom: 0; border-radius: 20px 20px 0 0; top: auto;">
             <div class="panel-header">
                 <h2 id="portion-title">Consumir ración</h2>
-                <button class="btn btn-secondary" onclick="closePortionPanel()">✕</button>
+                <button class="btn btn-secondary" onclick="window.closePortionPanel()">✕</button>
             </div>
             <div style="padding: 24px;">
                 <div id="portion-stock-info" style="margin-bottom: 20px; font-weight: 700; color: var(--accent);"></div>
@@ -454,7 +454,7 @@
         <div class="panel">
             <div class="panel-header">
                 <h2>Objetivos Diarios</h2>
-                <button class="btn btn-secondary" onclick="closeMacroGoalsPanel()">✕</button>
+                <button class="btn btn-secondary" onclick="window.closeMacroGoalsPanel()">✕</button>
             </div>
             <div style="padding: 24px; overflow-y: auto;">
                 <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom:32px;">
@@ -475,7 +475,7 @@
                         <input type="number" id="goal-fat">
                     </div>
                 </div>
-                <button class="btn btn-primary" style="width:100%; margin-bottom:32px;" onclick="saveMacroGoals()">Guardar Objetivos</button>
+                <button class="btn btn-primary" style="width:100%; margin-bottom:32px;" onclick="window.saveMacroGoals()">Guardar Objetivos</button>
                 
                 <h3>Historial de hoy</h3>
                 <div id="today-movements-list" style="margin-top: 16px;"></div>
@@ -484,11 +484,11 @@
     </div>
 
     <div style="text-align:center; padding: 40px 0; opacity: 0.2; font-size: 10px; letter-spacing: 0.1em;">
-        STOCK MANAGER v0.5.46
+        STOCK MANAGER v0.5.47
     </div>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/tesseract.js@v4.0.2/dist/tesseract.min.js"></script>
-    <script src="static/app.js?v=0.5.46"></script>
+    <script src="static/app.js?v=0.5.47"></script>
 </body>
 </html>

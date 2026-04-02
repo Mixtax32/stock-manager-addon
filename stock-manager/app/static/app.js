@@ -1,5 +1,5 @@
 /* 
-   Stock Manager v0.5.46 
+   Stock Manager v0.5.47 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
@@ -18,29 +18,27 @@ let consumptionChart = null;
 let kcalChart = null;
 let fullKcalChart = null;
 
-window.quickStartScan = (type) => {
+window.quickStartScan = async (type) => {
     console.log("Stock Manager [Direct-Command]: Start", type);
     if (typeof window.showPage !== 'function') {
         console.error("Dashboard Error: showPage no disponible");
         return;
     }
+    
+    // Switch to scan page
     window.showPage('scan');
     
-    let attempts = 0;
-    const tryToClick = () => {
-        const id = type === 'scan' ? 'start-scan' : 'start-ticket';
-        const targetBtn = document.getElementById(id);
-        if (targetBtn) {
-            console.log("Stock Manager [Direct-Command]: Pulsando automáticamente", id);
-            targetBtn.click();
-        } else if (attempts < 10) {
-            attempts++;
-            setTimeout(tryToClick, 100);
+    // Wait a brief moment for DOM transition if needed, then start camera directly
+    // This maintains the user gesture if called directly from a click
+    try {
+        if (type === 'scan') {
+            await window.startScanner();
         } else {
-            console.warn("Stock Manager [Direct-Command]: No se encontró el botón tras 10 intentos");
+            await window.startTicketScanner();
         }
-    };
-    setTimeout(tryToClick, 400); // Retraso inicial para dar tiempo al cambio de pestaña
+    } catch (err) {
+        console.error("QuickStart Error:", err);
+    }
 };
 
 async function stopAllCameras() {
@@ -65,6 +63,78 @@ async function stopAllCameras() {
     document.getElementById('stop-scan')?.classList.add('hidden');
 }
 window.stopAllCameras = stopAllCameras;
+
+window.startScanner = async () => {
+    console.log("Stock Manager: Iniciando escáner de productos...");
+    try {
+        if (html5QrCode) { try { await html5QrCode.stop(); } catch(e){} }
+        const container = document.getElementById('scanner-container');
+        if (!container) return;
+        
+        html5QrCode = new Html5Qrcode("scanner-container"); 
+        await html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, onScanSuccess);
+        
+        container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        document.getElementById('start-scan')?.classList.add('hidden'); 
+        document.getElementById('start-ticket')?.classList.add('hidden'); 
+        document.getElementById('stop-scan')?.classList.remove('hidden');
+    } catch (err) { 
+        console.error("Error al iniciar escáner:", err);
+        showToast('Error cámara: ' + err.message, 'error'); 
+        throw err;
+    }
+};
+
+window.startTicketScanner = async () => {
+    console.log("Stock Manager: Iniciando escáner de tickets...");
+    try {
+        currentTicketStream = await navigator.mediaDevices.getUserMedia({ 
+            video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } } 
+        });
+        const video = document.createElement('video'); 
+        video.srcObject = currentTicketStream; 
+        video.setAttribute('playsinline', 'true'); 
+        await video.play();
+        
+        const container = document.getElementById('scanner-container'); 
+        container.innerHTML = ''; 
+        video.style.width = '100%'; 
+        video.style.borderRadius = '8px'; 
+        container.appendChild(video);
+        
+        const captureBtn = document.createElement('button'); 
+        captureBtn.className = 'btn btn-add'; 
+        captureBtn.id = 'capture-ticket-btn'; 
+        captureBtn.style.cssText = 'width:100%;margin-top:8px;'; 
+        captureBtn.textContent = 'Capturar ticket'; 
+        container.appendChild(captureBtn);
+        
+        document.getElementById('start-scan')?.classList.add('hidden'); 
+        document.getElementById('start-ticket')?.classList.add('hidden'); 
+        document.getElementById('stop-scan')?.classList.remove('hidden'); 
+        container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        
+        captureBtn.onclick = async () => {
+            const canvas = document.createElement('canvas'); 
+            canvas.width = video.videoWidth; 
+            canvas.height = video.videoHeight; 
+            canvas.getContext('2d').drawImage(video, 0, 0); 
+            if (currentTicketStream) { 
+                currentTicketStream.getTracks().forEach(t => t.stop()); 
+                currentTicketStream = null; 
+            }
+            container.innerHTML = ''; 
+            document.getElementById('start-scan')?.classList.remove('hidden'); 
+            document.getElementById('start-ticket')?.classList.remove('hidden'); 
+            document.getElementById('stop-scan')?.classList.add('hidden');
+            await processTicketImage(canvas);
+        };
+    } catch (err) { 
+        console.error("Error al iniciar ticket:", err);
+        showToast('Error cámara: ' + err.message, 'error'); 
+        throw err;
+    }
+};
 
 let scanSessionChanges = { batches: {}, newQty: 0, newExpiry: null };
 let currentTicketItems = [];
@@ -825,35 +895,13 @@ function setupEventListeners() {
     document.querySelectorAll('.section-header').forEach(header => header.onclick = e => { if (!e.target.closest('.header-main-actions') && !e.target.closest('button')) header.parentElement.classList.toggle('collapsed'); });
     
     const startBtn = document.getElementById('start-scan');
-    if (startBtn) startBtn.onclick = async () => {
-        try {
-            if (html5QrCode) { try { await html5QrCode.stop(); } catch(e){} }
-            html5QrCode = new Html5Qrcode("scanner-container"); 
-            await html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, onScanSuccess);
-            document.getElementById('scanner-container').scrollIntoView({ behavior: 'smooth', block: 'center' });
-            document.getElementById('start-scan').classList.add('hidden'); document.getElementById('start-ticket').classList.add('hidden'); document.getElementById('stop-scan').classList.remove('hidden');
-        } catch (err) { showToast('Error cámara: ' + err.message, 'error'); }
-    };
+    if (startBtn) startBtn.onclick = window.startScanner;
 
     const stopBtn = document.getElementById('stop-scan');
     if (stopBtn) stopBtn.onclick = stopAllCameras;
 
     const ticketBtn = document.getElementById('start-ticket');
-    if (ticketBtn) ticketBtn.onclick = async () => {
-        try {
-            currentTicketStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } } });
-            const video = document.createElement('video'); video.srcObject = currentTicketStream; video.setAttribute('playsinline', 'true'); await video.play();
-            const container = document.getElementById('scanner-container'); container.innerHTML = ''; video.style.width = '100%'; video.style.borderRadius = '8px'; container.appendChild(video);
-            const captureBtn = document.createElement('button'); captureBtn.className = 'btn btn-add'; captureBtn.id = 'capture-ticket-btn'; captureBtn.style.cssText = 'width:100%;margin-top:8px;'; captureBtn.textContent = 'Capturar ticket'; container.appendChild(captureBtn);
-            document.getElementById('start-scan').classList.add('hidden'); document.getElementById('start-ticket').classList.add('hidden'); document.getElementById('stop-scan').classList.remove('hidden'); container.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            captureBtn.onclick = async () => {
-                const canvas = document.createElement('canvas'); canvas.width = video.videoWidth; canvas.height = video.videoHeight; canvas.getContext('2d').drawImage(video, 0, 0); 
-                if (currentTicketStream) { currentTicketStream.getTracks().forEach(t => t.stop()); currentTicketStream = null; }
-                container.innerHTML = ''; document.getElementById('start-scan').classList.remove('hidden'); document.getElementById('start-ticket').classList.remove('hidden'); document.getElementById('stop-scan').classList.add('hidden');
-                await processTicketImage(canvas);
-            };
-        } catch (err) { showToast('Error cámara: ' + err.message, 'error'); }
-    };
+    if (ticketBtn) ticketBtn.onclick = window.startTicketScanner;
 
     document.addEventListener('change', e => {
         if (e.target.id === 'location-select') setLocationFilter(e.target.value);
@@ -871,6 +919,21 @@ function setupEventListeners() {
     // Global delegation for selection mode remains
     document.addEventListener('click', e => {
         const t = e.target.closest('.product-grid-row') || e.target;
+        
+        // Dashboard Direct Actions
+        if (e.target.closest('#direct-scan-btn')) {
+            e.preventDefault();
+            console.log("Stock Manager: Interface Click - Scan");
+            window.quickStartScan('scan');
+            return;
+        }
+        if (e.target.closest('#direct-ticket-btn')) {
+            e.preventDefault();
+            console.log("Stock Manager: Interface Click - Ticket");
+            window.quickStartScan('ticket');
+            return;
+        }
+
         if (t.classList.contains('product-grid-row') && isSelectionMode) toggleSelect(t.dataset.barcode);
         if (t.classList.contains('product-checkbox')) { e.stopPropagation(); toggleSelect(t.closest('.product-grid-row').dataset.barcode); }
         if (e.target.id === 'btn-save-all') saveAllChanges();
@@ -888,17 +951,13 @@ function setupEventListeners() {
         };
     }
 
-    // Direct Dashboard Buttons (Secure binding for HASS)
-    const directScan = document.getElementById('direct-scan-btn');
-    const directTicket = document.getElementById('direct-ticket-btn');
-    if (directScan) directScan.onclick = () => window.quickStartScan('scan');
-    if (directScan) directScan.addEventListener('click', () => window.quickStartScan('scan'));
-    if (directTicket) directTicket.addEventListener('click', () => window.quickStartScan('ticket'));
+    // Dashboard Buttons (Handled via HTML onclick for maximum compatibility)
+    // No redundant listeners needed here
 }
 
 async function init() {
     try {
-        console.log("Stock Manager: Initializing Monolith v0.5.45 (HASS-Protected Flow)...");
+        console.log("Stock Manager: Initializing Monolith v0.5.47 (HASS-Protected Flow)...");
         initializeDatePicker();
         wrapDateInputsWithPicker();
         setupEventListeners();
