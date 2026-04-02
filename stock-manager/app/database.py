@@ -2,7 +2,7 @@ import aiosqlite
 import os
 from datetime import datetime, date
 from typing import List, Optional
-from .models import Product, ProductCreate, StockUpdate, ProductUpdate, Batch, BatchUpdate, BatchStockUpdate, MacroGoals, MacroGoalsUpdate
+from .models import Product, ProductCreate, StockUpdate, ProductUpdate, Batch, BatchUpdate, BatchStockUpdate, MacroGoals, MacroGoalsUpdate, Ingredient, Recipe, RecipeCreate, DietPlan, DietPlanCreate
 
 DATABASE_PATH = os.getenv('DATABASE_PATH', '/data/stock_manager/stock.db')
 
@@ -108,6 +108,52 @@ class Database:
                     "INSERT INTO batches (barcode, quantity, expiry_date, added_date) VALUES (?, ?, ?, ?)",
                     (row[0], row[1], row[2], date.today().isoformat())
                 )
+
+            # Create recipes table
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS recipes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    description TEXT,
+                    instructions TEXT,
+                    servings INTEGER DEFAULT 1,
+                    kcal REAL,
+                    proteins REAL,
+                    carbs REAL,
+                    fat REAL,
+                    image_url TEXT
+                )
+            """)
+
+            # Create recipe_ingredients table
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS recipe_ingredients (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    recipe_id INTEGER NOT NULL,
+                    product_barcode TEXT,
+                    custom_name TEXT,
+                    quantity REAL NOT NULL,
+                    unit TEXT NOT NULL,
+                    FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE CASCADE,
+                    FOREIGN KEY (product_barcode) REFERENCES products(barcode) ON DELETE SET NULL
+                )
+            """)
+
+            # Create diet_plans table
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS diet_plans (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    date TEXT NOT NULL,
+                    meal_type TEXT NOT NULL,
+                    recipe_id INTEGER,
+                    product_barcode TEXT,
+                    custom_name TEXT,
+                    quantity REAL DEFAULT 1,
+                    is_consumed INTEGER DEFAULT 0,
+                    FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE SET NULL,
+                    FOREIGN KEY (product_barcode) REFERENCES products(barcode) ON DELETE SET NULL
+                )
+            """)
 
             await db.commit()
 
@@ -590,5 +636,95 @@ class Database:
             await db.execute("DELETE FROM movements WHERE id = ?", (movement_id,))
             await db.commit()
             return True
+
+    # --- Recipes Methods ---
+
+    async def get_all_recipes(self) -> List[Recipe]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT * FROM recipes ORDER BY name") as cursor:
+                recipe_rows = await cursor.fetchall()
+            
+            recipes = []
+            for r_row in recipe_rows:
+                recipe_dict = dict(r_row)
+                async with db.execute("SELECT * FROM recipe_ingredients WHERE recipe_id = ?", (recipe_dict['id'],)) as i_cursor:
+                    ingredients = [Ingredient(**dict(i_row)) for i_row in await i_cursor.fetchall()]
+                recipe_dict['ingredients'] = ingredients
+                recipes.append(Recipe(**recipe_dict))
+            return recipes
+
+    async def get_recipe(self, recipe_id: int) -> Optional[Recipe]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT * FROM recipes WHERE id = ?", (recipe_id,)) as cursor:
+                row = await cursor.fetchone()
+                if not row: return None
+                recipe_dict = dict(row)
+                async with db.execute("SELECT * FROM recipe_ingredients WHERE recipe_id = ?", (recipe_id,)) as i_cursor:
+                    ingredients = [Ingredient(**dict(i_row)) for i_row in await i_cursor.fetchall()]
+                recipe_dict['ingredients'] = ingredients
+                return Recipe(**recipe_dict)
+
+    async def create_recipe(self, recipe: RecipeCreate) -> Recipe:
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute("""
+                INSERT INTO recipes (name, description, instructions, servings, kcal, proteins, carbs, fat, image_url)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (recipe.name, recipe.description, recipe.instructions, recipe.servings, recipe.kcal, recipe.proteins, recipe.carbs, recipe.fat, recipe.image_url))
+            recipe_id = cursor.lastrowid
+            
+            for ing in recipe.ingredients:
+                await db.execute("""
+                    INSERT INTO recipe_ingredients (recipe_id, product_barcode, custom_name, quantity, unit)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (recipe_id, ing.get('product_barcode'), ing.get('custom_name'), ing.get('quantity'), ing.get('unit')))
+            
+            await db.commit()
+            return await self.get_recipe(recipe_id)
+
+    async def delete_recipe(self, recipe_id: int) -> bool:
+        async with aiosqlite.connect(self.db_path) as db:
+            # Cascades should handle ingredient deletion
+            cursor = await db.execute("DELETE FROM recipes WHERE id = ?", (recipe_id,))
+            await db.commit()
+            return cursor.rowcount > 0
+
+    # --- Diet Plan Methods ---
+
+    async def get_diet_plans(self, start_date: str, end_date: str) -> List[DietPlan]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("""
+                SELECT * FROM diet_plans 
+                WHERE date BETWEEN ? AND ? 
+                ORDER BY date ASC, meal_type DESC
+            """, (start_date, end_date)) as cursor:
+                rows = await cursor.fetchall()
+                return [DietPlan(**dict(row)) for row in rows]
+
+    async def create_diet_plan(self, plan: DietPlanCreate) -> DietPlan:
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute("""
+                INSERT INTO diet_plans (date, meal_type, recipe_id, product_barcode, custom_name, quantity, is_consumed)
+                VALUES (?, ?, ?, ?, ?, ?, 0)
+            """, (plan.date, plan.meal_type, plan.recipe_id, plan.product_barcode, plan.custom_name, plan.quantity))
+            plan_id = cursor.lastrowid
+            await db.commit()
+            
+            async with db.execute("SELECT * FROM diet_plans WHERE id = ?", (plan_id,)) as c:
+                row = await c.fetchone()
+                return DietPlan(**dict(row))
+
+    async def update_diet_plan(self, plan_id: int, is_consumed: bool):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("UPDATE diet_plans SET is_consumed = ? WHERE id = ?", (1 if is_consumed else 0, plan_id))
+            await db.commit()
+
+    async def delete_diet_plan(self, plan_id: int) -> bool:
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute("DELETE FROM diet_plans WHERE id = ?", (plan_id,))
+            await db.commit()
+            return cursor.rowcount > 0
 
 db = Database()

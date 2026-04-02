@@ -80,3 +80,54 @@ class MacroGoalsUpdate(BaseModel):
     carbs: Optional[float] = None
     fat: Optional[float] = None
 
+class Ingredient(BaseModel):
+    id: Optional[int] = None
+    recipe_id: Optional[int] = None
+    product_barcode: Optional[str] = None
+    custom_name: Optional[str] = None
+    quantity: float
+    unit: str
+
+class Recipe(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    instructions: Optional[str] = None
+    servings: int = 1
+    kcal: Optional[float] = None
+    proteins: Optional[float] = None
+    carbs: Optional[float] = None
+    fat: Optional[float] = None
+    image_url: Optional[str] = None
+    ingredients: List[Ingredient] = []
+
+class RecipeCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    instructions: Optional[str] = None
+    servings: int = 1
+    kcal: Optional[float] = None
+    proteins: Optional[float] = None
+    carbs: Optional[float] = None
+    fat: Optional[float] = None
+    image_url: Optional[str] = None
+    ingredients: List[dict] = []
+
+class DietPlan(BaseModel):
+    id: int
+    date: str
+    meal_type: str
+    recipe_id: Optional[int] = None
+    product_barcode: Optional[str] = None
+    custom_name: Optional[str] = None
+    quantity: float
+    is_consumed: bool = False
+
+class DietPlanCreate(BaseModel):
+    date: str
+    meal_type: str
+    recipe_id: Optional[int] = None
+    product_barcode: Optional[str] = None
+    custom_name: Optional[str] = None
+    quantity: float = 1.0
+

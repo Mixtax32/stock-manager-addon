@@ -8,7 +8,7 @@ import logging
 from typing import List
 
 from .database import db
-from .models import Product, ProductCreate, StockUpdate, ProductUpdate, Batch, BatchUpdate, BatchStockUpdate, MacroGoals, MacroGoalsUpdate
+from .models import Product, ProductCreate, StockUpdate, ProductUpdate, Batch, BatchUpdate, BatchStockUpdate, MacroGoals, MacroGoalsUpdate, Recipe, RecipeCreate, DietPlan, DietPlanCreate
 from .barcode_service import get_product_from_barcode
 from .telegram_service import telegram_bot
 import asyncio
@@ -25,7 +25,7 @@ from contextlib import asynccontextmanager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # --- Startup ---
-    logger.info("Initializing Stock Manager v0.5.47.")
+    logger.info("Initializing Stock Manager v0.5.50.")
     await db.init_db()
     
     # Start Telegram Bot in background and store task
@@ -320,7 +320,94 @@ async def import_data(file: UploadFile = File(...), clear: bool = False):
         logger.error(f"Error en importación: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error procesando el archivo: {str(e)}")
 
-    return {"message": f"Se han actualizado {updated_count} productos correctamente"}
+# --- Recipes Endpoints ---
+
+@app.get("/api/recipes", response_model=List[Recipe])
+async def get_recipes():
+    """Get all recipes"""
+    return await db.get_all_recipes()
+
+@app.get("/api/recipes/{recipe_id}", response_model=Recipe)
+async def get_recipe(recipe_id: int):
+    """Get recipe by id"""
+    recipe = await db.get_recipe(recipe_id)
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+    return recipe
+
+@app.post("/api/recipes", response_model=Recipe, status_code=201)
+async def create_recipe(recipe: RecipeCreate):
+    """Create new recipe"""
+    return await db.create_recipe(recipe)
+
+@app.delete("/api/recipes/{recipe_id}", status_code=204)
+async def delete_recipe(recipe_id: int):
+    """Delete recipe"""
+    success = await db.delete_recipe(recipe_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+    return None
+
+@app.post("/api/recipes/{recipe_id}/consume")
+async def consume_recipe(recipe_id: int, servings: float = 1.0):
+    """Subtract recipe ingredients from stock"""
+    recipe = await db.get_recipe(recipe_id)
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+    
+    # Process each ingredient
+    consumed = []
+    errors = []
+    
+    # We do a dry run first to check stock
+    for ing in recipe.ingredients:
+        if ing.product_barcode:
+            product = await db.get_product(ing.product_barcode)
+            needed = ing.quantity * servings
+            if product.stock < needed:
+                errors.append(f"Stock insuficiente para {product.name}: necesita {needed}{product.unit_type}, tiene {product.stock}")
+    
+    if errors:
+        raise HTTPException(status_code=400, detail=" | ".join(errors))
+    
+    # Final run: actually consume
+    for ing in recipe.ingredients:
+        if ing.product_barcode:
+            await db.update_stock(ing.product_barcode, StockUpdate(
+                quantity=-(ing.quantity * servings),
+                reason="consumed_in_recipe"
+            ))
+            consumed.append(ing.product_barcode)
+            
+    return {"message": f"Ingredientes de '{recipe.name}' consumidos del stock.", "consumed_barcodes": consumed}
+
+# --- Diet Plan Endpoints ---
+
+@app.get("/api/diet-plan", response_model=List[DietPlan])
+async def get_diet_plans(start_date: str, end_date: str):
+    """Get diet plans for a date range"""
+    return await db.get_diet_plans(start_date, end_date)
+
+@app.post("/api/diet-plan", response_model=DietPlan, status_code=201)
+async def create_diet_plan(plan: DietPlanCreate):
+    """Add a meal to the diet plan"""
+    return await db.create_diet_plan(plan)
+
+@app.patch("/api/diet-plan/{plan_id}", response_model=DietPlan)
+async def update_diet_plan(plan_id: int, is_consumed: bool):
+    """Mark a planned meal as consumed or not"""
+    await db.update_diet_plan(plan_id, is_consumed)
+    # Note: this doesn't automatically subtract from stock, user might want to do that manually 
+    # or we could add an option here. For now, it's just a checkmark.
+    return {"status": "updated"}
+
+@app.delete("/api/diet-plan/{plan_id}", status_code=204)
+async def delete_diet_plan(plan_id: int):
+    """Remove a meal from the plan"""
+    success = await db.delete_diet_plan(plan_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Plan not found")
+    return None
 
 # Health check
 @app.get("/api/health")

@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Stock Manager v0.5.50</title>
-    <link rel="stylesheet" href="static/styles.css?v=0.5.50">
+    <title>Stock Manager v0.5.51</title>
+    <link rel="stylesheet" href="static/styles.css?v=0.5.51">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 </head>
@@ -42,6 +42,10 @@
         <div class="nav-item" data-page="stats" onclick="window.showPage('stats')">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
             <span>Stats</span>
+        </div>
+        <div class="nav-item" data-page="recipes" onclick="window.showPage('recipes')">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M7 12h10"/><path d="M10 18h4"/></svg>
+            <span>Recetas</span>
         </div>
         <div class="nav-item" data-page="ajustes" onclick="window.showPage('ajustes')">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -365,6 +369,38 @@
                     <div id="location-filter" style="margin-top: 12px;"></div>
                 </div>
             </div>
+
+            <!-- PAGE: RECIPES & PLANNER -->
+            <div class="page hidden" data-page="recipes">
+                <div class="recipes-header">
+                    <div class="tabs-modern">
+                        <button class="tab-btn active" id="tab-btn-planner" onclick="window.switchRecipeTab('planner')">📅 Planificador</button>
+                        <button class="tab-btn" id="tab-btn-recipes" onclick="window.switchRecipeTab('recipes')">🍳 Mis Recetas</button>
+                    </div>
+                    <button class="btn btn-add" id="btn-new-recipe" onclick="window.openRecipeEditor()" style="display: none;">+ Receta</button>
+                    <button class="btn btn-primary" id="btn-add-plan" onclick="window.openPlannerModal()">+ Planificar</button>
+                </div>
+
+                <div id="planner-tab-content">
+                    <div class="planner-calendar-header">
+                        <button class="btn-icon" onclick="window.changePlannerWeek(-1)">◀</button>
+                        <h2 id="planner-week-title">Semana Actual</h2>
+                        <button class="btn-icon" onclick="window.changePlannerWeek(1)">▶</button>
+                    </div>
+                    <div id="planner-week-grid" class="planner-grid">
+                        <!-- Filled by JS -->
+                    </div>
+                </div>
+
+                <div id="recipes-tab-content" class="hidden">
+                    <div class="filter-bar" style="margin-top: 0; margin-bottom: 20px;">
+                        <input type="text" id="recipe-search" placeholder="Buscar recetas..." oninput="window.updateRecipeList()">
+                    </div>
+                    <div id="recipe-list" class="recipe-grid">
+                        <!-- Filled by JS -->
+                    </div>
+                </div>
+            </div>
         </div>
     </main>
 
@@ -479,12 +515,116 @@
         </div>
     </div>
 
+    <!-- Recipe Editor Panel -->
+    <div class="panel-overlay" id="recipe-editor-panel">
+        <div class="panel">
+            <div class="panel-header">
+                <h2 id="recipe-editor-title">Nueva Receta</h2>
+                <button class="btn btn-secondary" onclick="window.closeRecipeEditor()">✕</button>
+            </div>
+            <div style="padding: 24px; overflow-y: auto; flex: 1;">
+                <div class="form-group">
+                    <label>Nombre de la Receta</label>
+                    <input type="text" id="recipe-name-input" placeholder="Ej: Lentejas con verduras">
+                </div>
+                <div class="form-group">
+                    <label>Descripción / Instrucciones</label>
+                    <textarea id="recipe-instructions-input" placeholder="Pasos de preparación..." rows="4"></textarea>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;">
+                    <div class="form-group">
+                        <label>Comensales</label>
+                        <input type="number" id="recipe-servings-input" value="1" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label>Imagen (URL)</label>
+                        <input type="text" id="recipe-image-input" placeholder="Opcional">
+                    </div>
+                </div>
+                
+                <h3>Ingredientes</h3>
+                <div id="recipe-ingredients-list" style="margin-bottom: 12px;"></div>
+                <div class="ingredient-adder" style="display: grid; grid-template-columns: 1.5fr 0.5fr 1fr 40px; gap: 8px;">
+                    <input type="text" id="ing-search" placeholder="Producto en stock o nombre..." oninput="window.searchIngredientProduct()">
+                    <input type="number" id="ing-qty" placeholder="Cant">
+                    <select id="ing-unit">
+                        <option value="uds">uds</option>
+                        <option value="g">g</option>
+                        <option value="ml">ml</option>
+                    </select>
+                    <button class="btn btn-add" onclick="window.addIngredientToRecipe()">+</button>
+                    <div id="ing-search-results" class="mini-search-results hidden"></div>
+                </div>
+
+                <div class="macro-preview-mini" style="margin-top: 24px; padding: 16px; background: var(--card-bg); border-radius: 12px; font-size: 13px;">
+                    <div style="font-weight:700; margin-bottom:8px; color:var(--text-dim);">MACROS ESTIMADOS (Por ración)</div>
+                    <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; text-align:center;">
+                        <div><div style="color:var(--accent);">🔥 kcal</div><div id="prev-recipe-kcal">0</div></div>
+                        <div><div style="color:#f87171;">🥩 Prot</div><div id="prev-recipe-proteins">0g</div></div>
+                        <div><div style="color:#fbbf24;">🍞 Carb</div><div id="prev-recipe-carbs">0g</div></div>
+                        <div><div style="color:#34d399;">🥑 Gras</div><div id="prev-recipe-fat">0g</div></div>
+                    </div>
+                </div>
+            </div>
+            <div style="padding: 24px; border-top: 1px solid var(--border);">
+                <button class="btn btn-add" style="width:100%" onclick="window.saveRecipe()">Guardar Receta</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Planner Modal -->
+    <div class="panel-overlay" id="planner-modal">
+        <div class="panel" style="max-width: 400px; height: auto; top: 10%;">
+            <div class="panel-header">
+                <h2>Planificar Comida</h2>
+                <button class="btn btn-secondary" onclick="window.closePlannerModal()">✕</button>
+            </div>
+            <div style="padding: 24px;">
+                <div class="form-group">
+                    <label>Día</label>
+                    <input type="date" id="plan-date-input">
+                </div>
+                <div class="form-group">
+                    <label>Momento del día</label>
+                    <select id="plan-meal-type">
+                        <option value="breakfast">Desayuno</option>
+                        <option value="lunch">Almuerzo / Comida</option>
+                        <option value="snack">Merienda / Snack</option>
+                        <option value="dinner">Cena</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>¿Qué vas a comer?</label>
+                    <div class="tabs-mini" style="margin-bottom: 12px;">
+                        <button class="tab-btn-mini active" id="tab-plan-recipe" onclick="window.switchPlanType('recipe')">Receta</button>
+                        <button class="tab-btn-mini" id="tab-plan-product" onclick="window.switchPlanType('product')">Producto Suelto</button>
+                    </div>
+                    
+                    <div id="plan-recipe-select">
+                        <select id="plan-recipe-id" style="width:100%"></select>
+                    </div>
+                    <div id="plan-product-select" class="hidden">
+                        <div class="barcode-input">
+                            <input type="text" id="plan-product-search" placeholder="Buscar producto..." oninput="window.searchPlanProduct()">
+                            <div id="plan-product-results" class="mini-search-results-overlay hidden"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Raciones / Unidades</label>
+                    <input type="number" id="plan-quantity" value="1" step="0.1">
+                </div>
+                <button class="btn btn-add" style="width:100%; margin-top: 12px;" onclick="window.savePlan()">Añadir al Plan</button>
+            </div>
+        </div>
+    </div>
+
     <div style="text-align:center; padding: 40px 0; opacity: 0.2; font-size: 10px; letter-spacing: 0.1em;">
-        STOCK MANAGER v0.5.50
+        STOCK MANAGER v0.5.51
     </div>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/tesseract.js@v4.0.2/dist/tesseract.min.js"></script>
-    <script src="static/app.js?v=0.5.50"></script>
+    <script src="static/app.js?v=0.5.51"></script>
 </body>
 </html>
