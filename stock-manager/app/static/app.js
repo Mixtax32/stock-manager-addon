@@ -176,7 +176,13 @@ let pickerState = {
 
 // ===== API Functions =====
 async function apiCall(endpoint, method = 'GET', body = null, retries = 3) {
-    const options = { method, headers: { 'Content-Type': 'application/json' } };
+    const options = { 
+        method, 
+        headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        } 
+    };
     if (body) options.body = JSON.stringify(body);
     
     // Cache busting for GET requests to prevent HA Proxy from serving empty/stale data
@@ -969,7 +975,7 @@ function setupEventListeners() {
 
 async function init() {
     try {
-        console.log("Stock Manager: Initializing Monolith v0.5.50 (HASS-Protected Flow)...");
+        console.log("Stock Manager: Initializing Monolith v0.5.51 (HASS-Protected Flow)...");
         initializeDatePicker();
         wrapDateInputsWithPicker();
         setupEventListeners();
@@ -979,10 +985,11 @@ async function init() {
         const text = document.getElementById('loading-text');
         if (overlay) {
             overlay.classList.remove('hidden');
-            text.textContent = "Sincronizando con Home Assistant...";
+            text.textContent = "Sincronizando con el servidor...";
         }
 
         // Sequential load to ensure stability
+        console.log("Stock Manager: Loading initial data...");
         await loadProducts();
         
         if (overlay) overlay.classList.add('hidden');
@@ -1283,11 +1290,13 @@ function initNavigation() {
         themeBtn.onclick = () => {
             document.body.classList.toggle('light-mode');
             const isLight = document.body.classList.contains('light-mode');
-            localStorage.setItem('theme', isLight ? 'light' : 'dark');
+            try { localStorage.setItem('theme', isLight ? 'light' : 'dark'); } catch(e){}
         };
-        if (localStorage.getItem('theme') === 'light') {
-            document.body.classList.add('light-mode');
-        }
+        try {
+            if (localStorage.getItem('theme') === 'light') {
+                document.body.classList.add('light-mode');
+            }
+        } catch(e){}
     }
 
     // Default page
