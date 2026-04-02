@@ -1,5 +1,5 @@
 /* 
-   Stock Manager v0.5.52 
+   Stock Manager v0.5.53 
    Reverted to Monolith JS for maximum compatibility with HA Ingress 
 */
 
@@ -17,6 +17,7 @@ let manageFilter = { name: '', location: '', category: '' };
 let consumptionChart = null;
 let kcalChart = null;
 let fullKcalChart = null;
+let filteredLocation = null;
 
 window.quickStartScan = async (type) => {
     console.log("Stock Manager [Direct-Command]: Start", type);
@@ -975,7 +976,7 @@ function setupEventListeners() {
 
 async function init() {
     try {
-        console.log("Stock Manager: Initializing Monolith v0.5.52 (HASS-Protected Flow)...");
+        console.log("Stock Manager: Initializing Monolith v0.5.53 (HASS-Protected Flow)...");
         initializeDatePicker();
         wrapDateInputsWithPicker();
         setupEventListeners();
