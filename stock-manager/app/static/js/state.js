@@ -1,6 +1,6 @@
 /* 
    State & Global Configuration
-   v0.6.1
+   v0.6.2
 */
 window.API_BASE = `${window.location.pathname.replace(/\/$/, '')}/api`;
 window.products = [];
@@ -17,7 +17,6 @@ window.kcalChart = null;
 window.fullKcalChart = null;
 window.filteredLocation = window.filteredLocation || null;
 
-// Persistence for modular logic
 window.pendingChanges = {};
 window.pendingBatchChanges = {};
 window.originalData = {};
@@ -30,10 +29,4 @@ window.currentRecipeEditorIngredients = [];
 window.planType = 'recipe';
 window.scanSessionChanges = { batches: {}, newQty: 0, newExpiry: null };
 window.dateModalCallback = null;
-window.pickerState = { 
-    inputId: null, 
-    year: new Date().getFullYear(), 
-    month: new Date().getMonth() + 1, 
-    day: new Date().getDate(), 
-    scrollOffset: {} 
-};
+window.pickerState = { inputId: null, year: new Date().getFullYear(), month: new Date().getMonth() + 1, day: new Date().getDate(), scrollOffset: {} };

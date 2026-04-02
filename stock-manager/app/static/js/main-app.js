@@ -1,7 +1,9 @@
 /* 
    Main App Entry Point & Initialization
-   v0.6.1
+   v0.6.2
 */
+
+console.log("Stock Manager: Script Loaded.");
 
 window.initializeDatePicker = () => {
     initializeWheel('day', 1, getDaysInMonth(window.pickerState.month, window.pickerState.year));
@@ -103,13 +105,16 @@ function setupEventListeners() {
     document.addEventListener('input', e => { if (e.target.id === 'manage-filter-name') window.updateManageFilter(); });
     
     document.addEventListener('click', e => {
-        const t = e.target.closest('.product-grid-row') || e.target;
-        if (t && t.classList && t.classList.contains('product-grid-row') && window.isSelectionMode) window.toggleSelect(t.dataset.barcode);
-        if (t && t.classList && t.classList.contains('product-checkbox')) { e.stopPropagation(); window.toggleSelect(t.closest('.product-grid-row').dataset.barcode); }
-        if (e.target.id === 'btn-save-all') window.saveAllChanges();
-        if (e.target.id === 'start-scan') window.startScanner();
-        if (e.target.id === 'start-ticket') window.startTicketScanner();
-        if (e.target.id === 'stop-scan') window.stopAllCameras();
+        const btn = e.target.closest('button');
+        if (btn) {
+            if (btn.id === 'start-scan') window.startScanner();
+            if (btn.id === 'start-ticket') window.startTicketScanner();
+            if (btn.id === 'stop-scan') window.stopAllCameras();
+            if (btn.id === 'btn-save-all') window.saveAllChanges();
+            if (btn.classList.contains('product-checkbox')) { e.stopPropagation(); window.toggleSelect(btn.closest('.product-grid-row').dataset.barcode); }
+        }
+        const row = e.target.closest('.product-grid-row');
+        if (row && window.isSelectionMode) window.toggleSelect(row.dataset.barcode);
     });
 
     const catSelect = document.getElementById('product-category');
@@ -170,19 +175,33 @@ window.addStock = async () => {
     await window.loadProducts(); window.resetScanner(); window.showPage('dashboard');
 };
 
-window.addNewBatch = async () => {
+window.saveScanChanges = async () => {
     const bc = window.currentBarcode; if (!bc) return;
-    const qty = parseInt(document.getElementById('new-batch-qty').value) || 0;
-    if (qty > 0) await window.apiCall(`/products/${bc}/stock`, 'POST', { quantity: qty, expiry_date: document.getElementById('new-batch-expiry').value || null });
-    await window.loadProducts(); window.resetScanner(); window.showPage('dashboard');
+    const qty = parseFloat(document.getElementById('new-batch-qty').value) || 0;
+    const expiry = document.getElementById('new-batch-expiry').value || null;
+    const p = window.products.find(prod => prod.barcode === bc); if (!p) return;
+    
+    try {
+        // Deltas for existing batches
+        for (const [id, delta] of Object.entries(window.scanSessionChanges.batches)) {
+            if (delta !== 0) await window.apiCall(`/batches/${id}/stock`, 'POST', { quantity: delta });
+        }
+        // New batch
+        if (qty > 0) await window.apiCall(`/products/${bc}/stock`, 'POST', { quantity: qty, expiry_date: expiry });
+        
+        window.showToast("Stock actualizado", "success");
+        await window.loadProducts(); window.resetScanner(); window.showPage('dashboard');
+    } catch(e) { window.showToast("Error: " + e.message, "error"); }
 };
+
+window.addNewBatch = window.saveScanChanges; // Alias for backward compatibility if needed
 
 async function init() {
     try {
-        console.log("Stock Manager: Initializing 0.6.1...");
+        console.log("Stock Manager: Initializing Recovery 0.6.2...");
+        setupEventListeners();
         window.initializeDatePicker();
         window.wrapDateInputsWithPicker();
-        setupEventListeners();
         window.initNavigation();
         const overlay = document.getElementById('loading-overlay');
         if (overlay) overlay.classList.remove('hidden');
@@ -192,7 +211,7 @@ async function init() {
     } catch (err) {
         console.error("Fallo crítico:", err);
         const text = document.getElementById('loading-text');
-        if (text) text.innerHTML = `<div style="color:#ef4444;">Error al conectar con servidor</div>`;
+        if (text) text.innerHTML = `<div style="color:#ef4444;">Error crítico de sistema</div>`;
     }
 }
 
@@ -223,11 +242,7 @@ window.deleteMovement = async (id) => {
 };
 
 window.updateManageFilter = () => {
-    window.manageFilter = { 
-        name: document.getElementById('manage-filter-name').value.toLowerCase(), 
-        location: document.getElementById('manage-filter-location').value, 
-        category: document.getElementById('manage-filter-category').value 
-    };
+    window.manageFilter = { name: document.getElementById('manage-filter-name').value.toLowerCase(), location: document.getElementById('manage-filter-location').value, category: document.getElementById('manage-filter-category').value };
     if (window.renderManageList) window.renderManageList();
 };
 
@@ -238,7 +253,7 @@ window.toggleSelect = (barcode) => {
 
 window.updateSelectionBar = () => {
     const bar = document.getElementById('selection-bar'), countEl = document.getElementById('selection-count');
-    if (window.selectedProducts.size > 0 && window.isSelectionMode) { bar.classList.remove('hidden'); if (countEl) countEl.textContent = `${window.selectedProducts.size} seleccionados`; } else bar?.classList.add('hidden');
+    if (window.selectedProducts.size > 0 && window.isSelectionMode) { bar?.classList.remove('hidden'); if (countEl) countEl.textContent = `${window.selectedProducts.size} seleccionados`; } else bar?.classList.add('hidden');
 };
 
 window.assignTicketMatch = (i, bc) => { 
@@ -275,16 +290,13 @@ window.openPortionPanel = (barcode) => {
     if (!p) return;
     window.currentPortionBarcode = barcode;
     const unit = p.unit_type || 'g';
-    const title = document.getElementById('portion-title');
-    const info = document.getElementById('portion-stock-info');
-    if (title) title.innerText = `Consumir ${p.name}`;
-    if (info) info.innerText = `Stock actual: ${p.stock.toFixed(2)}${unit}`;
+    const title = document.getElementById('portion-title'), info = document.getElementById('portion-stock-info');
+    if (title) title.innerText = `Consumir ${p.name}`; if (info) info.innerText = `Stock actual: ${p.stock.toFixed(2)}${unit}`;
     let portions = unit === 'g' ? [50, 100, 200, 250, 500] : [100, 200, 250, 330, 500];
     let optionsHtml = p.serving_size ? `<button class="btn btn-add" style="grid-column: span 2; margin-bottom: 8px;" onclick="window.consumeAmount(${p.serving_size})">🍕 Ración Sugerida: ${p.serving_size}${unit}</button>` : '';
     optionsHtml += portions.map(amt => `<button class="btn btn-secondary" onclick="window.consumeAmount(${amt})">${amt}${unit}</button>`).join('') + `<button class="btn btn-del" onclick="window.consumeAmount(${p.stock})">Terminar producto</button>`;
-    const opts = document.getElementById('portion-options');
-    if (opts) opts.innerHTML = optionsHtml;
-    document.getElementById('portion-panel').classList.add('active');
+    const opts = document.getElementById('portion-options'); if (opts) opts.innerHTML = optionsHtml;
+    document.getElementById('portion-panel')?.classList.add('active');
 };
 
 window.closePortionPanel = () => { document.getElementById('portion-panel')?.classList.remove('active'); };
@@ -302,7 +314,7 @@ window.openMacroGoalsPanel = async () => {
         document.getElementById('goal-proteins').value = goals.proteins;
         document.getElementById('goal-carbs').value = goals.carbs;
         document.getElementById('goal-fat').value = goals.fat;
-        document.getElementById('macro-goals-panel').classList.add('active');
+        document.getElementById('macro-goals-panel')?.classList.add('active');
         window.updateTodayMovements();
     } catch (e) { window.showToast('Error cargando objetivos', 'error'); }
 };
