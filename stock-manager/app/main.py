@@ -119,7 +119,8 @@ async def macro_fill_preview():
                         "proteins_100g": data.get("proteins_100g"),
                         "carbs_100g": data.get("carbs_100g"),
                         "fat_100g": data.get("fat_100g"),
-                        "image_url": data.get("image_url")
+                        "image_url": data.get("image_url"),
+                        "package_quantity": data.get("package_quantity")
                     }
                 })
     return results
@@ -138,7 +139,8 @@ async def macro_fill_confirm(updates: List[dict]):
                     proteins_100g=up.get("proteins_100g"),
                     carbs_100g=up.get("carbs_100g"),
                     fat_100g=up.get("fat_100g"),
-                    image_url=up.get("image_url")
+                    image_url=up.get("image_url"),
+                    package_quantity=up.get("package_quantity")
                 )
                 await db.update_product(barcode, macro_data)
                 updated_count += 1

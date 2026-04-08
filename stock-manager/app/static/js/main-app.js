@@ -1,6 +1,6 @@
 /* 
    Main App Entry Point & Initialization
-   v0.6.2
+   v0.6.4
 */
 
 console.log("Stock Manager: Script Loaded.");
@@ -169,6 +169,7 @@ window.addStock = async () => {
         proteins_100g: parseFloat(document.getElementById('new-proteins').value) || null, 
         carbs_100g: parseFloat(document.getElementById('new-carbs').value) || null, 
         fat_100g: parseFloat(document.getElementById('new-fat').value) || null, 
+        package_quantity: window.currentPackageQuantity || null,
         image_url: window.currentScannedImageUrl 
     });
     await window.apiCall(`/products/${bc}/stock`, 'POST', { quantity: parseFloat(document.getElementById('quantity').value) || 1, expiry_date: document.getElementById('expiry-date').value || null });
@@ -198,7 +199,7 @@ window.addNewBatch = window.saveScanChanges; // Alias for backward compatibility
 
 async function init() {
     try {
-        console.log("Stock Manager: Initializing Recovery 0.6.2...");
+        console.log("Stock Manager: Initializing Recovery 0.6.4...");
         setupEventListeners();
         window.initializeDatePicker();
         window.wrapDateInputsWithPicker();

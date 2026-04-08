@@ -29,6 +29,8 @@ class Database:
                     proteins_100g REAL DEFAULT NULL,
                     carbs_100g REAL DEFAULT NULL,
                     fat_100g REAL DEFAULT NULL,
+                    serving_size REAL DEFAULT NULL,
+                    package_quantity TEXT DEFAULT NULL,
                     last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
@@ -55,6 +57,8 @@ class Database:
                 await db.execute("ALTER TABLE products ADD COLUMN carbs_100g REAL DEFAULT NULL")
             if 'fat_100g' not in columns:
                 await db.execute("ALTER TABLE products ADD COLUMN fat_100g REAL DEFAULT NULL")
+            if 'package_quantity' not in columns:
+                await db.execute("ALTER TABLE products ADD COLUMN package_quantity TEXT DEFAULT NULL")
 
             # Create batches table
             await db.execute("""
@@ -225,10 +229,10 @@ class Database:
         """Create new product"""
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(
-                """INSERT INTO products (barcode, name, category, stock, min_stock, unit_type, location, image_url, weight_g, kcal_100g, proteins_100g, carbs_100g, fat_100g, serving_size, last_updated)
-                   VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                """INSERT INTO products (barcode, name, category, stock, min_stock, unit_type, location, image_url, weight_g, kcal_100g, proteins_100g, carbs_100g, fat_100g, serving_size, package_quantity, last_updated)
+                   VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (product.barcode, product.name, product.category, product.min_stock, product.unit_type, product.location, product.image_url, 
-                 product.weight_g, product.kcal_100g, product.proteins_100g, product.carbs_100g, product.fat_100g, product.serving_size, datetime.now())
+                 product.weight_g, product.kcal_100g, product.proteins_100g, product.carbs_100g, product.fat_100g, product.serving_size, product.package_quantity, datetime.now())
             )
             await db.commit()
         return await self.get_product(product.barcode)
@@ -302,6 +306,8 @@ class Database:
             updates['fat_100g'] = update.fat_100g
         if hasattr(update, 'serving_size') and update.serving_size is not None:
             updates['serving_size'] = update.serving_size
+        if hasattr(update, 'package_quantity') and update.package_quantity is not None:
+            updates['package_quantity'] = update.package_quantity
 
         if updates:
             updates['last_updated'] = datetime.now()
@@ -490,7 +496,7 @@ class Database:
             # Join products and batches to get a flat list. 
             # We use LEFT JOIN to include products even if they have no batches (though in our sync system they shouldn't)
             async with db.execute("""
-                SELECT p.barcode, p.name, p.category, p.unit_type, p.location, p.min_stock, p.image_url, p.weight_g, p.kcal_100g, p.proteins_100g, p.carbs_100g, p.fat_100g, p.serving_size, b.quantity, b.expiry_date
+                SELECT p.barcode, p.name, p.category, p.unit_type, p.location, p.min_stock, p.image_url, p.weight_g, p.kcal_100g, p.proteins_100g, p.carbs_100g, p.fat_100g, p.serving_size, p.package_quantity, b.quantity, b.expiry_date
                 FROM products p
                 LEFT JOIN batches b ON p.barcode = b.barcode
                 ORDER BY p.name
@@ -512,8 +518,8 @@ class Database:
                 
                 # Insert or update product
                 await db.execute("""
-                    INSERT INTO products (barcode, name, category, unit_type, location, min_stock, image_url, weight_g, kcal_100g, proteins_100g, carbs_100g, fat_100g, serving_size, stock, last_updated)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+                    INSERT INTO products (barcode, name, category, unit_type, location, min_stock, image_url, weight_g, kcal_100g, proteins_100g, carbs_100g, fat_100g, serving_size, package_quantity, stock, last_updated)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
                     ON CONFLICT(barcode) DO UPDATE SET
                         name=excluded.name,
                         category=excluded.category,
@@ -527,12 +533,13 @@ class Database:
                         carbs_100g=COALESCE(excluded.carbs_100g, products.carbs_100g),
                         fat_100g=COALESCE(excluded.fat_100g, products.fat_100g),
                         serving_size=COALESCE(excluded.serving_size, products.serving_size),
+                        package_quantity=COALESCE(excluded.package_quantity, products.package_quantity),
                         last_updated=excluded.last_updated
                 """, (
                     barcode, item.get('name', 'Huerfano'), item.get('category', 'Otros'), item.get('unit_type', 'uds'),
                     item.get('location'), item.get('min_stock', 2), item.get('image_url'),
                     item.get('weight_g'), item.get('kcal_100g'), item.get('proteins_100g'),
-                    item.get('carbs_100g'), item.get('fat_100g'), item.get('serving_size'), datetime.now()
+                    item.get('carbs_100g'), item.get('fat_100g'), item.get('serving_size'), item.get('package_quantity'), datetime.now()
                 ))
 
                 # Insert batch if quantity > 0

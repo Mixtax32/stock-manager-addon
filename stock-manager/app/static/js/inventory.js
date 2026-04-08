@@ -1,6 +1,6 @@
 /* 
    Inventory Management & Product Lists
-   v0.6.1
+   v0.6.4
 */
 
 window.updateProductList = () => {
@@ -227,6 +227,7 @@ window.renderManageList = () => {
                 </select></div>
                 <div class="form-group"><label>Stock Mín</label><input type="number" class="edit-field" data-barcode="${p.barcode}" data-field="min_stock" value="${p.min_stock}" ${isDel ? 'disabled' : ''}></div>
                 <div class="form-group"><label>Ración Usual</label><input type="number" class="edit-field" data-barcode="${p.barcode}" data-field="serving_size" value="${p.serving_size || ''}" ${isDel ? 'disabled' : ''}></div>
+                <div class="form-group"><label>Cant. Paquete</label><input type="text" class="edit-field" data-barcode="${p.barcode}" data-field="package_quantity" value="${p.package_quantity || ''}" placeholder="Ej: 6x125g" ${isDel ? 'disabled' : ''}></div>
                 <div class="form-group" style="grid-column: 1 / -1; margin-top: 4px; border-top: 1px dashed #333; padding-top: 6px;">
                     <label style="color:#4ade80; font-size:11px; margin-bottom: 4px; display: block;">Macros / 100g</label>
                     <div style="display:grid; grid-template-columns: repeat(5, 1fr); gap: 4px;">

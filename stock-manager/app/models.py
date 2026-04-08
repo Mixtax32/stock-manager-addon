@@ -25,6 +25,7 @@ class Product(BaseModel):
     carbs_100g: Optional[float] = None
     fat_100g: Optional[float] = None
     serving_size: Optional[float] = None # Cantidad usual/paquete
+    package_quantity: Optional[str] = None # Cantidad descriptiva de OFF (ej: "6 x 125g")
     batches: List[Batch] = []
     last_updated: Optional[datetime] = None
 
@@ -42,6 +43,7 @@ class ProductCreate(BaseModel):
     carbs_100g: Optional[float] = None
     fat_100g: Optional[float] = None
     serving_size: Optional[float] = None
+    package_quantity: Optional[str] = None
 
 class StockUpdate(BaseModel):
     quantity: float
@@ -61,6 +63,7 @@ class ProductUpdate(BaseModel):
     carbs_100g: Optional[float] = None
     fat_100g: Optional[float] = None
     serving_size: Optional[float] = None
+    package_quantity: Optional[str] = None
 
 class BatchUpdate(BaseModel):
     expiry_date: Optional[str] = None

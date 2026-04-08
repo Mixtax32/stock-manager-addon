@@ -83,7 +83,7 @@ async def _search_facts_api(barcode: str, client: httpx.AsyncClient, api_url: st
                 "brand": product_data.get("brands", ""),
                 "category": mapped_category,
                 "image_url": product_data.get("image_url", ""),
-                "quantity": product_data.get("quantity", ""),
+                "package_quantity": product_data.get("quantity", ""),
                 "weight_g": product_data.get("product_quantity"),
                 "kcal_100g": nutriments.get("energy-kcal_100g"),
                 "proteins_100g": nutriments.get("proteins_100g"),

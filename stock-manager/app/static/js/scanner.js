@@ -1,6 +1,6 @@
 /* 
    Barcode & Ticket Scanning Logic
-   v0.6.1
+   v0.6.4
 */
 
 window.stopAllCameras = async () => {
@@ -66,13 +66,16 @@ window.onScanSuccess = async (decodedText) => {
     fields.forEach(f => { const el = document.getElementById(f); if (el) el.value = (f === 'new-batch-qty' || f === 'quantity') ? 1 : (f === 'min-stock' ? 2 : ''); });
     const bqty = document.getElementById('new-batch-qty'); if (bqty) bqty.value = 0;
     const codeSpan = document.getElementById('scanned-code'); if (codeSpan) codeSpan.textContent = 'Código: ' + decodedText;
-    document.getElementById('product-action')?.classList.remove('hidden');
+    const resetInfo = ['existing-package-qty', 'new-package-qty-info'];
+    resetInfo.forEach(id => { const el = document.getElementById(id); if (el) el.textContent = ''; });
+
     const p = window.products.find(prod => prod.barcode === window.currentBarcode);
     window.currentScannedImageUrl = p ? p.image_url : null;
     if (p) {
         document.getElementById('existing-product-view')?.classList.remove('hidden');
         document.getElementById('new-product-fields')?.classList.add('hidden');
         const epn = document.getElementById('existing-product-name'); if (epn) epn.textContent = p.name;
+        const epq = document.getElementById('existing-package-qty'); if (epq) epq.textContent = p.package_quantity || '';
         const eps = document.getElementById('serving-size'); if (eps) eps.value = p.serving_size || '';
         const epst = document.getElementById('existing-product-stock'); if (epst) epst.textContent = `(${p.stock} ${p.unit_type || 'uds'})`;
         window.renderScanImage(p.image_url); window.renderExistingBatches(p);
@@ -84,9 +87,23 @@ window.onScanSuccess = async (decodedText) => {
             if (barcodeData && barcodeData.found) {
                 window.currentScannedImageUrl = barcodeData.image_url; window.renderScanImage(barcodeData.image_url);
                 const pni = document.getElementById('product-name'); if (pni) pni.value = barcodeData.name || '';
+                window.currentPackageQuantity = barcodeData.package_quantity || null;
+                const npq = document.getElementById('new-package-qty-info'); if (npq) npq.textContent = barcodeData.package_quantity || '';
                 const pcat = document.getElementById('product-category'); if (pcat) pcat.value = ['Alimentos', 'Bebidas', 'Limpieza', 'Higiene', 'Otros'].includes(barcodeData.category) ? barcodeData.category : 'Otros';
                 const punit = document.getElementById('product-unit'); if (punit) punit.value = pcat.value === 'Alimentos' ? 'g' : (pcat.value === 'Bebidas' ? 'ml' : 'uds');
                 ['weight', 'kcal', 'proteins', 'carbs', 'fat'].forEach(m => { const el = document.getElementById(`new-${m}`); if (el) el.value = barcodeData[`${m}_100g`] ?? (m==='weight' ? barcodeData.weight_g : ''); });
+                
+                // Extra hint: If unit is 'uds' and we have a quantity string like "500g", user might want to check
+                if (barcodeData.package_quantity && !document.getElementById('serving-size').value) {
+                    const match = barcodeData.package_quantity.match(/(\d+[,.]?\d*)\s*(g|ml|cl|l|kg)/i);
+                    if (match) {
+                        let val = parseFloat(match[1].replace(',', '.'));
+                        const unit = match[2].toLowerCase();
+                        if (unit === 'kg' || unit === 'l') val *= 1000;
+                        if (unit === 'cl') val *= 10;
+                        document.getElementById('serving-size').value = val;
+                    }
+                }
             } else window.renderScanImage(null);
         } catch (e) { window.renderScanImage(null); }
     }
