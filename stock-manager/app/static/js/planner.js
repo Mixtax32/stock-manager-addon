@@ -1,7 +1,10 @@
 /* 
    Recipes & Diet Planner Logic
-   v0.6.1
+   v0.6.5
 */
+
+window.plannerCharts = { kcal: null };
+window.plannerActiveDate = new Date().toISOString().split('T')[0];
 
 window.loadRecipes = async () => {
     try {
@@ -50,8 +53,21 @@ window.closeRecipeEditor = () => { document.getElementById('recipe-editor-panel'
 
 function renderEditorIngredients() {
     const list = document.getElementById('recipe-ingredients-list'); if (!list) return;
-    list.innerHTML = window.currentRecipeEditorIngredients.map((ing, i) => `
-        <div class="ingredient-item"><span>${ing.custom_name || window.products.find(p => p.barcode === ing.product_barcode)?.name || 'Producto'}</span><div style="display:flex; align-items:center; gap:8px;"><b>${ing.quantity} ${ing.unit}</b><button class="btn-del" onclick="window.removeIngFromEditor(${i})">✕</button></div></div>`).join('');
+    list.innerHTML = window.currentRecipeEditorIngredients.map((ing, i) => {
+        const p = ing.product_barcode ? window.products.find(prod => prod.barcode === ing.product_barcode) : null;
+        const name = ing.custom_name || p?.name || 'Producto';
+        return `
+        <div class="ingredient-item">
+            <div style="display:flex; flex-direction:column;">
+                <span style="font-weight:600;">${name}</span>
+                ${p ? `<small style="color:var(--text-dim); font-size:10px;">Stock: ${p.stock}${p.unit_type}</small>` : ''}
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+                <b>${ing.quantity} ${ing.unit}</b>
+                <button class="btn-del" onclick="window.removeIngFromEditor(${i})">✕</button>
+            </div>
+        </div>`;
+    }).join('');
     updateRecipeMacrosPreview();
 }
 
@@ -59,9 +75,12 @@ window.removeIngFromEditor = (i) => { window.currentRecipeEditorIngredients.spli
 
 window.saveRecipe = async () => {
     const editId = document.getElementById('recipe-name-input').dataset.editId;
+    const name = document.getElementById('recipe-name-input').value;
+    if (!name) { window.showToast('El nombre es obligatorio', 'error'); return; }
+    
     const recipeData = {
-        name: document.getElementById('recipe-name-input').value, description: "", instructions: document.getElementById('recipe-instructions-input').value, servings: parseInt(document.getElementById('recipe-servings-input').value), image_url: document.getElementById('recipe-image-input').value, ingredients: window.currentRecipeEditorIngredients,
-        kcal: parseFloat(document.getElementById('prev-recipe-kcal').innerText), proteins: parseFloat(document.getElementById('prev-recipe-proteins').innerText), carbs: parseFloat(document.getElementById('prev-recipe-carbs').innerText), fat: parseFloat(document.getElementById('prev-recipe-fat').innerText)
+        name: name, description: "", instructions: document.getElementById('recipe-instructions-input').value, servings: parseInt(document.getElementById('recipe-servings-input').value), image_url: document.getElementById('recipe-image-input').value, ingredients: window.currentRecipeEditorIngredients,
+        kcal: parseFloat(document.getElementById('prev-recipe-kcal').innerText), proteins: parseFloat(document.getElementById('prev-recipe-proteins').innerText.replace('g', '')), carbs: parseFloat(document.getElementById('prev-recipe-carbs').innerText.replace('g', '')), fat: parseFloat(document.getElementById('prev-recipe-fat').innerText.replace('g', ''))
     };
     try {
         if (editId) await window.apiCall(`/recipes/${editId}`, 'DELETE');
@@ -88,23 +107,47 @@ function updateRecipeMacrosPreview() {
 }
 
 window.loadPlanner = async () => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (!window.plannerActiveDate) window.plannerActiveDate = todayStr;
+    
     const today = new Date(); const monday = new Date(today); monday.setHours(0,0,0,0); monday.setDate(today.getDate() - (today.getDay() === 0 ? 6 : today.getDay() - 1) + (window.plannerWeekOffset * 7));
     const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6); sunday.setHours(23,59,59,999);
     const pwt = document.getElementById('planner-week-title'); if (pwt) pwt.innerText = `${monday.toLocaleDateString('es-ES', {day:'numeric', month:'short'})} - ${sunday.toLocaleDateString('es-ES', {day:'numeric', month:'short'})}`;
     try {
         const plans = await window.apiCall(`/diet-plan?start_date=${monday.toISOString().split('T')[0]}&end_date=${sunday.toISOString().split('T')[0]}`);
+        window.currentPlans = plans;
         renderPlanner(monday, plans);
+        updatePlannerMacros();
     } catch (e) { console.error('Error planner:', e); }
 };
 
 function renderPlanner(monday, plans) {
     const grid = document.getElementById('planner-week-grid'); if(!grid) return;
+    const dayPills = document.getElementById('day-selector-pills');
     grid.innerHTML = '';
-    const days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+    if (dayPills) dayPills.innerHTML = '';
+    
+    const days = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
     const meals = [{ type: 'breakfast', label: 'Desayuno' }, { type: 'lunch', label: 'Comida' }, { type: 'snack', label: 'Merienda' }, { type: 'dinner', label: 'Cena' }];
+    
     for (let i = 0; i < 7; i++) {
         const d = new Date(monday); d.setDate(monday.getDate() + i);
         const dStr = d.toISOString().split('T')[0];
+        
+        // Add Day Pill
+        if (dayPills) {
+            const pill = document.createElement('div');
+            pill.className = `day-pill ${dStr === window.plannerActiveDate ? 'active' : ''}`;
+            pill.innerText = `${days[i]} ${d.getDate()}`;
+            pill.onclick = () => {
+                window.plannerActiveDate = dStr;
+                document.querySelectorAll('.day-pill').forEach(p => p.classList.remove('active'));
+                pill.classList.add('active');
+                updatePlannerMacros();
+            };
+            dayPills.appendChild(pill);
+        }
+
         const dayCol = document.createElement('div'); dayCol.className = 'planner-day-col';
         dayCol.innerHTML = `<div class="day-header ${dStr === new Date().toISOString().split('T')[0] ? 'today' : ''}"><span class="day-name">${days[i]}</span><span class="day-number">${d.getDate()}</span></div>`;
         meals.forEach(meal => {
@@ -123,6 +166,82 @@ function renderPlanner(monday, plans) {
     }
 }
 
+window.updatePlannerMacros = async () => {
+    if (!window.plannerActiveDate) return;
+    const plans = (window.currentPlans || []).filter(p => p.date === window.plannerActiveDate);
+    
+    let totals = { kcal: 0, proteins: 0, carbs: 0, fat: 0 };
+    
+    for (const p of plans) {
+        if (p.recipe_id) {
+            const r = window.recipes.find(rec => rec.id === p.recipe_id);
+            if (r) {
+                totals.kcal += r.kcal * p.quantity;
+                totals.proteins += r.proteins * p.quantity;
+                totals.carbs += r.carbs * p.quantity;
+                totals.fat += r.fat * p.quantity;
+            }
+        } else if (p.product_barcode) {
+            const prod = window.products.find(pr => pr.barcode === p.product_barcode);
+            if (prod && prod.kcal_100g) {
+                const weight = (prod.unit_type === 'g' || prod.unit_type === 'ml') ? p.quantity : (prod.serving_size ? p.quantity * prod.serving_size : 0);
+                totals.kcal += (prod.kcal_100g/100) * weight;
+                totals.proteins += (prod.proteins_100g/100) * weight;
+                totals.carbs += (prod.carbs_100g/100) * weight;
+                totals.fat += (prod.fat_100g/100) * weight;
+            }
+        }
+    }
+
+    // Update Title
+    const dt = new Date(window.plannerActiveDate);
+    const options = { weekday: 'long', day: 'numeric', month: 'long' };
+    document.getElementById('planner-day-macro-title').innerText = `Macros del ${dt.toLocaleDateString('es-ES', options)}`;
+
+    // Get Goals
+    const goals = await window.apiCall('/stats/macro-goals');
+    
+    // Update Values
+    const setVal = (id, val, goal) => {
+        const el = document.getElementById(id);
+        if (el) el.innerText = `${Math.round(val)} / ${Math.round(goal)}${id.includes('kcal') ? '' : 'g'}`;
+    };
+    
+    setVal('plan-macro-kcal', totals.kcal, goals.kcal);
+    setVal('plan-macro-proteins', totals.proteins, goals.proteins);
+    setVal('plan-macro-carbs', totals.carbs, goals.carbs);
+    setVal('plan-macro-fat', totals.fat, goals.fat);
+
+    // Update Bars
+    const setFill = (id, cur, max) => {
+        const fill = document.getElementById(id);
+        if (fill) fill.style.width = Math.min(100, (cur/max)*100) + '%';
+    };
+    setFill('plan-fill-proteins', totals.proteins, goals.proteins);
+    setFill('plan-fill-carbs', totals.carbs, goals.carbs);
+    setFill('plan-fill-fat', totals.fat, goals.fat);
+
+    // Update Chart
+    const ctx = document.getElementById('plannerKcalChart')?.getContext('2d');
+    if (!ctx) return;
+    
+    if (window.plannerCharts.kcal) window.plannerCharts.kcal.destroy();
+    
+    const left = Math.max(0, goals.kcal - totals.kcal);
+    window.plannerCharts.kcal = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            datasets: [{
+                data: [totals.kcal, left],
+                backgroundColor: [totals.kcal > goals.kcal ? '#ef4444' : '#1D9E75', '#2a2a2a'],
+                borderWidth: 0,
+                borderRadius: left > 0 ? 0 : 0
+            }]
+        },
+        options: { cutout: '80%', plugins: { tooltip: { enabled: false } }, events: [] }
+    });
+};
+
 window.togglePlanConsumed = async (id, current) => {
     try {
         await window.apiCall(`/diet-plan/${id}?is_consumed=${!current}`, 'PATCH'); window.loadPlanner();
@@ -131,8 +250,8 @@ window.togglePlanConsumed = async (id, current) => {
 };
 
 window.openPlannerModal = () => {
-    const val = new Date().toISOString().split('T')[0];
-    const inp = document.getElementById('plan-date-input'); if (inp) inp.value = val;
+    const today = new Date().toISOString().split('T')[0];
+    const inp = document.getElementById('plan-date-input'); if (inp) inp.value = today;
     const recSelect = document.getElementById('plan-recipe-id'); if (recSelect) recSelect.innerHTML = (window.recipes || []).map(r => `<option value="${r.id}">${r.name}</option>`).join('');
     document.getElementById('planner-modal')?.classList.add('active');
 };
@@ -144,7 +263,7 @@ window.savePlan = async () => {
         date: document.getElementById('plan-date-input').value, meal_type: document.getElementById('plan-meal-type').value, recipe_id: window.planType === 'recipe' ? parseInt(document.getElementById('plan-recipe-id').value) : null, product_barcode: window.planType === 'product' ? document.getElementById('plan-product-search').dataset.barcode : null, custom_name: window.planType === 'product' && !document.getElementById('plan-product-search').dataset.barcode ? document.getElementById('plan-product-search').value : null, quantity: parseFloat(document.getElementById('plan-quantity').value) || 1
     };
     try {
-        await window.apiCall('/diet-plan', 'POST', planData); window.showToast('Añadido', 'success'); window.closePlannerModal(); window.loadPlanner();
+        await window.apiCall('/diet-plan', 'POST', planData); window.showToast('Añadido al plan', 'success'); window.closePlannerModal(); window.loadPlanner();
     } catch (e) { window.showToast('Error: ' + e.message, 'error'); }
 };
 
@@ -156,37 +275,78 @@ window.switchPlanType = (type) => {
     else { btnRec?.classList.remove('active'); btnProd?.classList.add('active'); viewRec?.classList.add('hidden'); viewProd?.classList.remove('hidden'); }
 };
 
+// Generic Search Logic for Ingredients and Planner
 window.searchIngredientProduct = () => {
-    const query = window.normalizeText(document.getElementById('ing-search').value);
-    const results = document.getElementById('ing-search-results'); if (!results) return;
-    if (query.length < 2) { results.classList.add('hidden'); return; }
-    const matches = window.products.filter(p => window.normalizeText(p.name).includes(query) || p.barcode.includes(query)).slice(0, 5);
-    if (matches.length === 0) results.innerHTML = `<div class="p-2" onclick="window.selectCustomIngredient('${document.getElementById('ing-search').value.replace(/'/g, "\\'")}')">Ingrediente libre</div>`;
-    else results.innerHTML = matches.map(p => `<div class="p-2 border-b border-gray-800 hover:bg-gray-800 flex justify-between" onclick="window.selectIngredientProduct('${p.barcode}', '${p.name.replace(/'/g, "\\'")}')"><span>${p.name}</span><small>${p.stock}${p.unit_type}</small></div>`).join('');
-    results.classList.remove('hidden');
+    const input = document.getElementById('ing-search');
+    const results = document.getElementById('ing-search-results');
+    performProductSearch(input, results, (bc, name) => {
+        input.value = name; input.dataset.barcode = bc;
+        const p = window.products.find(prod => prod.barcode === bc); if (p) { const iu = document.getElementById('ing-unit'); if (iu) iu.value = p.unit_type || 'uds'; }
+        results.classList.add('hidden');
+    }, (name) => {
+        input.value = name; delete input.dataset.barcode;
+        results.classList.add('hidden');
+    });
 };
 
-window.selectIngredientProduct = (bc, name) => {
-    const iseb = document.getElementById('ing-search'); if (iseb) { iseb.value = name; iseb.dataset.barcode = bc; }
-    document.getElementById('ing-search-results')?.classList.add('hidden');
-    const p = window.products.find(prod => prod.barcode === bc); if (p) { const iu = document.getElementById('ing-unit'); if (iu) iu.value = p.unit_type || 'uds'; }
+window.searchPlanProduct = () => {
+    const input = document.getElementById('plan-product-search');
+    const results = document.getElementById('plan-product-results');
+    performProductSearch(input, results, (bc, name) => {
+        input.value = name; input.dataset.barcode = bc;
+        results.classList.add('hidden');
+    }, (name) => {
+        input.value = name; delete input.dataset.barcode;
+        results.classList.add('hidden');
+    });
 };
 
-window.selectCustomIngredient = (name) => {
-    const iseb = document.getElementById('ing-search'); if (iseb) { iseb.value = name; delete iseb.dataset.barcode; }
-    document.getElementById('ing-search-results')?.classList.add('hidden');
-};
+function performProductSearch(input, resultsContainer, onSelectProduct, onSelectCustom) {
+    if (!input || !resultsContainer) return;
+    const query = window.normalizeText(input.value);
+    if (query.length < 2) { resultsContainer.classList.add('hidden'); return; }
+    
+    const matches = window.products.filter(p => window.normalizeText(p.name).includes(query) || p.barcode.includes(query)).slice(0, 10);
+    
+    let html = '';
+    if (matches.length === 0) {
+        html = `<div class="search-result-item" onclick="window.handleSearchCustom('${input.id}')">
+                    <div class="sr-info"><span class="sr-name">"${input.value}"</span><small class="sr-meta">Ingrediente libre (sin macros)</small></div>
+                </div>`;
+    } else {
+        html = matches.map(p => `
+            <div class="search-result-item" onclick="window.handleSearchSelect('${input.id}', '${p.barcode}', '${p.name.replace(/'/g, "\\'")}')">
+                <div class="sr-info">
+                    <span class="sr-name">${p.name}</span>
+                    <small class="sr-meta">${p.stock}${p.unit_type} en stock • ${p.kcal_100g || 0} kcal/100g</small>
+                </div>
+            </div>`).join('');
+    }
+    
+    resultsContainer.innerHTML = html;
+    resultsContainer.classList.remove('hidden');
+    
+    // Store callbacks globally for the onclick handlers
+    window._searchCallbacks = window._searchCallbacks || {};
+    window._searchCallbacks[input.id] = { product: onSelectProduct, custom: onSelectCustom };
+}
+
+window.handleSearchSelect = (inputId, bc, name) => { window._searchCallbacks[inputId].product(bc, name); };
+window.handleSearchCustom = (inputId) => { window._searchCallbacks[inputId].custom(document.getElementById(inputId).value); };
+
+window.selectIngredientProduct = (bc, name) => { /* Legacy hook */ };
+window.selectCustomIngredient = (name) => { /* Legacy hook */ };
 
 window.addIngredientToRecipe = () => {
     const nameInput = document.getElementById('ing-search'), qtyInput = document.getElementById('ing-qty'), unitInput = document.getElementById('ing-unit');
-    if (!nameInput?.value || !qtyInput?.value) return;
+    if (!nameInput?.value || !qtyInput?.value) { window.showToast('Completa ingrediente y cantidad', 'warning'); return; }
     window.currentRecipeEditorIngredients.push({ product_barcode: nameInput.dataset.barcode || null, custom_name: nameInput.dataset.barcode ? null : nameInput.value, quantity: parseFloat(qtyInput.value), unit: unitInput.value });
     nameInput.value = ''; delete nameInput.dataset.barcode; qtyInput.value = ''; renderEditorIngredients();
 };
 
 window.consumeRecipe = async (id) => {
     const r = (window.recipes || []).find(rec => rec.id === id); if (!r) return;
-    const servings = prompt(`¿Raciones? (Receta: ${r.servings})`, "1"); if (servings === null) return;
+    const servings = prompt(`¿Raciones a descontar del stock? (Receta: ${r.servings})`, "1"); if (servings === null) return;
     try {
         await window.apiCall(`/recipes/${id}/consume?servings=${servings}`, 'POST');
         window.showToast(`Consumido: ${r.name}`, 'success'); await window.loadProducts(); await window.updateMacros();

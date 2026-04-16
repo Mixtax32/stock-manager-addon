@@ -1,6 +1,6 @@
 /* 
    Inventory Management & Product Lists
-   v0.6.4
+   v0.6.5
 */
 
 window.updateProductList = () => {

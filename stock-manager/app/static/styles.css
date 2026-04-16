@@ -210,11 +210,61 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 8px 12px;
+    padding: 10px 14px;
     background: var(--surface);
-    margin-bottom: 6px;
-    border-radius: 8px;
+    margin-bottom: 8px;
+    border-radius: 10px;
     font-size: 13px;
+    border-left: 4px solid var(--accent);
+}
+
+.search-results-floating {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    z-index: 100;
+    max-height: 250px;
+    overflow-y: auto;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    margin-top: 4px;
+}
+
+.day-selector-pills {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+}
+
+.day-pill {
+    padding: 6px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: 11px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+    color: var(--text-dim);
+}
+
+.day-pill.active {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+}
+
+.planner-macro-summary {
+    animation: slideInUp 0.4s ease-out;
+}
+
+@keyframes slideInUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
 }
 
 /* Modal specific tweaks */

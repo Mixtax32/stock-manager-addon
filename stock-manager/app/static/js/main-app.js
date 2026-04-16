@@ -1,6 +1,6 @@
 /* 
    Main App Entry Point & Initialization
-   v0.6.4
+   v0.6.5
 */
 
 console.log("Stock Manager: Script Loaded.");
@@ -199,7 +199,7 @@ window.addNewBatch = window.saveScanChanges; // Alias for backward compatibility
 
 async function init() {
     try {
-        console.log("Stock Manager: Initializing Recovery 0.6.4...");
+        console.log("Stock Manager: Initializing Recovery 0.6.5...");
         setupEventListeners();
         window.initializeDatePicker();
         window.wrapDateInputsWithPicker();

@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Stock Manager v0.6.4</title>
-    <link rel="stylesheet" href="static/styles.css?v=0.6.4">
+    <title>Stock Manager v0.6.5</title>
+    <link rel="stylesheet" href="static/styles.css?v=0.6.5">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 </head>
@@ -389,8 +389,42 @@
                         <h2 id="planner-week-title">Semana Actual</h2>
                         <button class="btn-icon" onclick="window.changePlannerWeek(1)">▶</button>
                     </div>
+                    
                     <div id="planner-week-grid" class="planner-grid">
                         <!-- Filled by JS -->
+                    </div>
+
+                    <!-- Macro Summary for Planner -->
+                    <div class="planner-macro-summary column-card" style="margin-top: 24px; border-top: 1px solid var(--accent);">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px;">
+                            <h3 id="planner-day-macro-title">Resumen del Día</h3>
+                            <div class="day-selector-pills" id="day-selector-pills">
+                                <!-- Day selector buttons -->
+                            </div>
+                        </div>
+                        <div class="macros-dashboard" style="gap: 15px; justify-content: space-around;">
+                            <div style="position: relative; width: 120px; height: 120px;">
+                                <canvas id="plannerKcalChart"></canvas>
+                                <div class="kcal-display">
+                                    <div class="kcal-value" id="plan-macro-kcal" style="font-size: 1.2rem;">0</div>
+                                    <div class="kcal-target" id="plan-target-kcal" style="font-size: 0.7rem;">/ 0 kcal</div>
+                                </div>
+                            </div>
+                            <div class="macro-progress" style="flex: 1; max-width: 400px;">
+                                <div class="macro-item">
+                                    <div class="macro-label-row"><span>🥩 Proteínas</span><span id="plan-macro-proteins">0 / 0g</span></div>
+                                    <div class="macro-progress-bg"><div class="macro-progress-fill" id="plan-fill-proteins"></div></div>
+                                </div>
+                                <div class="macro-item">
+                                    <div class="macro-label-row"><span>🍞 Carbos</span><span id="plan-macro-carbs">0 / 0g</span></div>
+                                    <div class="macro-progress-bg"><div class="macro-progress-fill" id="plan-fill-carbs"></div></div>
+                                </div>
+                                <div class="macro-item">
+                                    <div class="macro-label-row"><span>🥑 Grasas</span><span id="plan-macro-fat">0 / 0g</span></div>
+                                    <div class="macro-progress-bg"><div class="macro-progress-fill" id="plan-fill-fat"></div></div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -606,9 +640,9 @@
                         <select id="plan-recipe-id" style="width:100%"></select>
                     </div>
                     <div id="plan-product-select" class="hidden">
-                        <div class="barcode-input">
-                            <input type="text" id="plan-product-search" placeholder="Buscar producto..." oninput="window.searchPlanProduct()">
-                            <div id="plan-product-results" class="mini-search-results-overlay hidden"></div>
+                        <div class="barcode-input" style="position: relative;">
+                            <input type="text" id="plan-product-search" placeholder="Nombre o código..." oninput="window.searchPlanProduct()" autocomplete="off">
+                            <div id="plan-product-results" class="search-results-floating hidden"></div>
                         </div>
                     </div>
                 </div>
@@ -622,7 +656,7 @@
     </div>
 
     <div style="text-align:center; padding: 40px 0; opacity: 0.2; font-size: 10px; letter-spacing: 0.1em;">
-        STOCK MANAGER v0.6.4
+        STOCK MANAGER v0.6.5
     </div>
     <script>
         // Global scope safety hook
@@ -632,14 +666,14 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/tesseract.js@v4.0.2/dist/tesseract.min.js"></script>
     <!-- Refactored Scripts (HASS Ingress Compatible) -->
-    <script src="static/js/state.js?v=0.6.4"></script>
-    <script src="static/js/ui-utils.js?v=0.6.4"></script>
-    <script src="static/js/api.js?v=0.6.4"></script>
-    <script src="static/js/navigation.js?v=0.6.4"></script>
-    <script src="static/js/scanner.js?v=0.6.4"></script>
-    <script src="static/js/inventory.js?v=0.6.4"></script>
-    <script src="static/js/macros.js?v=0.6.4"></script>
-    <script src="static/js/planner.js?v=0.6.4"></script>
-    <script src="static/js/main-app.js?v=0.6.4"></script>
+    <script src="static/js/state.js?v=0.6.5"></script>
+    <script src="static/js/ui-utils.js?v=0.6.5"></script>
+    <script src="static/js/api.js?v=0.6.5"></script>
+    <script src="static/js/navigation.js?v=0.6.5"></script>
+    <script src="static/js/scanner.js?v=0.6.5"></script>
+    <script src="static/js/inventory.js?v=0.6.5"></script>
+    <script src="static/js/macros.js?v=0.6.5"></script>
+    <script src="static/js/planner.js?v=0.6.5"></script>
+    <script src="static/js/main-app.js?v=0.6.5"></script>
 </body>
 </html>
