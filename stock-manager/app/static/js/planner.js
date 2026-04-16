@@ -4,7 +4,7 @@
 */
 
 window.plannerCharts = { kcal: null };
-window.plannerActiveDate = new Date().toISOString().split('T')[0];
+window.plannerActiveDate = new Date().toLocaleDateString('sv').split(' ')[0]; // YYYY-MM-DD local
 
 window.loadRecipes = async () => {
     try {

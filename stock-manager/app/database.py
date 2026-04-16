@@ -712,6 +712,7 @@ class Database:
 
     async def create_diet_plan(self, plan: DietPlanCreate) -> DietPlan:
         async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
             cursor = await db.execute("""
                 INSERT INTO diet_plans (date, meal_type, recipe_id, product_barcode, custom_name, quantity, is_consumed)
                 VALUES (?, ?, ?, ?, ?, ?, 0)

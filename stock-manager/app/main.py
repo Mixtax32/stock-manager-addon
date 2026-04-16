@@ -25,7 +25,7 @@ from contextlib import asynccontextmanager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # --- Startup ---
-    logger.info("Initializing Stock Manager v0.6.5.")
+    logger.info("Initializing Stock Manager v0.6.6.")
     await db.init_db()
     
     # Start Telegram Bot in background and store task
