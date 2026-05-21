@@ -3,685 +3,85 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Stock Manager v0.7.0</title>
+    <title>Stock Manager · Macros</title>
     <link rel="stylesheet" href="static/styles.css?v=0.7.0">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 </head>
-<body>
-    <div class="toast-container" id="toast-container"></div>
+<body data-theme="cream">
 
-    <!-- Multi-selection bar -->
-    <div class="selection-bar hidden" id="selection-bar">
-        <div class="selection-count" id="selection-count">0 seleccionados</div>
-        <div class="selection-actions">
-            <button class="btn btn-secondary" onclick="window.bulkAction('location')">Mover</button>
-            <button class="btn btn-secondary" onclick="window.bulkAction('category')">Categoría</button>
-            <button class="btn btn-del" onclick="window.bulkAction('delete')">Eliminar</button>
+<div class="toast-container" id="toast-container"></div>
+
+<!-- Mobile head bar -->
+<div class="mobile-bar">
+    <div class="brand">
+        <div class="brand-mark">S</div>
+        <div>
+            <div class="brand-name">Stock Manager</div>
         </div>
-        <button class="btn btn-secondary" onclick="window.clearSelection()">✕</button>
     </div>
+</div>
 
-    <nav class="sidebar">
-        <div class="sidebar-brand">
-            <div class="sidebar-brand-mark">S</div>
+<div class="app">
+    <!-- Sidebar (desktop) -->
+    <aside class="sidebar" id="sidebar">
+        <div class="brand">
+            <div class="brand-mark">S</div>
             <div>
-                <div class="sidebar-brand-name">Stock Manager</div>
-                <div class="sidebar-brand-sub">v0.7.0</div>
+                <div class="brand-name">Stock Manager</div>
+                <div class="brand-sub">macros & pantry</div>
             </div>
         </div>
-        <div class="nav-item active" data-page="dashboard" onclick="window.showPage('dashboard')">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-            <span>Inicio</span>
-        </div>
-        <div class="nav-item" data-page="stock" onclick="window.showPage('stock')">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
-            <span>Stock</span>
-        </div>
-        <div class="nav-item" data-page="macros" onclick="window.showPage('macros')">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 2-2.3 2.3a3 3 0 0 0 0 4.2l1.8 1.8a3 3 0 0 0 4.2 0L22 8"/><path d="M15 15 3.3 3.3a2 2 0 1 0-2.8 2.8L12.2 17.8"/><path d="m12 12.5 3 3a2 2 0 0 0 2.8-2.8l-3-3"/></svg>
-            <span>Macros</span>
-        </div>
-        <div class="nav-item" data-page="compra" onclick="window.showPage('compra')">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
-            <span>Compra</span>
-        </div>
-        <div class="nav-item" data-page="stats" onclick="window.showPage('stats')">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
-            <span>Stats</span>
-        </div>
-        <div class="nav-item" data-page="recipes" onclick="window.showPage('recipes')">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M7 12h10"/><path d="M10 18h4"/></svg>
-            <span>Recetas</span>
-        </div>
-        <div class="nav-item" data-page="ajustes" onclick="window.showPage('ajustes')">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
-            <span>Ajustes</span>
-        </div>
-        
-        <div id="theme-toggle" class="nav-item mt-auto" onclick="window.toggleTheme()">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="moon"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
-            <span>Tema</span>
-        </div>
-    </nav>
-
-    <main class="main-content">
-        <header class="top-bar">
-            <h1 id="page-title">Panel de Control</h1>
-            <div class="top-bar-actions">
-                <button class="btn btn-add" onclick="window.showPage('scan')">+ Escanear</button>
-            </div>
-        </header>
-
-        <div class="page-container">
-            <!-- PAGE: DASHBOARD -->
-            <div class="page" data-page="dashboard">
-                <div class="dashboard-grid">
-                    <!-- Macros Widget -->
-                    <div class="column-card macro-widget">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                            <h3>Macros de Hoy</h3>
-                            <button class="btn-action-sm" onclick="window.openMacroGoalsPanel()">⚙</button>
-                        </div>
-                        <div class="macros-dashboard">
-                            <div style="position: relative; width: 100px; height: 100px;">
-                                <canvas id="kcalChart"></canvas>
-                                <div class="kcal-display">
-                                    <div class="kcal-value" id="macro-kcal">0</div>
-                                    <div class="kcal-target" id="target-kcal">/ 0 kcal</div>
-                                </div>
-                            </div>
-                            <div class="macro-progress">
-                                <div class="macro-item">
-                                    <div class="macro-label-row"><span>Proteínas</span><span id="macro-proteins">...</span></div>
-                                    <div class="macro-progress-bg"><div class="macro-progress-fill" id="fill-proteins"></div></div>
-                                </div>
-                                <div class="macro-item">
-                                    <div class="macro-label-row"><span>Carbos</span><span id="macro-carbs">...</span></div>
-                                    <div class="macro-progress-bg"><div class="macro-progress-fill" id="fill-carbs"></div></div>
-                                </div>
-                                <div class="macro-item">
-                                    <div class="macro-label-row"><span>Grasas</span><span id="macro-fat">...</span></div>
-                                    <div class="macro-progress-bg"><div class="macro-progress-fill" id="fill-fat"></div></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Quick Scan Widget -->
-                    <div class="column-card scan-widget">
-                        <h3>Gestión Rápida</h3>
-                        <div class="barcode-input" style="margin-top: 16px;">
-                            <input type="text" id="manual-barcode" placeholder="Código o nombre..." autocomplete="off">
-                            <button class="btn btn-primary" onclick="window.useManualBarcode()">Buscar</button>
-                        </div>
-                        <div id="search-results" class="search-results hidden"></div>
-                    </div>
-
-                    <!-- Shopping List Widget -->
-                    <div class="column-card shopping-widget">
-                        <h3>Lista de la Compra</h3>
-                        <div id="shopping-list" class="mini-list"></div>
-                    </div>
-
-                    <!-- Expiring Widget -->
-                    <div class="column-card expiring-widget">
-                        <h3>Caduca Pronto</h3>
-                        <div id="expiring-soon-list" class="mini-list"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- PAGE: STOCK -->
-            <div class="page hidden" data-page="stock">
-                <div class="filter-bar">
-                    <div class="search-wrapper">
-                        <input type="text" id="stock-search" placeholder="Buscar por nombre o categoría..." oninput="updateStockPageSearch()">
-                    </div>
-                    <div style="width: 200px;">
-                        <select id="stock-location-filter" onchange="updateStockPageSearch()">
-                            <option value="">Todas las ubicaciones</option>
-                        </select>
-                    </div>
-                    <button class="btn btn-secondary" id="select-mode-btn" onclick="window.toggleSelectionMode()">Seleccionar</button>
-                    <button class="btn btn-secondary" onclick="window.openManagePanel()">⚙</button>
-                </div>
-
-                <div class="inventory-table-container">
-                    <!-- Fake Table Header (Styled via CSS Grid on children) -->
-                    <div id="product-list"></div>
-                </div>
-            </div>
-
-            <div class="page hidden" data-page="scan">
-                <div class="column-card" style="margin-bottom: 24px;">
-                    <div id="scanner-container"></div>
-                    <div id="scanner-controls" style="display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 12px; margin-top: 12px;">
-                        <button class="btn btn-add" id="start-scan" style="width: 100%; max-width: 300px;">📷 Escanear Producto</button>
-                        <button class="btn btn-secondary" id="start-ticket" style="width: 100%; max-width: 300px;">🧾 Escanear Ticket</button>
-                        <button class="btn btn-del hidden" id="stop-scan" style="width: 100%; max-width: 300px;">🛑 Detener Cámara</button>
-                    </div>
-                    <div class="ticket-progress hidden" id="ticket-progress">
-                        <div class="tp-text" id="ticket-status">Leyendo ticket...</div>
-                        <div class="tp-bar"><div class="tp-fill" id="ticket-fill"></div></div>
-                    </div>
-                </div>
-
-                <div id="product-action" class="column-card hidden">
-                    <div id="scanned-code" style="margin-bottom: 16px; font-weight: 700; opacity: 0.5;"></div>
-
-                    <!-- Existing Product -->
-                    <div id="existing-product-view" class="hidden">
-                        <h2 id="existing-product-name" style="margin-bottom: 4px;"></h2>
-                        <div id="existing-package-qty" style="font-size: 14px; color: var(--accent); font-weight: 600; margin-bottom: 8px;"></div>
-                        <div id="existing-product-stock" style="font-size: 14px; color: var(--text-dim); margin-bottom: 16px;"></div>
-                        <div id="existing-batches" style="margin-bottom: 20px;"></div>
-                        <div class="form-grid" style="margin-bottom: 20px; border-top: 1px solid var(--border); padding-top: 16px;">
-                            <div class="form-group">
-                                <label>Añadir nuevas unidades</label>
-                                <div style="display: flex; gap: 8px;">
-                                    <input type="number" id="new-batch-qty" value="0" min="0" style="width: 80px;">
-                                    <input type="date" id="new-batch-expiry">
-                                </div>
-                            </div>
-                        </div>
-                        <div style="display: flex; gap: 12px;">
-                            <button class="btn btn-secondary" style="flex:1" onclick="window.resetScanner()">Cancelar</button>
-                            <button class="btn btn-add" style="flex:1" onclick="window.addNewBatch()">Guardar</button>
-                        </div>
-                    </div>
-
-                    <!-- New Product -->
-                    <div id="loading-overlay" class="hidden">
-        <div class="loader"></div>
-        <div id="loading-text">Cargando...</div>
-    </div>
-
-    <div id="new-product-fields" class="hidden">
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                            <div class="form-group" style="grid-column: span 2;">
-                                <label>Nombre del producto</label>
-                                <input type="text" id="product-name" placeholder="Nombre completo">
-                                <div id="new-package-qty-info" style="font-size: 12px; color: var(--accent); font-weight: 600; margin-top: 4px;"></div>
-                            </div>
-                            <div class="form-group">
-                                <label>Categoría</label>
-                                <select id="product-category">
-                                    <option value="Alimentos">Alimentos</option>
-                                    <option value="Bebidas">Bebidas</option>
-                                    <option value="Limpieza">Limpieza</option>
-                                    <option value="Higiene">Higiene</option>
-                                    <option value="Otros">Otros</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Unidad de medida</label>
-                                <select id="product-unit">
-                                    <option value="g" selected>Gramos (g)</option>
-                                    <option value="uds">Unidades (uds)</option>
-                                    <option value="ml">Mililitros (ml)</option>
-                                </select>
-                             </div>
-                             <div class="form-group">
-                                <label>Ración/Paquete Usual</label>
-                                <input type="number" step="0.1" id="serving-size" placeholder="Ej: 125">
-                              </div>
-                             <div class="form-group">
-                                <label>Cantidad Inicial</label>
-                                <input type="number" step="0.1" id="quantity" value="1">
-                            </div>
-
-                             <!-- Advanced Options Toggle -->
-                             <div class="advanced-toggle" onclick="window.toggleAdvancedFields()">
-                                 <span>⚙️ Opciones avanzadas</span>
-                                 <span id="advanced-chevron">▼</span>
-                             </div>
-
-                             <div id="advanced-fields" class="hidden-advanced">
-                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                                    <div class="form-group">
-                                        <label>Ubicación</label>
-                                        <input type="text" id="product-location" placeholder="Opcional">
-                                    </div>
-                                    <div class="form-group">
-                                        <label>Stock Mínimo</label>
-                                        <input type="number" step="0.1" id="min-stock" placeholder="Opcional">
-                                    </div>
-                                    <div class="form-group" style="grid-column: span 2;">
-                                        <label>Fecha de Caducidad</label>
-                                        <input type="date" id="expiry-date">
-                                    </div>
-                                </div>
-
-                                <div class="form-group" style="margin-top: 12px; border-top: 1px dashed var(--border); padding-top: 12px;">
-                                    <label style="color:var(--accent); font-size:12px; font-weight: 700;">VALORES NUTRICIONALES (100g)</label>
-                                    <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top:10px;">
-                                        <div class="form-group"><label style="font-size:11px;">Calorías (kcal)</label><input type="number" step="0.1" id="new-kcal" placeholder=""></div>
-                                        <div class="form-group"><label style="font-size:11px;">Proteínas (g)</label><input type="number" step="0.1" id="new-proteins" placeholder=""></div>
-                                        <div class="form-group"><label style="font-size:11px;">Carbohidratos (g)</label><input type="number" step="0.1" id="new-carbs" placeholder=""></div>
-                                        <div class="form-group"><label style="font-size:11px;">Grasas (g)</label><input type="number" step="0.1" id="new-fat" placeholder=""></div>
-                                    </div>
-                                </div>
-                             </div>
-                        </div>
-                        <div style="display: flex; gap: 12px; margin-top: 24px;">
-                             <button class="btn btn-secondary" style="flex:1" onclick="window.resetScanner()">Cancelar</button>
-                            <button class="btn btn-add" style="flex:1" onclick="window.addStock()">Registrar</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-
-            <!-- PAGE: COMPRA -->
-            <div class="page hidden" data-page="compra">
-                <div class="compra-columns">
-                    <div class="column-card">
-                        <h3>Caduca pronto</h3>
-                        <div id="expiring-soon-list-full"></div>
-                    </div>
-                    <div class="column-card">
-                        <h3>Lista de la compra</h3>
-                        <div id="shopping-list-full"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- PAGE: STATS -->
-            <div class="page hidden" data-page="stats">
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <span class="stat-label">Productos</span>
-                        <span class="stat-value" id="stat-total-p">...</span>
-                    </div>
-                    <div class="stat-card">
-                        <span class="stat-label">Unidades</span>
-                        <span class="stat-value" id="stat-total-u">...</span>
-                    </div>
-                    <div class="stat-card">
-                        <span class="stat-label">Stock Bajo</span>
-                        <span class="stat-value" id="stat-low-s">...</span>
-                    </div>
-                </div>
-
-                <div class="column-card" style="margin-top:20px;">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <h3>Autocompletado Nutricional</h3>
-                        <button class="btn btn-secondary btn-sm" onclick="window.startMacroFillPreview()" id="btn-macro-auto">🔍 Buscar Macros Faltantes</button>
-                    </div>
-                    <p style="font-size:12px; color:var(--text-dim); margin-top:8px;">Escanea tu base de datos en busca de productos sin información nutricional y busca coincidencias en Open Food Facts.</p>
-                    
-                    <div id="macro-fill-preview-area" class="hidden" style="margin-top:20px; border-top: 1px solid #222; padding-top:20px;">
-                        <div id="macro-fill-results" class="macro-fill-grid"></div>
-                        <div style="margin-top:20px; display:flex; gap:12px;">
-                            <button class="btn btn-primary" style="flex:1" onclick="window.confirmMacroFill()" id="btn-confirm-macro-fill">Actualizar Seleccionados</button>
-                            <button class="btn btn-secondary" style="flex:1" onclick="window.hideMacroFillArea()">Cancelar</button>
-                        </div>
-                    </div>
-                </div>
-                <div class="column-card" style="margin-bottom: 24px;">
-                    <h3>Consumo últimos 30 días</h3>
-                    <div style="height: 300px; margin-top: 20px;">
-                        <canvas id="consumptionChart"></canvas>
-                    </div>
-                </div>
-                <div style="display: flex; gap: 12px;">
-                    <button class="btn btn-secondary" style="flex:1" onclick="window.exportInventory()">📥 Exportar CSV</button>
-                    <button class="btn btn-secondary" style="flex:1" onclick="window.importInventory()">📤 Importar CSV</button>
-                </div>
-            </div>
-
-            <!-- PAGE: MACROS -->
-            <div class="page hidden" data-page="macros">
-                <div class="dashboard-grid" style="grid-template-columns: 1.5fr 1fr;">
-                    <div class="column-card">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                            <h3>Objetivos Nutricionales</h3>
-                            <button class="btn btn-primary btn-sm" onclick="window.openMacroGoalsPanel()">Editar</button>
-                        </div>
-                        <div class="macros-dashboard" style="gap:40px;">
-                            <div style="position: relative; width: 140px; height: 140px;">
-                                <canvas id="full-kcalChart"></canvas>
-                                <div class="kcal-display">
-                                    <div class="kcal-value" style="font-size:24px;" id="full-macro-kcal">0</div>
-                                    <div class="kcal-target" id="full-target-kcal">/ 0 kcal</div>
-                                </div>
-                            </div>
-                            <div class="macro-progress" style="flex:1;">
-                                <div class="macro-item" style="margin-bottom: 16px;">
-                                    <div class="macro-label-row"><span style="font-size:14px; font-weight:600;">🥩 Proteínas</span><span id="full-macro-proteins">...</span></div>
-                                    <div class="macro-progress-bg" style="height:10px;"><div class="macro-progress-fill" id="full-fill-proteins"></div></div>
-                                </div>
-                                <div class="macro-item" style="margin-bottom: 16px;">
-                                    <div class="macro-label-row"><span style="font-size:14px; font-weight:600;">🍞 Carbohidratos</span><span id="full-macro-carbs">...</span></div>
-                                    <div class="macro-progress-bg" style="height:10px;"><div class="macro-progress-fill" id="full-fill-carbs"></div></div>
-                                </div>
-                                <div class="macro-item">
-                                    <div class="macro-label-row"><span style="font-size:14px; font-weight:600;">🥑 Grasas</span><span id="full-macro-fat">...</span></div>
-                                    <div class="macro-progress-bg" style="height:10px;"><div class="macro-progress-fill" id="full-fill-fat"></div></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="column-card">
-                        <h3>Historial de consumo (Hoy)</h3>
-                        <div id="full-today-movements-list" style="margin-top: 12px;"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- PAGE: AJUSTES -->
-            <div class="page hidden" data-page="ajustes">
-                <div class="column-card">
-                    <h3>Ubicaciones detectadas</h3>
-                    <div id="location-filter" style="margin-top: 12px;"></div>
-                </div>
-            </div>
-
-            <!-- PAGE: RECIPES & PLANNER -->
-            <div class="page hidden" data-page="recipes">
-                <div class="recipes-header">
-                    <div class="tabs-modern">
-                        <button class="tab-btn active" id="tab-btn-planner" onclick="window.switchRecipeTab('planner')">📅 Planificador</button>
-                        <button class="tab-btn" id="tab-btn-recipes" onclick="window.switchRecipeTab('recipes')">🍳 Mis Recetas</button>
-                    </div>
-                    <button class="btn btn-add" id="btn-new-recipe" onclick="window.openRecipeEditor()" style="display: none;">+ Receta</button>
-                    <button class="btn btn-primary" id="btn-add-plan" onclick="window.openPlannerModal()">+ Planificar</button>
-                </div>
-
-                <div id="planner-tab-content">
-                    <div class="planner-calendar-header">
-                        <button class="btn-icon" onclick="window.changePlannerWeek(-1)">◀</button>
-                        <h2 id="planner-week-title">Semana Actual</h2>
-                        <button class="btn-icon" onclick="window.changePlannerWeek(1)">▶</button>
-                    </div>
-                    
-                    <div id="planner-week-grid" class="planner-grid">
-                        <!-- Filled by JS -->
-                    </div>
-
-                    <!-- Macro Summary for Planner -->
-                    <div class="planner-macro-summary column-card" style="margin-top: 24px; border-top: 1px solid var(--accent);">
-                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px;">
-                            <h3 id="planner-day-macro-title">Resumen del Día</h3>
-                            <div class="day-selector-pills" id="day-selector-pills">
-                                <!-- Day selector buttons -->
-                            </div>
-                        </div>
-                        <div class="macros-dashboard" style="gap: 15px; justify-content: space-around;">
-                            <div style="position: relative; width: 120px; height: 120px;">
-                                <canvas id="plannerKcalChart"></canvas>
-                                <div class="kcal-display">
-                                    <div class="kcal-value" id="plan-macro-kcal" style="font-size: 1.2rem;">0</div>
-                                    <div class="kcal-target" id="plan-target-kcal" style="font-size: 0.7rem;">/ 0 kcal</div>
-                                </div>
-                            </div>
-                            <div class="macro-progress" style="flex: 1; max-width: 400px;">
-                                <div class="macro-item">
-                                    <div class="macro-label-row"><span>🥩 Proteínas</span><span id="plan-macro-proteins">0 / 0g</span></div>
-                                    <div class="macro-progress-bg"><div class="macro-progress-fill" id="plan-fill-proteins"></div></div>
-                                </div>
-                                <div class="macro-item">
-                                    <div class="macro-label-row"><span>🍞 Carbos</span><span id="plan-macro-carbs">0 / 0g</span></div>
-                                    <div class="macro-progress-bg"><div class="macro-progress-fill" id="plan-fill-carbs"></div></div>
-                                </div>
-                                <div class="macro-item">
-                                    <div class="macro-label-row"><span>🥑 Grasas</span><span id="plan-macro-fat">0 / 0g</span></div>
-                                    <div class="macro-progress-bg"><div class="macro-progress-fill" id="plan-fill-fat"></div></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div id="recipes-tab-content" class="hidden">
-                    <div class="filter-bar" style="margin-top: 0; margin-bottom: 20px;">
-                        <input type="text" id="recipe-search" placeholder="Buscar recetas..." oninput="window.updateRecipeList()">
-                    </div>
-                    <div id="recipe-list" class="recipe-grid">
-                        <!-- Filled by JS -->
-                    </div>
+        <nav id="nav-items"></nav>
+        <div class="sidebar-footer">
+            <div class="avatar">M</div>
+            <div style="min-width:0; flex:1;">
+                <div style="font-size:13px; font-weight:600;">Mi plan</div>
+                <div class="sync-badge" style="margin-top:2px;">
+                    <span class="sync-dot"></span>
+                    Conectado a HA
                 </div>
             </div>
         </div>
+    </aside>
+
+    <!-- Main content -->
+    <main class="main" id="page-root">
+        <!-- View HTML rendered here by JS -->
     </main>
+</div>
 
-    <!-- Overlays -->
-    <div class="panel-overlay" id="manage-panel">
-        <div class="panel">
-            <div class="panel-header">
-                <h2>Gestionar Inventario</h2>
-                <div style="display:flex; gap:8px;">
-                    <button class="btn btn-primary" id="btn-save-all" onclick="window.saveAllChanges()" disabled>Guardar</button>
-                    <button class="btn btn-secondary" onclick="window.tryClosePanel()">✕</button>
-                </div>
-            </div>
-            <div id="changes-container" class="hidden" style="padding:10px 24px; background:var(--accent); color:white; font-size:12px;"></div>
-            <div style="padding: 16px 24px; border-bottom: 1px solid var(--border); display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
-                <input type="text" id="manage-filter-name" placeholder="Filtrar por nombre..." oninput="updateManageFilter()">
-                <select id="manage-filter-location" onchange="updateManageFilter()"></select>
-                <select id="manage-filter-category" onchange="updateManageFilter()">
-                    <option value="">Todas</option>
-                    <option value="Alimentos">Alimentos</option>
-                    <option value="Bebidas">Bebidas</option>
-                    <option value="Limpieza">Limpieza</option>
-                    <option value="Higiene">Higiene</option>
-                    <option value="Otros">Otros</option>
-                </select>
-            </div>
-            <div id="manage-list" style="overflow-y:auto; flex:1; padding:24px;"></div>
-        </div>
-    </div>
+<!-- Mobile tab bar -->
+<nav class="tabbar" id="tabbar"></nav>
 
-    <div class="ticket-overlay" id="ticket-panel">
-        <div class="ticket-panel">
-            <div class="ticket-header">
-                <h2>Ticket detectado</h2>
-                <button class="btn btn-secondary" onclick="window.closeTicketPanel()">✕</button>
-            </div>
-            <div id="ticket-matched" style="flex:1; overflow-y:auto; padding:24px;"></div>
-            <div style="padding: 24px; border-top: 1px solid var(--border);">
-                <button class="btn btn-add" style="width:100%" onclick="window.confirmTicketItems()">Añadir seleccionados</button>
-            </div>
-        </div>
-    </div>
+<!-- Modal mount -->
+<div id="modal-mount"></div>
 
-    <div id="date-picker-modal" class="date-picker-modal">
-        <div class="date-picker-container">
-            <div style="text-align:center; margin-bottom: 20px; font-weight:700;">Seleccionar Fecha</div>
-            <div id="date-preview" style="text-align:center; font-size: 20px; margin-bottom: 24px; color: var(--accent);">01 / 01 / 2024</div>
-            <div style="display: flex; justify-content: space-around; height: 160px; overflow: hidden;">
-                <div class="picker-wheel" id="day-wheel"><div id="day-items" class="wheel-items"></div></div>
-                <div class="picker-wheel" id="month-wheel"><div id="month-items" class="wheel-items"></div></div>
-                <div class="picker-wheel" id="year-wheel"><div id="year-items" class="wheel-items"></div></div>
-            </div>
-            <div style="display: flex; gap: 12px; margin-top: 24px;">
-                <button class="btn btn-secondary" style="flex:1" onclick="window.closeDatePicker()">Cancelar</button>
-                <button class="btn btn-primary" style="flex:1" onclick="window.confirmDatePicker()">Aceptar</button>
-            </div>
-        </div>
-    </div>
+<script>
+  // Global scope safety hooks
+  window.filteredLocation = null;
+  // API base resolved from Home Assistant ingress URL
+  window.API_BASE = `${window.location.pathname.replace(/\/$/, '')}/api`;
+</script>
 
-    <div class="panel-overlay" id="portion-panel">
-        <div class="panel" style="max-width: 400px; height: auto; bottom: 0; border-radius: 20px 20px 0 0; top: auto;">
-            <div class="panel-header">
-                <h2 id="portion-title">Consumir ración</h2>
-                <button class="btn btn-secondary" onclick="window.closePortionPanel()">✕</button>
-            </div>
-            <div style="padding: 24px;">
-                <div id="portion-stock-info" style="margin-bottom: 20px; font-weight: 700; color: var(--accent);"></div>
-                <div class="portion-options" id="portion-options" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 24px;">
-                    <!-- Portions filled by JS -->
-                </div>
-                <div class="form-group">
-                    <label>Cantidad personalizada</label>
-                    <div style="display: flex; gap: 8px;">
-                        <input type="number" id="custom-portion-qty" placeholder="Ej: 125" style="flex:1">
-                        <button class="btn btn-add" id="btn-custom-portion" style="padding: 0 20px;">✓</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+<!-- Vendor libs (only needed by scanner.js for real barcode reading) -->
+<script src="https://unpkg.com/html5-qrcode" defer></script>
 
-    <div class="panel-overlay" id="macro-goals-panel">
-        <div class="panel">
-            <div class="panel-header">
-                <h2>Objetivos Diarios</h2>
-                <button class="btn btn-secondary" onclick="window.closeMacroGoalsPanel()">✕</button>
-            </div>
-            <div style="padding: 24px; overflow-y: auto;">
-                <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom:32px;">
-                    <div class="form-group">
-                        <label>Calorías (kcal)</label>
-                        <input type="number" id="goal-kcal">
-                    </div>
-                    <div class="form-group">
-                        <label>Proteínas (g)</label>
-                        <input type="number" id="goal-proteins">
-                    </div>
-                    <div class="form-group">
-                        <label>Carbohidratos (g)</label>
-                        <input type="number" id="goal-carbs">
-                    </div>
-                    <div class="form-group">
-                        <label>Grasas (g)</label>
-                        <input type="number" id="goal-fat">
-                    </div>
-                </div>
-                <button class="btn btn-primary" style="width:100%; margin-bottom:32px;" onclick="window.saveMacroGoals()">Guardar Objetivos</button>
-                
-                <h3>Historial de hoy</h3>
-                <div id="today-movements-list" style="margin-top: 16px;"></div>
-            </div>
-        </div>
-    </div>
+<!-- Core (load order matters: data libs, then state, then components, then views, then main) -->
+<script src="static/js/api.js?v=0.7.0"></script>
+<script src="static/js/icons.js?v=0.7.0"></script>
+<script src="static/js/state.js?v=0.7.0"></script>
+<script src="static/js/components.js?v=0.7.0"></script>
+<script src="static/js/navigation.js?v=0.7.0"></script>
+<script src="static/js/view-today.js?v=0.7.0"></script>
+<script src="static/js/view-week.js?v=0.7.0"></script>
+<script src="static/js/view-pantry.js?v=0.7.0"></script>
+<script src="static/js/view-recipes.js?v=0.7.0"></script>
+<script src="static/js/view-shopping.js?v=0.7.0"></script>
+<script src="static/js/view-settings.js?v=0.7.0"></script>
+<script src="static/js/view-scan.js?v=0.7.0"></script>
+<script src="static/js/main.js?v=0.7.0"></script>
 
-    <!-- Recipe Editor Panel -->
-    <div class="panel-overlay" id="recipe-editor-panel">
-        <div class="panel">
-            <div class="panel-header">
-                <h2 id="recipe-editor-title">Nueva Receta</h2>
-                <button class="btn btn-secondary" onclick="window.closeRecipeEditor()">✕</button>
-            </div>
-            <div style="padding: 24px; overflow-y: auto; flex: 1;">
-                <div class="form-group">
-                    <label>Nombre de la Receta</label>
-                    <input type="text" id="recipe-name-input" placeholder="Ej: Lentejas con verduras">
-                </div>
-                <div class="form-group">
-                    <label>Descripción / Instrucciones</label>
-                    <textarea id="recipe-instructions-input" placeholder="Pasos de preparación..." rows="4"></textarea>
-                </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;">
-                    <div class="form-group">
-                        <label>Comensales</label>
-                        <input type="number" id="recipe-servings-input" value="1" min="1">
-                    </div>
-                    <div class="form-group">
-                        <label>Imagen (URL)</label>
-                        <input type="text" id="recipe-image-input" placeholder="Opcional">
-                    </div>
-                </div>
-                
-                <h3>Ingredientes</h3>
-                <div id="recipe-ingredients-list" style="margin-bottom: 12px;"></div>
-                <div class="ingredient-adder" style="display: grid; grid-template-columns: 1.5fr 0.5fr 1fr 40px; gap: 8px;">
-                    <input type="text" id="ing-search" placeholder="Producto en stock o nombre..." oninput="window.searchIngredientProduct()">
-                    <input type="number" id="ing-qty" placeholder="Cant">
-                    <select id="ing-unit">
-                        <option value="uds">uds</option>
-                        <option value="g">g</option>
-                        <option value="ml">ml</option>
-                    </select>
-                    <button class="btn btn-add" onclick="window.addIngredientToRecipe()">+</button>
-                    <div id="ing-search-results" class="mini-search-results hidden"></div>
-                </div>
-
-                <div class="macro-preview-mini" style="margin-top: 24px; padding: 16px; background: var(--card-bg); border-radius: 12px; font-size: 13px;">
-                    <div style="font-weight:700; margin-bottom:8px; color:var(--text-dim);">MACROS ESTIMADOS (Por ración)</div>
-                    <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; text-align:center;">
-                        <div><div style="color:var(--accent);">🔥 kcal</div><div id="prev-recipe-kcal">0</div></div>
-                        <div><div style="color:#f87171;">🥩 Prot</div><div id="prev-recipe-proteins">0g</div></div>
-                        <div><div style="color:#fbbf24;">🍞 Carb</div><div id="prev-recipe-carbs">0g</div></div>
-                        <div><div style="color:#34d399;">🥑 Gras</div><div id="prev-recipe-fat">0g</div></div>
-                    </div>
-                </div>
-            </div>
-            <div style="padding: 24px; border-top: 1px solid var(--border);">
-                <button class="btn btn-add" style="width:100%" onclick="window.saveRecipe()">Guardar Receta</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Planner Modal -->
-    <div class="panel-overlay" id="planner-modal">
-        <div class="panel" style="max-width: 400px; height: auto; top: 10%;">
-            <div class="panel-header">
-                <h2>Planificar Comida</h2>
-                <button class="btn btn-secondary" onclick="window.closePlannerModal()">✕</button>
-            </div>
-            <div style="padding: 24px;">
-                <div class="form-group">
-                    <label>Día</label>
-                    <input type="date" id="plan-date-input">
-                </div>
-                <div class="form-group">
-                    <label>Momento del día</label>
-                    <select id="plan-meal-type">
-                        <option value="breakfast">Desayuno</option>
-                        <option value="lunch">Almuerzo / Comida</option>
-                        <option value="snack">Merienda / Snack</option>
-                        <option value="dinner">Cena</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>¿Qué vas a comer?</label>
-                    <div class="tabs-mini" style="margin-bottom: 12px;">
-                        <button class="tab-btn-mini active" id="tab-plan-recipe" onclick="window.switchPlanType('recipe')">Receta</button>
-                        <button class="tab-btn-mini" id="tab-plan-product" onclick="window.switchPlanType('product')">Producto Suelto</button>
-                    </div>
-                    
-                    <div id="plan-recipe-select">
-                        <select id="plan-recipe-id" style="width:100%"></select>
-                    </div>
-                    <div id="plan-product-select" class="hidden">
-                        <div class="barcode-input" style="position: relative;">
-                            <input type="text" id="plan-product-search" placeholder="Nombre o código..." oninput="window.searchPlanProduct()" autocomplete="off">
-                            <div id="plan-product-results" class="search-results-floating hidden"></div>
-                        </div>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>Raciones / Unidades</label>
-                    <input type="number" id="plan-quantity" value="1" step="0.1">
-                </div>
-                <button class="btn btn-add" style="width:100%; margin-top: 12px;" onclick="window.savePlan()">Añadir al Plan</button>
-            </div>
-        </div>
-    </div>
-
-    <div style="text-align:center; padding: 40px 0; opacity: 0.2; font-size: 10px; letter-spacing: 0.1em;">
-        STOCK MANAGER v0.7.0
-    </div>
-    <script>
-        // Global scope safety hook
-        window.filteredLocation = null;
-    </script>
-    <script src="https://unpkg.com/html5-qrcode"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://unpkg.com/tesseract.js@v4.0.2/dist/tesseract.min.js"></script>
-    <!-- Refactored Scripts (HASS Ingress Compatible) -->
-    <script src="static/js/state.js?v=0.7.0"></script>
-    <script src="static/js/ui-utils.js?v=0.7.0"></script>
-    <script src="static/js/api.js?v=0.7.0"></script>
-    <script src="static/js/navigation.js?v=0.7.0"></script>
-    <script src="static/js/scanner.js?v=0.7.0"></script>
-    <script src="static/js/inventory.js?v=0.7.0"></script>
-    <script src="static/js/macros.js?v=0.7.0"></script>
-    <script src="static/js/planner.js?v=0.7.0"></script>
-    <script src="static/js/main-app.js?v=0.7.0"></script>
 </body>
 </html>

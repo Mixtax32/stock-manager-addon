@@ -1,91 +1,115 @@
-/* 
-   Navigation & Theme Management
-   v0.6.0
+/*
+   Navigation & Theme — vanilla
+   v0.7.0
 */
 
-window.showPage = (targetPage) => {
-    const navItems = document.querySelectorAll('.nav-item[data-page]');
-    const pages = document.querySelectorAll('.page');
-    const pageTitle = document.getElementById('page-title');
+window.NAV_ITEMS = [
+    { id: 'today',    name: 'Hoy',      ico: 'today' },
+    { id: 'week',     name: 'Semana',   ico: 'week' },
+    { id: 'recipes',  name: 'Recetas',  ico: 'recipe' },
+    { id: 'pantry',   name: 'Despensa', ico: 'pantry' },
+    { id: 'shopping', name: 'Compra',   ico: 'shop' },
+    { id: 'scan',     name: 'Escanear', ico: 'scan' },
+    { id: 'settings', name: 'Ajustes',  ico: 'settings' },
+];
 
-    pages.forEach(p => {
-        if (p.getAttribute('data-page') === targetPage) {
-            p.classList.remove('hidden');
-            const navItem = Array.from(navItems).find(i => i.getAttribute('data-page') === targetPage);
-            
-            navItems.forEach(i => i.classList.remove('active'));
-            if (navItem) {
-                navItem.classList.add('active');
-                if (pageTitle) pageTitle.textContent = navItem.querySelector('span')?.textContent || targetPage;
-            } else {
-                if (pageTitle) pageTitle.textContent = targetPage.charAt(0).toUpperCase() + targetPage.slice(1);
-            }
-            
-            if (targetPage === 'scan') window.scrollTo({ top: 0, behavior: 'smooth' });
-            if (targetPage === 'recipes') {
-                if (window.loadRecipes) window.loadRecipes();
-                if (window.loadPlanner) window.loadPlanner();
-            }
-        } else {
-            p.classList.add('hidden');
-        }
-    });
-};
+window.renderNav = function() {
+    const sidebarNav = document.getElementById('nav-items');
+    const tabbar = document.getElementById('tabbar');
+    const current = window.AppState.page;
 
-window.toggleTheme = () => {
-    document.body.classList.toggle('dark-mode');
-    const isDark = document.body.classList.contains('dark-mode');
-    try { localStorage.setItem('theme', isDark ? 'dark' : 'light'); } catch(e){}
-    setTimeout(() => { if (window.updateCharts) window.updateCharts(); }, 100);
-};
-
-window.initNavigation = () => {
-    const navItems = document.querySelectorAll('.nav-item[data-page]');
-    navItems.forEach(item => {
-        item.addEventListener('click', () => {
-            window.showPage(item.getAttribute('data-page'));
+    // Counts/badges
+    const products = window.AppState.products || [];
+    const lowStock = products.filter(p => p.min_stock != null && (p.stock || 0) < p.min_stock).length;
+    const expiringSoon = products.reduce((acc, p) => {
+        (p.batches || []).forEach(b => {
+            if (!b.expiry_date) return;
+            const d = window.daysUntil(b.expiry_date);
+            if (d <= 3 && d >= -30) acc++;
         });
-    });
+        return acc;
+    }, 0);
+    const shopPending = (window.AppState.shopping || []).filter(s => !s.done).length;
 
-    // Theme initialization
-    try {
-        if (localStorage.getItem('theme') === 'dark') {
-            document.body.classList.add('dark-mode');
-        }
-    } catch(e){}
+    function badgeFor(id) {
+        if (id === 'pantry' && expiringSoon > 0) return expiringSoon;
+        if (id === 'shopping' && shopPending > 0) return shopPending;
+        return null;
+    }
 
-    // Default page
-    window.showPage('dashboard');
-};
+    if (sidebarNav) {
+        sidebarNav.innerHTML = window.NAV_ITEMS.map(n => {
+            const isActive = n.id === current;
+            const badge = badgeFor(n.id);
+            return `
+                <button class="nav-item" ${isActive ? 'aria-current="page"' : ''} data-page="${n.id}">
+                    <span class="nav-ico">${window.icon(n.ico)}</span>
+                    <span>${n.name}</span>
+                    ${badge != null ? `<span class="nav-badge">${badge}</span>` : ''}
+                </button>
+            `;
+        }).join('');
+        sidebarNav.querySelectorAll('[data-page]').forEach(btn => {
+            btn.addEventListener('click', () => window.gotoPage(btn.dataset.page));
+        });
+    }
 
-window.switchRecipeTab = (tab) => {
-    const plannerBtn = document.getElementById('tab-btn-planner');
-    const recipesBtn = document.getElementById('tab-btn-recipes');
-    const plannerContent = document.getElementById('planner-tab-content');
-    const recipesContent = document.getElementById('recipes-tab-content');
-    const newRecipeBtn = document.getElementById('btn-new-recipe');
-    const addPlanBtn = document.getElementById('btn-add-plan');
-
-    if (tab === 'planner') {
-        plannerBtn.classList.add('active');
-        recipesBtn.classList.remove('active');
-        plannerContent.classList.remove('hidden');
-        recipesContent.classList.add('hidden');
-        if (newRecipeBtn) newRecipeBtn.style.display = 'none';
-        if (addPlanBtn) addPlanBtn.style.display = 'block';
-        if (window.loadPlanner) window.loadPlanner();
-    } else {
-        plannerBtn.classList.remove('active');
-        recipesBtn.classList.add('active');
-        plannerContent.classList.add('hidden');
-        recipesContent.classList.remove('hidden');
-        if (newRecipeBtn) newRecipeBtn.style.display = 'block';
-        if (addPlanBtn) addPlanBtn.style.display = 'none';
-        if (window.loadRecipes) window.loadRecipes();
+    if (tabbar) {
+        tabbar.innerHTML = window.NAV_ITEMS.map(n => {
+            const isActive = n.id === current;
+            return `
+                <button class="tab" ${isActive ? 'aria-current="page"' : ''} data-page="${n.id}">
+                    ${window.icon(n.ico)}
+                    <span>${n.name}</span>
+                </button>
+            `;
+        }).join('');
+        tabbar.querySelectorAll('[data-page]').forEach(btn => {
+            btn.addEventListener('click', () => window.gotoPage(btn.dataset.page));
+        });
     }
 };
 
-window.changePlannerWeek = (delta) => {
-    window.plannerWeekOffset = (window.plannerWeekOffset || 0) + delta;
-    if (window.loadPlanner) window.loadPlanner();
+window.gotoPage = function(page) {
+    window.AppState.page = page;
+    window.renderPage();
+    window.renderNav();
+    if (window.scrollTo) window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+window.renderPage = function() {
+    const root = document.getElementById('page-root');
+    if (!root) return;
+    const page = window.AppState.page;
+    const renderers = {
+        today:    window.renderToday,
+        week:     window.renderWeek,
+        recipes:  window.renderRecipes,
+        pantry:   window.renderPantry,
+        shopping: window.renderShopping,
+        settings: window.renderSettings,
+        scan:     window.renderScan,
+    };
+    const inits = {
+        today:    window.initToday,
+        week:     window.initWeek,
+        recipes:  window.initRecipes,
+        pantry:   window.initPantry,
+        shopping: window.initShopping,
+        settings: window.initSettings,
+        scan:     window.initScan,
+    };
+    const fn = renderers[page];
+    if (typeof fn === 'function') {
+        root.innerHTML = fn();
+        const initFn = inits[page];
+        if (typeof initFn === 'function') initFn();
+    } else {
+        root.innerHTML = `<div class="empty"><div class="t">Vista no encontrada</div><div>${window.esc(page)}</div></div>`;
+    }
+};
+
+window.toggleTheme = function() {
+    const next = window.AppState.theme === 'dark' ? 'cream' : 'dark';
+    window.saveTheme(next);
 };

@@ -1,0 +1,304 @@
+/*
+   Shared UI components — vanilla JS HTML builders
+   v0.7.0
+*/
+
+// ===== Tiny HTML helper =====
+window.esc = function(str) {
+    if (str == null) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+};
+
+// ===== MacroRing — multi-segment SVG ring =====
+window.macroRingHTML = function(kcal, target, p, c, fat, size, stroke) {
+    size = size || 220;
+    stroke = stroke || 18;
+    const r = (size - stroke) / 2;
+    const C = 2 * Math.PI * r;
+    const pct = target > 0 ? Math.min(kcal / target, 1) : 0;
+
+    const kP = (p || 0) * 4, kC = (c || 0) * 4, kF = (fat || 0) * 9;
+    const totalK = Math.max(kP + kC + kF, 1);
+    const arcUsed = C * pct;
+    const segP = arcUsed * (kP / totalK);
+    const segC = arcUsed * (kC / totalK);
+    const segF = arcUsed * (kF / totalK);
+
+    const segments = [
+        { len: segP, color: 'var(--protein)' },
+        { len: segC, color: 'var(--carbs)' },
+        { len: segF, color: 'var(--fat)' },
+    ];
+
+    let offset = 0;
+    const segSVG = segments.map((s) => {
+        const dash = `${s.len} ${C - s.len}`;
+        const el = `<circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${s.color}" stroke-width="${stroke}" stroke-dasharray="${dash}" stroke-dashoffset="${-offset}" stroke-linecap="butt" style="transition: stroke-dasharray 280ms ease, stroke-dashoffset 280ms ease;"/>`;
+        offset += s.len;
+        return el;
+    }).join('');
+
+    return `
+        <div class="ring-wrap" style="width:${size}px;height:${size}px">
+            <svg width="${size}" height="${size}" style="transform: rotate(-90deg)">
+                <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--bg-sunken)" stroke-width="${stroke}"/>
+                ${segSVG}
+            </svg>
+            <div class="ring-center">
+                <div class="big">${Math.round(kcal || 0)}</div>
+                <div class="lbl">de ${Math.round(target || 0)} kcal</div>
+            </div>
+        </div>
+    `;
+};
+
+// ===== MacroBars =====
+window.macroBarsHTML = function(totals, goals) {
+    const rows = [
+        { name: 'Calorías', val: totals.kcal || 0, goal: goals.kcal || 0, unit: 'kcal', color: 'var(--kcal)' },
+        { name: 'Proteína', val: totals.p || 0,    goal: goals.p || 0,    unit: 'g',    color: 'var(--protein)' },
+        { name: 'Carbos',   val: totals.c || 0,    goal: goals.c || 0,    unit: 'g',    color: 'var(--carbs)' },
+        { name: 'Grasas',   val: totals.fat || 0,  goal: goals.fat || 0,  unit: 'g',    color: 'var(--fat)' },
+    ];
+    return `<div class="stack" style="gap:14px">` + rows.map(r => {
+        const pct = r.goal > 0 ? Math.min((r.val / r.goal) * 100, 100) : 0;
+        const over = r.val > r.goal;
+        const overText = over ? `<span style="color:var(--warn); margin-left:6px">(+${Math.round(r.val - r.goal)})</span>` : '';
+        return `
+            <div class="macro-bar">
+                <div class="name">${r.name}</div>
+                <div class="track"><div class="fill" style="width:${pct}%; background:${r.color}"></div></div>
+                <div class="vals"><strong>${Math.round(r.val)}</strong><span> / ${Math.round(r.goal)} ${r.unit}</span>${overText}</div>
+            </div>
+        `;
+    }).join('') + `</div>`;
+};
+
+// ===== MacroChips =====
+window.macroChipsHTML = function(totals, compact) {
+    const kcal = Math.round(totals.kcal || 0);
+    const p = Math.round(totals.p || 0);
+    const c = Math.round(totals.c || 0);
+    const fat = Math.round(totals.fat || 0);
+    if (compact) {
+        return `
+            <div class="row" style="gap:6px">
+                <span class="chip k">${kcal} kcal</span>
+                <span class="chip p">P ${p}</span>
+                <span class="chip c">C ${c}</span>
+                <span class="chip f">G ${fat}</span>
+            </div>
+        `;
+    }
+    return `
+        <div class="row" style="gap:6px">
+            <span class="chip k">${kcal} kcal</span>
+            <span class="chip p">P ${p}g</span>
+            <span class="chip c">C ${c}g</span>
+            <span class="chip f">G ${fat}g</span>
+        </div>
+    `;
+};
+
+// ===== Recipe thumb (placeholder) =====
+window.recipeThumbHTML = function(seed, label) {
+    const palettes = [
+        ['#e8eedb', '#5c8a3a'],
+        ['#f6e8cf', '#c98a2e'],
+        ['#f6e2d3', '#c4602b'],
+        ['#ece6d2', '#7a6a3f'],
+        ['#efece2', '#1a1a1a'],
+        ['#f3f0e8', '#5c8a3a'],
+    ];
+    const [bg, fg] = palettes[(seed || 0) % palettes.length];
+    const stripes = [];
+    for (let i = 0; i < 8; i++) {
+        stripes.push(`<rect x="${i * 22 - 10}" y="-10" width="3" height="120" fill="${fg}" opacity="0.08" transform="rotate(20 80 45)"/>`);
+    }
+    return `
+        <svg viewBox="0 0 160 90" preserveAspectRatio="xMidYMid slice">
+            <rect width="160" height="90" fill="${bg}"/>
+            ${stripes.join('')}
+            <text x="80" y="50" text-anchor="middle" font-family="Geist Mono, monospace" font-size="10" fill="${fg}" opacity="0.55">${window.esc(label || '')}</text>
+        </svg>
+    `;
+};
+
+// ===== Food picker modal =====
+// Renders a modal that searches AppState.products and lets user pick qty.
+// onPick(item) where item = { productId, qty }
+window.openFoodPicker = function(options) {
+    options = options || {};
+    const title = options.title || 'Añadir alimento';
+    const onPick = options.onPick || function() {};
+
+    const mount = document.getElementById('modal-mount');
+    if (!mount) return;
+
+    let q = '';
+    let qty = 100;
+    let sel = null;
+
+    function results() {
+        const products = window.AppState.products || [];
+        const needle = q.toLowerCase();
+        return products
+            .filter(p => !needle || (p.name || '').toLowerCase().includes(needle) || String(p.barcode).includes(needle))
+            .slice(0, 25);
+    }
+
+    function getEmoji(p) {
+        const cat = (p.category || '').toLowerCase();
+        if (cat.includes('bebida')) return '🥤';
+        if (cat.includes('limpieza')) return '🧴';
+        if (cat.includes('higiene')) return '🧼';
+        return '🍽️';
+    }
+
+    function macroPreview() {
+        if (!sel) return '';
+        const m = window.macrosFor(sel.barcode, Number(qty) || 0);
+        return window.macroChipsHTML(m, true);
+    }
+
+    function render() {
+        const list = results();
+        mount.innerHTML = `
+        <div class="modal-backdrop" data-close="1">
+            <div class="modal" data-stop="1">
+                <div class="spread" style="margin-bottom:4px">
+                    <h3>${window.esc(title)}</h3>
+                    <button class="btn icon sm ghost" data-action="close" aria-label="Cerrar">${window.icon('close')}</button>
+                </div>
+                <div class="modal-sub">Busca un producto e indica la cantidad.</div>
+
+                <div class="search" style="margin-bottom:12px">
+                    ${window.icon('search')}
+                    <input id="fp-search" autofocus placeholder="Pollo, avena, plátano…" value="${window.esc(q)}"/>
+                </div>
+
+                ${!sel ? `
+                <div style="max-height:260px; overflow:auto; margin:0 -4px">
+                    ${list.map(p => {
+                        const m = window.macrosFor(p.barcode, 100);
+                        return `
+                        <button class="food-row fp-pick" data-id="${window.esc(p.barcode)}"
+                            style="width:100%; background:transparent; border:none; text-align:left; cursor:pointer; padding:10px 4px;">
+                            <div class="row">
+                                <span style="font-size:18px; margin-right:8px;">${getEmoji(p)}</span>
+                                <div>
+                                    <div class="ttl">${window.esc(p.name)}</div>
+                                    <div class="sub">${Math.round(m.kcal)} kcal · P${Math.round(m.p)} C${Math.round(m.c)} G${Math.round(m.fat)} <span class="muted">/ 100${(p.unit_type === 'uds' ? ' ud' : (p.unit_type || 'g'))}</span></div>
+                                </div>
+                            </div>
+                            <div></div>
+                            <span style="width:16px; height:16px; color:var(--ink-3);">${window.icon('chevron')}</span>
+                        </button>
+                        `;
+                    }).join('')}
+                    ${list.length === 0 ? `<div class="empty">${q ? `Sin resultados para "${window.esc(q)}"` : 'Escanea o crea un producto primero.'}</div>` : ''}
+                </div>
+                ` : `
+                <div>
+                    <div class="card sunken" style="margin-bottom:14px">
+                        <div class="row">
+                            <span style="font-size:28px; margin-right:8px;">${getEmoji(sel)}</span>
+                            <div style="flex:1">
+                                <div style="font-size:15px; font-weight:600;">${window.esc(sel.name)}</div>
+                                <div class="tiny">por 100${(sel.unit_type === 'uds' ? ' ud' : (sel.unit_type || 'g'))}: ${Math.round(sel.kcal_100g || 0)} kcal</div>
+                            </div>
+                            <button class="btn ghost sm" data-action="change">Cambiar</button>
+                        </div>
+                    </div>
+                    <div class="grid cols-2 keep" style="gap:12px; margin-bottom:14px">
+                        <div class="field">
+                            <label class="field-label">Cantidad (${(sel.unit_type === 'uds' ? 'ud' : (sel.unit_type || 'g'))})</label>
+                            <input id="fp-qty" class="input lg num" type="number" value="${qty}" min="0"/>
+                        </div>
+                        <div class="field">
+                            <label class="field-label">Aporta</label>
+                            <div class="card tight sunken" id="fp-preview" style="padding:12px; height:56px; display:flex; align-items:center;">
+                                ${macroPreview()}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row" style="justify-content:flex-end; gap:8px">
+                        <button class="btn ghost" data-action="close">Cancelar</button>
+                        <button class="btn accent" data-action="confirm">Añadir</button>
+                    </div>
+                </div>
+                `}
+            </div>
+        </div>
+        `;
+
+        // Wire events
+        mount.querySelector('[data-close]').addEventListener('click', (e) => {
+            if (e.target.dataset.close === '1') close();
+        });
+        mount.querySelectorAll('[data-action="close"]').forEach(b => b.addEventListener('click', close));
+        const search = mount.querySelector('#fp-search');
+        if (search) {
+            search.addEventListener('input', (e) => { q = e.target.value; render(); });
+            // restore focus + cursor
+            setTimeout(() => search.focus(), 0);
+        }
+        mount.querySelectorAll('.fp-pick').forEach(btn => {
+            btn.addEventListener('click', () => {
+                sel = window.findProductById(btn.dataset.id);
+                qty = 100;
+                render();
+            });
+        });
+        const changeBtn = mount.querySelector('[data-action="change"]');
+        if (changeBtn) changeBtn.addEventListener('click', () => { sel = null; render(); });
+        const qtyIn = mount.querySelector('#fp-qty');
+        if (qtyIn) {
+            qtyIn.addEventListener('input', (e) => {
+                qty = Number(e.target.value) || 0;
+                const pv = mount.querySelector('#fp-preview');
+                if (pv) pv.innerHTML = macroPreview();
+            });
+        }
+        const okBtn = mount.querySelector('[data-action="confirm"]');
+        if (okBtn) okBtn.addEventListener('click', () => {
+            if (!sel) return;
+            onPick({ productId: sel.barcode, qty: Number(qty) || 0 });
+            close();
+        });
+    }
+
+    function close() {
+        mount.innerHTML = '';
+    }
+
+    render();
+};
+
+// ===== Simple confirm dialog =====
+window.confirmDialog = function(message) {
+    return new Promise(resolve => {
+        const mount = document.getElementById('modal-mount');
+        if (!mount) { resolve(window.confirm(message)); return; }
+        mount.innerHTML = `
+            <div class="modal-backdrop" data-close="1">
+                <div class="modal" data-stop="1" style="max-width:380px">
+                    <h3>Confirmar</h3>
+                    <div class="modal-sub">${window.esc(message)}</div>
+                    <div class="row" style="justify-content:flex-end; gap:8px">
+                        <button class="btn ghost" data-action="no">Cancelar</button>
+                        <button class="btn primary" data-action="yes">Sí</button>
+                    </div>
+                </div>
+            </div>`;
+        const close = (v) => { mount.innerHTML = ''; resolve(v); };
+        mount.querySelector('[data-close]').addEventListener('click', e => { if (e.target.dataset.close === '1') close(false); });
+        mount.querySelector('[data-action="no"]').addEventListener('click', () => close(false));
+        mount.querySelector('[data-action="yes"]').addEventListener('click', () => close(true));
+    });
+};
