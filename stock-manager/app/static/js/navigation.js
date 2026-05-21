@@ -33,10 +33,9 @@ window.showPage = (targetPage) => {
 };
 
 window.toggleTheme = () => {
-    document.body.classList.toggle('light-mode');
-    const isLight = document.body.classList.contains('light-mode');
-    try { localStorage.setItem('theme', isLight ? 'light' : 'dark'); } catch(e){}
-    // Update charts if they exist
+    document.body.classList.toggle('dark-mode');
+    const isDark = document.body.classList.contains('dark-mode');
+    try { localStorage.setItem('theme', isDark ? 'dark' : 'light'); } catch(e){}
     setTimeout(() => { if (window.updateCharts) window.updateCharts(); }, 100);
 };
 
@@ -50,8 +49,8 @@ window.initNavigation = () => {
 
     // Theme initialization
     try {
-        if (localStorage.getItem('theme') === 'light') {
-            document.body.classList.add('light-mode');
+        if (localStorage.getItem('theme') === 'dark') {
+            document.body.classList.add('dark-mode');
         }
     } catch(e){}
 
