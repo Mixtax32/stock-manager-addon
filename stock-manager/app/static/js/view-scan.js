@@ -41,6 +41,12 @@ async function _stopScanner() {
 async function _startScanner() {
     const mount = document.getElementById('scanner-mount');
     if (!mount) return;
+    if (!window.isSecureContext || !navigator.mediaDevices) {
+        scanState.phase = 'idle';
+        window.renderPage();
+        window.showToast('La cámara requiere HTTPS. Activá SSL en Home Assistant o usá la entrada manual.', 'error');
+        return;
+    }
     if (typeof Html5Qrcode === 'undefined') {
         scanState.phase = 'idle';
         window.renderPage();
@@ -110,10 +116,15 @@ function _renderIdle() {
             </div>
             <div class="scan-hint">Pulsa "Iniciar cámara" para empezar</div>
         </div>
-        <div class="row" style="justify-content:center; gap:10px; margin-top:14px">
-            <button class="btn accent" data-action="start">${window.icon('scan')} Iniciar cámara</button>
-            <input id="manual-barcode" class="input" placeholder="O introduce un código…" style="width:240px"/>
-            <button class="btn" data-action="manual">Buscar</button>
+        <div class="stack" style="gap:10px; margin-top:14px">
+            ${window.isSecureContext && navigator.mediaDevices
+                ? `<button class="btn accent" data-action="start" style="width:100%">${window.icon('scan')} Iniciar cámara</button>`
+                : `<div style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:var(--r-md); background:var(--warn-soft); color:#6b2f1c; font-size:13px">${window.icon('alert')} Sin HTTPS — cámara no disponible. Usá la entrada manual.</div>`
+            }
+            <div class="row" style="gap:8px">
+                <input id="manual-barcode" class="input" placeholder="Introduce el código de barras…" style="flex:1; min-width:0"/>
+                <button class="btn" data-action="manual">Buscar</button>
+            </div>
         </div>
     `;
 }

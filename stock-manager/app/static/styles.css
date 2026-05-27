@@ -89,6 +89,10 @@
 
 * { box-sizing: border-box; }
 
+html {
+  overflow-x: hidden;
+}
+
 html, body {
   margin: 0;
   padding: 0;
@@ -219,7 +223,8 @@ input, select, textarea { font-family: inherit; }
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
+  flex-wrap: wrap;
   margin-bottom: 24px;
   padding-bottom: 18px;
   border-bottom: 1px solid var(--line);
