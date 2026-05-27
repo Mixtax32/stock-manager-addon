@@ -349,7 +349,17 @@ input, select, textarea { font-family: inherit; }
 .grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
 @media (max-width: 880px) {
   .grid.cols-2, .grid.cols-3, .grid.cols-4 { grid-template-columns: 1fr; }
-  .grid.cols-2.keep, .grid.cols-3.keep-2 { grid-template-columns: 1fr 1fr; }
+  .grid.cols-2.keep, .grid.cols-3.keep-2, .grid.cols-4.keep { grid-template-columns: 1fr 1fr; }
+}
+
+/* Pantry 2-col layout — collapses to single column on mobile */
+.pantry-layout {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 22px;
+}
+@media (max-width: 880px) {
+  .pantry-layout { grid-template-columns: 1fr; }
 }
 
 .row { display: flex; align-items: center; gap: 10px; }
@@ -529,6 +539,10 @@ input, select, textarea { font-family: inherit; }
   border-bottom: 1px solid var(--line);
 }
 .stock-item:last-child { border-bottom: none; }
+@media (max-width: 600px) {
+  .stock-item { gap: 8px; padding: 10px 12px; }
+  .stock-item .exp-pill { display: none; }
+}
 .stock-ico {
   width: 36px; height: 36px;
   border-radius: 10px;

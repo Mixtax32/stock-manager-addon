@@ -42,7 +42,9 @@ async function _startScanner() {
     const mount = document.getElementById('scanner-mount');
     if (!mount) return;
     if (typeof Html5Qrcode === 'undefined') {
-        window.showToast('Librería de escaneo no cargada', 'error');
+        scanState.phase = 'idle';
+        window.renderPage();
+        window.showToast('Librería de escaneo no disponible. Comprueba la conexión a internet.', 'error');
         return;
     }
     try {
@@ -52,9 +54,10 @@ async function _startScanner() {
             { fps: 10, qrbox: { width: 250, height: 250 } },
             (decoded) => _onScanSuccess(decoded)
         );
-        scanState.phase = 'scanning';
     } catch (err) {
-        window.showToast('Error cámara: ' + err.message, 'error');
+        scanState.phase = 'idle';
+        window.renderPage();
+        window.showToast('Error de cámara: ' + err.message, 'error');
     }
 }
 
@@ -184,7 +187,7 @@ function _renderReview() {
                 <div class="field"><label class="field-label">Ubicación</label><input id="np-loc" class="input" placeholder="Nevera / Despensa…" value="${window.esc(np.location)}"/></div>
                 <div class="field"><label class="field-label">Stock mín.</label><input id="np-min" class="input num" type="number" step="0.1" value="${window.esc(np.min_stock)}"/></div>
                 <div class="field" style="grid-column:span 2"><label class="field-label">Macros (por 100g/100ml)</label>
-                    <div class="grid cols-4 keep" style="gap:6px; grid-template-columns:repeat(4, 1fr)">
+                    <div class="grid cols-4 keep" style="gap:6px">
                         <input id="np-kcal" class="input num" type="number" step="0.1" placeholder="kcal" value="${window.esc(np.kcal_100g)}"/>
                         <input id="np-p" class="input num" type="number" step="0.1" placeholder="P" value="${window.esc(np.proteins_100g)}"/>
                         <input id="np-c" class="input num" type="number" step="0.1" placeholder="C" value="${window.esc(np.carbs_100g)}"/>
@@ -269,11 +272,9 @@ window.initScan = function() {
     });
 
     if (scanState.phase === 'idle') {
-        root.querySelector('[data-action="start"]')?.addEventListener('click', async () => {
-            window.renderPage(); // switch to scanning ui first
+        root.querySelector('[data-action="start"]')?.addEventListener('click', () => {
             scanState.phase = 'scanning';
             window.renderPage();
-            // give DOM time
             setTimeout(_startScanner, 50);
         });
         root.querySelector('[data-action="manual"]')?.addEventListener('click', () => {
@@ -366,7 +367,7 @@ async function _confirmScan() {
                 category: np.category,
                 unit_type: np.unit_type,
                 location: np.location || null,
-                min_stock: np.min_stock === '' ? null : Number(np.min_stock),
+                min_stock: np.min_stock === '' ? 2 : Number(np.min_stock),
                 serving_size: np.serving_size === '' ? null : Number(np.serving_size),
                 kcal_100g: np.kcal_100g === '' ? null : Number(np.kcal_100g),
                 proteins_100g: np.proteins_100g === '' ? null : Number(np.proteins_100g),

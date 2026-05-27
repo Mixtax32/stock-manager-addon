@@ -117,7 +117,10 @@ window.renderPantry = function() {
                         <button data-qty="1" data-barcode="${window.esc(p.barcode)}">+</button>
                     </div>
                 </div>
-                <button class="btn icon sm ghost" data-action="delete" data-barcode="${window.esc(p.barcode)}" title="Quitar">${window.icon('trash')}</button>
+                <div class="row" style="gap:4px">
+                    <button class="btn icon sm ghost" data-action="edit" data-barcode="${window.esc(p.barcode)}" title="Editar">${window.icon('edit')}</button>
+                    <button class="btn icon sm ghost" data-action="delete" data-barcode="${window.esc(p.barcode)}" title="Quitar">${window.icon('trash')}</button>
+                </div>
             </div>
         `;
     }).join('');
@@ -160,7 +163,7 @@ window.renderPantry = function() {
             ${lowHTML}
         </div>` : ''}
 
-        <div class="grid cols-2" style="grid-template-columns:1.5fr 1fr; gap:22px">
+        <div class="pantry-layout">
             <div>
                 <div class="row" style="gap:10px; margin-bottom:16px; flex-wrap:wrap">
                     <div class="search" style="min-width:240px; flex:1; max-width:360px">
@@ -210,7 +213,11 @@ window.initPantry = function() {
     const search = root.querySelector('#pantry-search');
     if (search) search.addEventListener('input', e => {
         pantryQuery = e.target.value;
-        window.renderPage();
+        const q = e.target.value.toLowerCase();
+        root.querySelectorAll('.stock-item').forEach(el => {
+            const name = el.querySelector('.stock-name')?.textContent.toLowerCase() || '';
+            el.style.display = !q || name.includes(q) ? '' : 'none';
+        });
     });
 
     root.querySelectorAll('[data-cat]').forEach(btn => {
@@ -262,6 +269,10 @@ window.initPantry = function() {
         });
     });
 
+    root.querySelectorAll('[data-action="edit"]').forEach(btn => {
+        btn.addEventListener('click', () => window.openEditProduct(btn.dataset.barcode));
+    });
+
     root.querySelectorAll('[data-action="delete"]').forEach(btn => {
         btn.addEventListener('click', async () => {
             const barcode = btn.dataset.barcode;
@@ -275,5 +286,84 @@ window.initPantry = function() {
                 window.showToast('Error: ' + e.message, 'error');
             }
         });
+    });
+};
+
+window.openEditProduct = function(barcode) {
+    const p = window.findProductById(barcode);
+    if (!p) return;
+    const mount = document.getElementById('modal-mount');
+    if (!mount) return;
+
+    mount.innerHTML = `
+        <div class="modal-backdrop" data-close="1">
+            <div class="modal" data-stop="1">
+                <div class="spread" style="margin-bottom:16px">
+                    <h3 style="margin:0; font-size:18px; font-weight:600">Editar producto</h3>
+                    <button class="btn icon sm ghost" data-action="close" aria-label="Cerrar">${window.icon('close')}</button>
+                </div>
+                <div class="stack" style="gap:12px">
+                    <div class="field">
+                        <label class="field-label">Nombre</label>
+                        <input id="ep-name" class="input" value="${window.esc(p.name)}"/>
+                    </div>
+                    <div class="grid cols-2 keep" style="gap:10px">
+                        <div class="field">
+                            <label class="field-label">Ubicación</label>
+                            <input id="ep-loc" class="input" placeholder="Nevera, Despensa…" value="${window.esc(p.location || '')}"/>
+                        </div>
+                        <div class="field">
+                            <label class="field-label">Categoría</label>
+                            <select id="ep-cat" class="input">
+                                ${['Alimentos','Bebidas','Limpieza','Higiene','Otros'].map(c =>
+                                    `<option value="${c}" ${p.category === c ? 'selected' : ''}>${c}</option>`
+                                ).join('')}
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label class="field-label">Stock mínimo</label>
+                            <input id="ep-min" class="input num" type="number" step="0.1" value="${p.min_stock ?? ''}"/>
+                        </div>
+                        <div class="field">
+                            <label class="field-label">Unidad</label>
+                            <select id="ep-unit" class="input">
+                                <option value="g" ${p.unit_type === 'g' ? 'selected' : ''}>Gramos (g)</option>
+                                <option value="ml" ${p.unit_type === 'ml' ? 'selected' : ''}>Mililitros (ml)</option>
+                                <option value="uds" ${p.unit_type === 'uds' ? 'selected' : ''}>Unidades</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="row" style="justify-content:flex-end; gap:8px; margin-top:20px">
+                    <button class="btn ghost" data-action="close">Cancelar</button>
+                    <button class="btn accent" data-action="save">Guardar cambios</button>
+                </div>
+            </div>
+        </div>`;
+
+    const close = () => { mount.innerHTML = ''; };
+    mount.querySelector('[data-close]').addEventListener('click', e => {
+        if (e.target.dataset.close === '1') close();
+    });
+    mount.querySelectorAll('[data-action="close"]').forEach(b => b.addEventListener('click', close));
+
+    mount.querySelector('[data-action="save"]').addEventListener('click', async () => {
+        const name = mount.querySelector('#ep-name').value.trim();
+        if (!name) { window.showToast('El nombre no puede estar vacío', 'error'); return; }
+        const minVal = mount.querySelector('#ep-min').value;
+        try {
+            await window.apiCall(`/products/${barcode}`, 'PATCH', {
+                name,
+                location: mount.querySelector('#ep-loc').value.trim() || null,
+                category: mount.querySelector('#ep-cat').value,
+                min_stock: minVal === '' ? null : Number(minVal),
+                unit_type: mount.querySelector('#ep-unit').value,
+            });
+            await window.reloadProducts();
+            close();
+            window.showToast('Producto actualizado', 'success');
+        } catch (e) {
+            window.showToast('Error: ' + e.message, 'error');
+        }
     });
 };
