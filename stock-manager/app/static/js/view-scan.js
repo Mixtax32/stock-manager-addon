@@ -1,6 +1,6 @@
 /*
-   View: Scan — barcode scanner using html5-qrcode + HA API integration
-   v0.7.0
+   View: Scan — barcode scanner using html5-qrcode file API + HA API integration
+   v0.8.0 — uses file/photo capture instead of live stream (no HTTPS required)
 */
 
 let scanState = {
@@ -28,47 +28,29 @@ let scanState = {
     meal: 'comida',
 };
 
-let qrInstance = null;
-
-async function _stopScanner() {
-    if (qrInstance) {
-        try { await qrInstance.stop(); } catch (e) {}
-        try { qrInstance.clear(); } catch (e) {}
-        qrInstance = null;
-    }
-}
-
-async function _startScanner() {
-    const mount = document.getElementById('scanner-mount');
-    if (!mount) return;
-    if (!window.isSecureContext || !navigator.mediaDevices) {
-        scanState.phase = 'idle';
-        window.renderPage();
-        window.showToast('La cámara requiere HTTPS. Activá SSL en Home Assistant o usá la entrada manual.', 'error');
-        return;
-    }
+async function _scanImageFile(file) {
     if (typeof Html5Qrcode === 'undefined') {
-        scanState.phase = 'idle';
-        window.renderPage();
         window.showToast('Librería de escaneo no disponible. Comprueba la conexión a internet.', 'error');
         return;
     }
+    scanState.phase = 'scanning';
+    window.renderPage();
     try {
-        qrInstance = new Html5Qrcode('scanner-mount');
-        await qrInstance.start(
-            { facingMode: 'environment' },
-            { fps: 10, qrbox: { width: 250, height: 250 } },
-            (decoded) => _onScanSuccess(decoded)
-        );
+        const decoded = await Html5Qrcode.scanFile(file, false);
+        await _onScanSuccess(decoded);
     } catch (err) {
         scanState.phase = 'idle';
         window.renderPage();
-        window.showToast('Error de cámara: ' + err.message, 'error');
+        window.showToast('No se detectó código de barras. Acercate más e intentá de nuevo.', 'error');
     }
 }
 
+function _triggerFileInput() {
+    const input = document.getElementById('camera-input');
+    if (input) input.click();
+}
+
 async function _onScanSuccess(decodedText) {
-    await _stopScanner();
     scanState.barcode = decodedText;
     scanState.phase = 'review';
 
@@ -114,13 +96,11 @@ function _renderIdle() {
                 <div class="scan-corner bl"></div>
                 <div class="scan-corner br"></div>
             </div>
-            <div class="scan-hint">Pulsa "Iniciar cámara" para empezar</div>
+            <div class="scan-hint">Tomá una foto del código de barras</div>
         </div>
+        <input type="file" id="camera-input" accept="image/*" capture="environment" style="display:none">
         <div class="stack" style="gap:10px; margin-top:14px">
-            ${window.isSecureContext && navigator.mediaDevices
-                ? `<button class="btn accent" data-action="start" style="width:100%">${window.icon('scan')} Iniciar cámara</button>`
-                : `<div style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:var(--r-md); background:var(--warn-soft); color:#6b2f1c; font-size:13px">${window.icon('alert')} Sin HTTPS — cámara no disponible. Usá la entrada manual.</div>`
-            }
+            <button class="btn accent" data-action="start" style="width:100%">${window.icon('scan')} Abrir cámara</button>
             <div class="row" style="gap:8px">
                 <input id="manual-barcode" class="input" placeholder="Introduce el código de barras…" style="flex:1; min-width:0"/>
                 <button class="btn" data-action="manual">Buscar</button>
@@ -131,19 +111,11 @@ function _renderIdle() {
 
 function _renderScanning() {
     return `
-        <div class="scan-stage">
-            <div id="scanner-mount"></div>
-            <div class="scan-frame">
-                <div class="scan-corner tl"></div>
-                <div class="scan-corner tr"></div>
-                <div class="scan-corner bl"></div>
-                <div class="scan-corner br"></div>
-                <div class="scan-line"></div>
+        <div class="scan-stage" style="display:flex; align-items:center; justify-content:center; min-height:220px">
+            <div style="text-align:center; color:var(--text-2)">
+                <div style="font-size:32px; margin-bottom:8px; animation:spin 1s linear infinite">⏳</div>
+                <div>Procesando imagen…</div>
             </div>
-            <div class="scan-hint">Buscando código…</div>
-        </div>
-        <div class="row" style="justify-content:center; margin-top:14px">
-            <button class="btn" data-action="cancel">Cancelar</button>
         </div>
     `;
 }
@@ -276,28 +248,25 @@ window.initScan = function() {
     if (!root) return;
 
     root.querySelectorAll('[data-page]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            _stopScanner();
-            window.gotoPage(btn.dataset.page);
-        });
+        btn.addEventListener('click', () => window.gotoPage(btn.dataset.page));
     });
 
     if (scanState.phase === 'idle') {
-        root.querySelector('[data-action="start"]')?.addEventListener('click', () => {
-            scanState.phase = 'scanning';
-            window.renderPage();
-            setTimeout(_startScanner, 50);
-        });
+        const fileInput = root.querySelector('#camera-input');
+        if (fileInput) {
+            fileInput.addEventListener('change', e => {
+                const file = e.target.files[0];
+                if (file) _scanImageFile(file);
+                fileInput.value = '';
+            });
+        }
+
+        root.querySelector('[data-action="start"]')?.addEventListener('click', _triggerFileInput);
+
         root.querySelector('[data-action="manual"]')?.addEventListener('click', () => {
             const code = root.querySelector('#manual-barcode').value.trim();
             if (!code) return;
             _onScanSuccess(code);
-        });
-    } else if (scanState.phase === 'scanning') {
-        root.querySelector('[data-action="cancel"]')?.addEventListener('click', async () => {
-            await _stopScanner();
-            scanState.phase = 'idle';
-            window.renderPage();
         });
     } else if (scanState.phase === 'review') {
         const np = scanState.newProduct;
@@ -330,9 +299,8 @@ window.initScan = function() {
 
         root.querySelector('[data-action="rescan"]')?.addEventListener('click', () => {
             _resetScan();
-            scanState.phase = 'scanning';
             window.renderPage();
-            setTimeout(_startScanner, 50);
+            setTimeout(_triggerFileInput, 50);
         });
 
         root.querySelector('[data-action="cancel"]')?.addEventListener('click', () => {
@@ -369,7 +337,6 @@ async function _confirmScan() {
     const isNew = !scanState.product;
     try {
         if (isNew) {
-            // Create new product
             const np = scanState.newProduct;
             if (!np.name.trim()) { window.showToast('Pon un nombre al producto', 'error'); return; }
             await window.apiCall('/products', 'POST', {
@@ -393,11 +360,9 @@ async function _confirmScan() {
             });
             window.showToast('Producto añadido al inventario', 'success');
         } else if (scanState.target === 'diary') {
-            // Add a portion to today's diary (no inventory change)
             window.addToMeal(scanState.meal, { productId: scanState.barcode, qty: scanState.qty });
             window.showToast('Añadido al diario', 'success');
         } else {
-            // Existing product, add stock
             await window.apiCall(`/products/${scanState.barcode}/stock`, 'POST', {
                 quantity: scanState.qty,
                 expiry_date: scanState.expiry || null,
@@ -411,6 +376,3 @@ async function _confirmScan() {
         window.showToast('Error: ' + e.message, 'error');
     }
 }
-
-// Stop camera on page change
-window.addEventListener('beforeunload', _stopScanner);
