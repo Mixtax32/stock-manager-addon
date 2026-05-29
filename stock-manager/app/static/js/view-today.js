@@ -121,7 +121,7 @@ window.renderToday = function() {
             </div>
         </div>
 
-        <div class="grid cols-2" style="grid-template-columns:340px 1fr; margin-bottom:22px">
+        <div class="grid cols-2 layout-today-kpi" style="margin-bottom:22px">
             <div class="card" style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; padding:26px">
                 ${window.macroRingHTML(totals.kcal, goals.kcal, totals.p, totals.c, totals.fat, 220, 18)}
                 <div class="row" style="gap:14px; flex-wrap:wrap; justify-content:center">
@@ -147,7 +147,7 @@ window.renderToday = function() {
             </div>
         </div>
 
-        <div class="grid cols-2" style="grid-template-columns:1.4fr 1fr">
+        <div class="grid cols-2 layout-panel-r">
             <div class="card">
                 <div class="card-head">
                     <div class="card-title">Diario de comidas</div>

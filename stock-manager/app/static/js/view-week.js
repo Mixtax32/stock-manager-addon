@@ -261,14 +261,14 @@ window.renderWeek = function() {
                 <div class="page-eyebrow">${window.formatWeekRange()}</div>
                 <h1 class="page-title">Planificador semanal</h1>
             </div>
-            <div class="row" style="gap:8px">
+            <div class="btn-group row" style="gap:8px">
                 <button class="btn ghost" data-action="clear">Vaciar</button>
                 <button class="btn" data-action="auto">${window.icon('sparkle')} Generar automáticamente</button>
                 <button class="btn accent" data-action="shopping">Generar lista de compra</button>
             </div>
         </div>
 
-        <div class="grid cols-2" style="grid-template-columns:1fr 280px; gap:22px">
+        <div class="grid cols-2 layout-week" style="gap:22px">
             <div>
                 <div class="week-scroll">
                     <div class="week-grid">

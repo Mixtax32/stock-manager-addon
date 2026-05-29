@@ -51,14 +51,14 @@ window.renderShopping = function() {
                 <div class="page-eyebrow">Lista de la compra</div>
                 <h1 class="page-title">Por comprar</h1>
             </div>
-            <div class="row" style="gap:8px">
+            <div class="btn-group row" style="gap:8px">
                 <button class="btn" data-action="share">Compartir</button>
                 <button class="btn primary" data-action="mark-all">Marcar todo</button>
                 <button class="btn ghost" data-action="clear-done">Limpiar hechos</button>
             </div>
         </div>
 
-        <div class="grid cols-2" style="grid-template-columns:1.6fr 1fr; gap:22px">
+        <div class="grid cols-2 layout-shopping" style="gap:22px">
             <div class="card" style="padding:6px 22px 22px">
                 <form id="shop-form" class="row" style="gap:8px; padding:14px 0; border-bottom:1px solid var(--line)">
                     <input id="shop-name" class="input" placeholder="Añadir manualmente…" style="flex:1"/>

@@ -80,15 +80,17 @@ window.renderRecipes = function() {
                 ${window.icon('search')}
                 <input id="r-search" placeholder="Buscar receta…" value="${window.esc(recipesQuery)}"/>
             </div>
-            <div class="seg">
-                <button aria-pressed="${recipesFilter === 'todas'}" data-filter="todas">Todas</button>
-                <button aria-pressed="${recipesFilter === 'rapidas'}" data-filter="rapidas">≤ 15 min</button>
-                <button aria-pressed="${recipesFilter === 'proteina'}" data-filter="proteina">Alto en proteína</button>
-                <button aria-pressed="${recipesFilter === 'despensa'}" data-filter="despensa">Con mi despensa</button>
+            <div class="seg-scroll">
+                <div class="seg">
+                    <button aria-pressed="${recipesFilter === 'todas'}" data-filter="todas">Todas</button>
+                    <button aria-pressed="${recipesFilter === 'rapidas'}" data-filter="rapidas">≤ 15 min</button>
+                    <button aria-pressed="${recipesFilter === 'proteina'}" data-filter="proteina">Alto en proteína</button>
+                    <button aria-pressed="${recipesFilter === 'despensa'}" data-filter="despensa">Con mi despensa</button>
+                </div>
             </div>
         </div>
 
-        <div class="grid cols-3 keep-2" style="gap:18px">
+        <div class="grid cols-3 recipes-grid" style="gap:18px">
             ${cards}
             ${filtered.length === 0 ? `<div class="card empty" style="grid-column:1 / -1"><div class="t">Ninguna receta encaja</div><div>Prueba otro filtro o crea una nueva.</div></div>` : ''}
         </div>
@@ -141,7 +143,7 @@ function _renderBuilder() {
             </div>
         </div>
 
-        <div class="grid cols-2" style="grid-template-columns:1.4fr 1fr; gap:22px">
+        <div class="grid cols-2 layout-panel-r" style="gap:22px">
             <div class="card">
                 <div class="grid cols-3 keep-2" style="gap:12px; margin-bottom:18px">
                     <div class="field" style="grid-column:span 3">

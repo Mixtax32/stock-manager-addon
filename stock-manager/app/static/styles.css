@@ -1120,6 +1120,34 @@ input, select, textarea { font-family: inherit; }
 
 textarea.input { height: auto; padding: 10px 12px; resize: vertical; min-height: 80px; font-family: inherit; }
 
+/* ===== Two-panel responsive layouts ===== */
+/* Inline grid-template-columns override media queries — these classes fix that */
+.layout-today-kpi  { grid-template-columns: 340px 1fr; }
+.layout-panel-r    { grid-template-columns: 1.4fr 1fr; }
+.layout-week       { grid-template-columns: 1fr 280px; }
+.layout-shopping   { grid-template-columns: 1.6fr 1fr; }
+
+@media (max-width: 880px) {
+  .layout-today-kpi,
+  .layout-panel-r,
+  .layout-week,
+  .layout-shopping  { grid-template-columns: 1fr; }
+
+  /* Unstick the recipe sidebar when the week panel collapses */
+  .layout-week > :last-child { position: static !important; }
+
+  /* Recipe filter: scrollable instead of overflowing */
+  .seg-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
+  .seg-scroll .seg { white-space: nowrap; }
+
+  /* Recipe cards: single column on mobile (was keep-2 = 2-col, too cramped) */
+  .grid.recipes-grid { grid-template-columns: 1fr; }
+
+  /* Page-head action button groups: wrap on narrow screens */
+  .btn-group { flex-wrap: wrap; }
+  .btn-group .btn { flex: 1 1 auto; min-width: 0; }
+}
+
 /* ===== Scanner — mobile layout ===== */
 .scan-hero { display: none; }
 

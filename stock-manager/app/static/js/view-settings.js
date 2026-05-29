@@ -63,7 +63,7 @@ window.renderSettings = function() {
             </div>
         </div>
 
-        <div class="grid cols-2" style="grid-template-columns:1.4fr 1fr; gap:22px">
+        <div class="grid cols-2 layout-panel-r" style="gap:22px">
             <div class="stack" style="gap:16px">
                 <div class="card">
                     <div class="spread" style="margin-bottom:10px">
