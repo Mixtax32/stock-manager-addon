@@ -123,7 +123,7 @@ function _renderBuilder() {
                     </div>
                 </div>
                 <div class="row" style="gap:6px">
-                    <input class="input num" style="width:80px; height:32px; font-size:13px" type="number" value="${ing.qty}" data-ing-qty="${i}"/>
+                    <input class="input num" style="width:80px; font-size:13px" type="number" value="${ing.qty}" data-ing-qty="${i}"/>
                     <span class="tiny" style="width:28px">${unit}</span>
                 </div>
                 <button class="btn icon sm ghost" data-ing-remove="${i}" title="Quitar">${window.icon('trash')}</button>
@@ -145,7 +145,7 @@ function _renderBuilder() {
 
         <div class="grid cols-2 layout-panel-r" style="gap:22px">
             <div class="card">
-                <div class="grid cols-3 keep-2" style="gap:12px; margin-bottom:18px">
+                <div class="grid cols-3" style="gap:12px; margin-bottom:18px">
                     <div class="field" style="grid-column:span 3">
                         <label class="field-label">Nombre</label>
                         <input id="rb-name" class="input" placeholder="Ej. Bowl de pollo y arroz" value="${window.esc(d.name)}"/>

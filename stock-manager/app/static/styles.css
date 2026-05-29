@@ -1127,6 +1127,10 @@ textarea.input { height: auto; padding: 10px 12px; resize: vertical; min-height:
 .layout-week       { grid-template-columns: 1fr 280px; }
 .layout-shopping   { grid-template-columns: 1.6fr 1fr; }
 
+/* Shopping add form: always column layout (name row, then qty+button row) */
+.shop-add-form { display: flex; flex-direction: column; gap: 8px; }
+.shop-add-form .shop-add-row { display: flex; gap: 8px; }
+
 @media (max-width: 880px) {
   .layout-today-kpi,
   .layout-panel-r,
@@ -1140,12 +1144,25 @@ textarea.input { height: auto; padding: 10px 12px; resize: vertical; min-height:
   .seg-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
   .seg-scroll .seg { white-space: nowrap; }
 
-  /* Recipe cards: single column on mobile (was keep-2 = 2-col, too cramped) */
+  /* Recipe cards: single column on mobile */
   .grid.recipes-grid { grid-template-columns: 1fr; }
 
   /* Page-head action button groups: wrap on narrow screens */
   .btn-group { flex-wrap: wrap; }
   .btn-group .btn { flex: 1 1 auto; min-width: 0; }
+
+  /* Week: smaller cells → 568px min instead of 930px, less horizontal scroll */
+  .week-grid { grid-template-columns: 64px repeat(7, minmax(72px, 1fr)); }
+  .day-totals { display: none; }
+  .week-slot .sub { font-size: 12px; }
+
+  /* Shopping: sub text legibility + checkbox tap target */
+  .shop-sub { font-size: 12px; }
+  .shop-row { gap: 10px; padding: 16px 0; }
+  .shop-row .chk { width: 32px; height: 32px; border-radius: 10px; }
+
+  /* Global: 44px tap targets on all non-icon buttons */
+  .btn:not(.icon):not(.sm) { min-height: 44px; }
 }
 
 /* ===== Scanner — mobile layout ===== */

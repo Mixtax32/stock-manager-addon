@@ -60,10 +60,12 @@ window.renderShopping = function() {
 
         <div class="grid cols-2 layout-shopping" style="gap:22px">
             <div class="card" style="padding:6px 22px 22px">
-                <form id="shop-form" class="row" style="gap:8px; padding:14px 0; border-bottom:1px solid var(--line)">
-                    <input id="shop-name" class="input" placeholder="Añadir manualmente…" style="flex:1"/>
-                    <input id="shop-qty" class="input num" placeholder="500 g" style="width:100px"/>
-                    <button class="btn accent" type="submit">${window.icon('plus')} Añadir</button>
+                <form id="shop-form" class="shop-add-form" style="padding:14px 0; border-bottom:1px solid var(--line)">
+                    <input id="shop-name" class="input" placeholder="Añadir manualmente…"/>
+                    <div class="shop-add-row">
+                        <input id="shop-qty" class="input num" placeholder="500 g" style="width:90px"/>
+                        <button class="btn accent" type="submit" style="flex:1">${window.icon('plus')} Añadir</button>
+                    </div>
                 </form>
                 ${listHTML}
             </div>

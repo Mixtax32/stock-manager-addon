@@ -46,7 +46,7 @@ window.renderSettings = function() {
                        background:${isSel ? 'var(--accent-soft)' : 'var(--bg-sunken)'};
                        border:1px solid ${isSel ? 'var(--accent)' : 'transparent'};">
             <div style="font-weight:600; font-size:13px; margin-bottom:2px">${title}</div>
-            <div class="muted" style="font-size:11px; margin-bottom:8px">${sub}</div>
+            <div class="muted" style="font-size:12px; margin-bottom:8px">${sub}</div>
             <div class="num" style="font-size:13px">${val}</div>
         </button>
     `;
@@ -97,7 +97,7 @@ window.renderSettings = function() {
                         <div class="field"><label class="field-label">Grasas (%)</label><input id="s-fPct" class="input num" type="number" step="0.1" min="0" max="100" value="${d.fatPct}"/></div>
                     </div>
 
-                    <div class="muted" style="font-size:11px; margin-top:10px; font-family:var(--mono); line-height:1.6">
+                    <div class="muted" style="font-size:12px; margin-top:10px; font-family:var(--mono); line-height:1.6">
                         ${d.weight} kg × ${String(d.kPerKg).replace('.', ',')} = <strong style="color:var(--ink)">${calcByWeight} kcal</strong>
                         · P ${Math.round((calcByWeight * d.pPct / 100) / factors.p)}g
                         · C ${Math.round((calcByWeight * d.cPct / 100) / factors.c)}g
@@ -125,7 +125,7 @@ window.renderSettings = function() {
                         Cómo convertimos gramos de macros a kilocalorías. Cambia esto si tu otra app usa factores distintos.
                     </div>
 
-                    <div class="grid cols-3 keep-2" style="gap:10px">
+                    <div class="grid cols-3" style="gap:10px">
                         ${modeCard('estandar', 'Estándar Atwater', 'El más usado · OMS, USDA', '4 · 4 · 9', mode === 'estandar')}
                         ${modeCard('ue', 'Etiquetado UE', 'Reglamento 1169/2011', '4 · 3,75 · 9', mode === 'ue')}
                         ${modeCard('custom', 'Personalizado', 'Ajusta cada factor', `${factors.p} · ${factors.c} · ${factors.fat}`, mode === 'custom')}
@@ -173,7 +173,7 @@ window.renderSettings = function() {
                         </div>
                     </div>` : ''}
 
-                    <div class="muted" style="font-size:11px; margin-top:12px; font-family:var(--mono); line-height:1.5">
+                    <div class="muted" style="font-size:12px; margin-top:12px; font-family:var(--mono); line-height:1.5">
                         Cálculo · P×${factors.p} + C×${factors.c} + G×${factors.fat} = ${Math.round(d.p * factors.p)} + ${Math.round(d.c * factors.c)} + ${Math.round(d.fat * factors.fat)} = <strong style="color:var(--ink)">${Math.round(calcKcal)} kcal</strong>
                     </div>
                 </div>
