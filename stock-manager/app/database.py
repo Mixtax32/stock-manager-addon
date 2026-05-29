@@ -1,5 +1,6 @@
 import aiosqlite
 import os
+import json
 from datetime import datetime, date
 from typing import List, Optional
 from .models import Product, ProductCreate, StockUpdate, ProductUpdate, Batch, BatchUpdate, BatchStockUpdate, MacroGoals, MacroGoalsUpdate, Ingredient, Recipe, RecipeCreate, DietPlan, DietPlanCreate
@@ -121,6 +122,10 @@ class Database:
                     description TEXT,
                     instructions TEXT,
                     servings INTEGER DEFAULT 1,
+                    time INTEGER DEFAULT NULL,
+                    tags TEXT DEFAULT '[]',
+                    output_product_id TEXT DEFAULT NULL,
+                    output_qty REAL DEFAULT 0,
                     kcal REAL,
                     proteins REAL,
                     carbs REAL,
@@ -128,6 +133,18 @@ class Database:
                     image_url TEXT
                 )
             """)
+
+            # Migration: add new columns to existing recipes table
+            async with db.execute("PRAGMA table_info(recipes)") as cursor:
+                recipe_cols = [row[1] for row in await cursor.fetchall()]
+            if 'time' not in recipe_cols:
+                await db.execute("ALTER TABLE recipes ADD COLUMN time INTEGER DEFAULT NULL")
+            if 'tags' not in recipe_cols:
+                await db.execute("ALTER TABLE recipes ADD COLUMN tags TEXT DEFAULT '[]'")
+            if 'output_product_id' not in recipe_cols:
+                await db.execute("ALTER TABLE recipes ADD COLUMN output_product_id TEXT DEFAULT NULL")
+            if 'output_qty' not in recipe_cols:
+                await db.execute("ALTER TABLE recipes ADD COLUMN output_qty REAL DEFAULT 0")
 
             # Create recipe_ingredients table
             await db.execute("""
@@ -646,15 +663,24 @@ class Database:
 
     # --- Recipes Methods ---
 
+    def _parse_recipe_row(self, recipe_dict: dict) -> dict:
+        """Deserialize JSON fields from a recipe DB row."""
+        tags_raw = recipe_dict.get('tags') or '[]'
+        try:
+            recipe_dict['tags'] = json.loads(tags_raw) if isinstance(tags_raw, str) else tags_raw
+        except Exception:
+            recipe_dict['tags'] = []
+        return recipe_dict
+
     async def get_all_recipes(self) -> List[Recipe]:
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
             async with db.execute("SELECT * FROM recipes ORDER BY name") as cursor:
                 recipe_rows = await cursor.fetchall()
-            
+
             recipes = []
             for r_row in recipe_rows:
-                recipe_dict = dict(r_row)
+                recipe_dict = self._parse_recipe_row(dict(r_row))
                 async with db.execute("SELECT * FROM recipe_ingredients WHERE recipe_id = ?", (recipe_dict['id'],)) as i_cursor:
                     ingredients = [Ingredient(**dict(i_row)) for i_row in await i_cursor.fetchall()]
                 recipe_dict['ingredients'] = ingredients
@@ -667,7 +693,7 @@ class Database:
             async with db.execute("SELECT * FROM recipes WHERE id = ?", (recipe_id,)) as cursor:
                 row = await cursor.fetchone()
                 if not row: return None
-                recipe_dict = dict(row)
+                recipe_dict = self._parse_recipe_row(dict(row))
                 async with db.execute("SELECT * FROM recipe_ingredients WHERE recipe_id = ?", (recipe_id,)) as i_cursor:
                     ingredients = [Ingredient(**dict(i_row)) for i_row in await i_cursor.fetchall()]
                 recipe_dict['ingredients'] = ingredients
@@ -676,19 +702,47 @@ class Database:
     async def create_recipe(self, recipe: RecipeCreate) -> Recipe:
         async with aiosqlite.connect(self.db_path) as db:
             cursor = await db.execute("""
-                INSERT INTO recipes (name, description, instructions, servings, kcal, proteins, carbs, fat, image_url)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (recipe.name, recipe.description, recipe.instructions, recipe.servings, recipe.kcal, recipe.proteins, recipe.carbs, recipe.fat, recipe.image_url))
+                INSERT INTO recipes (name, description, instructions, servings, time, tags, output_product_id, output_qty, kcal, proteins, carbs, fat, image_url)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                recipe.name, recipe.description, recipe.instructions, recipe.servings,
+                recipe.time, json.dumps(recipe.tags or []),
+                recipe.output_product_id, recipe.output_qty,
+                recipe.kcal, recipe.proteins, recipe.carbs, recipe.fat, recipe.image_url
+            ))
             recipe_id = cursor.lastrowid
-            
+
             for ing in recipe.ingredients:
                 await db.execute("""
                     INSERT INTO recipe_ingredients (recipe_id, product_barcode, custom_name, quantity, unit)
                     VALUES (?, ?, ?, ?, ?)
-                """, (recipe_id, ing.get('product_barcode'), ing.get('custom_name'), ing.get('quantity'), ing.get('unit')))
-            
+                """, (recipe_id, ing.get('product_barcode'), ing.get('custom_name'), ing.get('quantity'), ing.get('unit', 'g')))
+
             await db.commit()
             return await self.get_recipe(recipe_id)
+
+    async def update_recipe(self, recipe_id: int, recipe: RecipeCreate) -> Optional[Recipe]:
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("""
+                UPDATE recipes SET name=?, description=?, instructions=?, servings=?,
+                time=?, tags=?, output_product_id=?, output_qty=?,
+                kcal=?, proteins=?, carbs=?, fat=?, image_url=?
+                WHERE id=?
+            """, (
+                recipe.name, recipe.description, recipe.instructions, recipe.servings,
+                recipe.time, json.dumps(recipe.tags or []),
+                recipe.output_product_id, recipe.output_qty,
+                recipe.kcal, recipe.proteins, recipe.carbs, recipe.fat, recipe.image_url,
+                recipe_id
+            ))
+            await db.execute("DELETE FROM recipe_ingredients WHERE recipe_id=?", (recipe_id,))
+            for ing in recipe.ingredients:
+                await db.execute("""
+                    INSERT INTO recipe_ingredients (recipe_id, product_barcode, custom_name, quantity, unit)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (recipe_id, ing.get('product_barcode'), ing.get('custom_name'), ing.get('quantity'), ing.get('unit', 'g')))
+            await db.commit()
+        return await self.get_recipe(recipe_id)
 
     async def delete_recipe(self, recipe_id: int) -> bool:
         async with aiosqlite.connect(self.db_path) as db:

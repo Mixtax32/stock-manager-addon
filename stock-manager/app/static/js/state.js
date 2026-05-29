@@ -98,7 +98,7 @@ window.AppState = {
         return def;
     })(),
 
-    recipes: lsGet(LS_KEYS.recipes, []),
+    recipes: [], // loaded from HA backend via reloadRecipes()
     shopping: lsGet(LS_KEYS.shopping, []),
 
     // HA API data — products and barcodes (loaded async)
@@ -119,8 +119,8 @@ window.saveWeek = function(week) {
     lsSet(LS_KEYS.week, week);
 };
 window.saveRecipes = function(recipes) {
+    // Kept for compatibility — recipes are persisted via the HA API, not localStorage
     window.AppState.recipes = recipes;
-    lsSet(LS_KEYS.recipes, recipes);
 };
 window.saveShopping = function(shopping) {
     window.AppState.shopping = shopping;

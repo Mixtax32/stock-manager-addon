@@ -97,6 +97,10 @@ class Recipe(BaseModel):
     description: Optional[str] = None
     instructions: Optional[str] = None
     servings: int = 1
+    time: Optional[int] = None
+    tags: List[str] = []
+    output_product_id: Optional[str] = None
+    output_qty: float = 0
     kcal: Optional[float] = None
     proteins: Optional[float] = None
     carbs: Optional[float] = None
@@ -109,6 +113,10 @@ class RecipeCreate(BaseModel):
     description: Optional[str] = None
     instructions: Optional[str] = None
     servings: int = 1
+    time: Optional[int] = None
+    tags: List[str] = []
+    output_product_id: Optional[str] = None
+    output_qty: float = 0
     kcal: Optional[float] = None
     proteins: Optional[float] = None
     carbs: Optional[float] = None

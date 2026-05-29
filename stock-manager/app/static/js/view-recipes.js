@@ -331,7 +331,7 @@ window.initRecipes = function() {
     root.querySelectorAll('[data-edit]').forEach(btn => {
         btn.addEventListener('click', () => {
             const id = btn.dataset.edit;
-            const r = (window.AppState.recipes || []).find(x => x.id === id);
+            const r = (window.AppState.recipes || []).find(x => String(x.id) === String(id));
             if (!r) return;
             recipeBuilder = Object.assign(_emptyDraft(), JSON.parse(JSON.stringify(r)));
             recipeBuilder._editing = true;
@@ -344,9 +344,13 @@ window.initRecipes = function() {
             const id = btn.dataset.deleteRecipe;
             const ok = await window.confirmDialog('¿Eliminar receta?');
             if (!ok) return;
-            const next = (window.AppState.recipes || []).filter(r => r.id !== id);
-            window.saveRecipes(next);
-            window.renderPage();
+            try {
+                await window.apiCall(`/recipes/${id}`, 'DELETE');
+                await window.reloadRecipes();
+                window.renderPage();
+            } catch (e) {
+                window.showToast('Error eliminando receta', 'error');
+            }
         });
     });
 
@@ -439,30 +443,22 @@ function _wireBuilder(root) {
         window.renderPage();
     });
 
-    root.querySelector('[data-action="save-recipe"]')?.addEventListener('click', () => {
+    root.querySelector('[data-action="save-recipe"]')?.addEventListener('click', async () => {
         if (!d.name.trim()) { window.showToast('Pon un nombre a la receta', 'error'); return; }
         if (d.ingredients.length === 0) { window.showToast('Añade al menos un ingrediente', 'error'); return; }
 
-        const all = (window.AppState.recipes || []).slice();
-        const saved = {
-            id: d._editing ? d.id : 'r' + Date.now(),
-            name: d.name.trim(),
-            serves: d.serves,
-            time: d.time,
-            tags: d.tags || [],
-            ingredients: d.ingredients,
-            output_product_id: d.output_product_id || null,
-            output_qty: d.output_qty || 0,
-        };
-        if (d._editing) {
-            const idx = all.findIndex(r => r.id === d.id);
-            if (idx >= 0) all[idx] = saved; else all.unshift(saved);
-        } else {
-            all.unshift(saved);
+        try {
+            if (d._editing) {
+                await window.apiCall(`/recipes/${d.id}`, 'PUT', window._recipeToApi(d));
+            } else {
+                await window.apiCall('/recipes', 'POST', window._recipeToApi(d));
+            }
+            await window.reloadRecipes();
+            window.showToast('Receta guardada', 'success');
+            recipeBuilder = null;
+            window.renderPage();
+        } catch (e) {
+            window.showToast('Error guardando receta: ' + e.message, 'error');
         }
-        window.saveRecipes(all);
-        window.showToast('Receta guardada', 'success');
-        recipeBuilder = null;
-        window.renderPage();
     });
 }

@@ -342,6 +342,14 @@ async def create_recipe(recipe: RecipeCreate):
     """Create new recipe"""
     return await db.create_recipe(recipe)
 
+@app.put("/api/recipes/{recipe_id}", response_model=Recipe)
+async def update_recipe(recipe_id: int, recipe: RecipeCreate):
+    """Update an existing recipe"""
+    updated = await db.update_recipe(recipe_id, recipe)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+    return updated
+
 @app.delete("/api/recipes/{recipe_id}", status_code=204)
 async def delete_recipe(recipe_id: int):
     """Delete recipe"""
