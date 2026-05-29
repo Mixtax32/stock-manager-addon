@@ -769,6 +769,11 @@ input, select, textarea { font-family: inherit; }
   .weight-calc { grid-template-columns: 1fr 1fr; }
   .weight-calc .wc-eq { display: none; }
   .weight-calc .wc-apply { grid-column: 1 / -1; height: 44px; }
+  /* Allow cells to shrink — inputs with font-size:22px have large intrinsic min-width */
+  .weight-calc > * { min-width: 0; }
+  .weight-calc .input, .weight-calc .input.lg { width: 100%; min-width: 0; }
+  .weight-split > * { min-width: 0; }
+  .weight-split .input { width: 100%; min-width: 0; }
 }
 
 .weight-split {
@@ -1151,7 +1156,9 @@ textarea.input { height: auto; padding: 10px 12px; resize: vertical; min-height:
   .btn-group { flex-wrap: wrap; }
   .btn-group .btn { flex: 1 1 auto; min-width: 0; }
 
-  /* Week: smaller cells → 568px min instead of 930px, less horizontal scroll */
+  /* Week: bound grid items so week-scroll doesn't inflate the whole page */
+  .layout-week > * { min-width: 0; }
+  /* Smaller cells → 568px min instead of 930px, less horizontal scroll */
   .week-grid { grid-template-columns: 64px repeat(7, minmax(72px, 1fr)); }
   .day-totals { display: none; }
   .week-slot .sub { font-size: 12px; }
