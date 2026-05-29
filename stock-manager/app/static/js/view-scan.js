@@ -86,7 +86,7 @@ async function _onScanSuccess(decodedText) {
 
 function _renderIdle() {
     return `
-        <div class="scan-stage">
+        <div class="scan-stage scan-stage-desktop">
             <div class="scan-bg"></div>
             <div class="scan-grain"></div>
             <div class="scan-frame">
@@ -98,9 +98,13 @@ function _renderIdle() {
             </div>
             <div class="scan-hint">Tomá una foto del código de barras</div>
         </div>
+        <div class="scan-hero">
+            <div class="scan-hero-icon">${window.icon('scan')}</div>
+            <p class="scan-hero-label">Tomá una foto del código de barras y lo detectamos automáticamente</p>
+        </div>
         <input type="file" id="camera-input" accept="image/*" capture="environment" style="display:none">
         <div class="stack" style="gap:10px; margin-top:14px">
-            <button class="btn accent" data-action="start" style="width:100%">${window.icon('scan')} Abrir cámara</button>
+            <button class="btn accent scan-cta-btn" data-action="start" style="width:100%">${window.icon('scan')} Abrir cámara</button>
             <div class="row" style="gap:8px">
                 <input id="manual-barcode" class="input" placeholder="Introduce el código de barras…" style="flex:1; min-width:0"/>
                 <button class="btn" data-action="manual">Buscar</button>
@@ -111,11 +115,9 @@ function _renderIdle() {
 
 function _renderScanning() {
     return `
-        <div class="scan-stage" style="display:flex; align-items:center; justify-content:center; min-height:220px">
-            <div style="text-align:center; color:var(--text-2)">
-                <div style="font-size:32px; margin-bottom:8px; animation:spin 1s linear infinite">⏳</div>
-                <div>Procesando imagen…</div>
-            </div>
+        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:60px 20px; text-align:center">
+            <div class="loader-spin"></div>
+            <p style="font-size:14px; color:var(--ink-2); margin:0">Procesando imagen…</p>
         </div>
     `;
 }
@@ -209,11 +211,11 @@ function _renderReview() {
             </div>`}
         </div>
 
-        <div class="row" style="justify-content:space-between">
+        <div class="scan-actions-sticky row" style="justify-content:space-between">
             <button class="btn ghost" data-action="rescan">${window.icon('scan')} Escanear otro</button>
             <div class="row" style="gap:8px">
                 <button class="btn ghost" data-action="cancel">Cancelar</button>
-                <button class="btn accent" data-action="confirm">${scanState.target === 'pantry' || isNew ? 'Guardar en despensa' : 'Añadir al diario'}</button>
+                <button class="btn accent scan-confirm-btn" data-action="confirm">${scanState.target === 'pantry' || isNew ? 'Guardar en despensa' : 'Añadir al diario'}</button>
             </div>
         </div>
     `;

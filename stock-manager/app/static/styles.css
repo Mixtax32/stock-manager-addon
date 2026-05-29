@@ -1119,3 +1119,37 @@ input, select, textarea { font-family: inherit; }
 }
 
 textarea.input { height: auto; padding: 10px 12px; resize: vertical; min-height: 80px; font-family: inherit; }
+
+/* ===== Scanner — mobile layout ===== */
+.scan-hero { display: none; }
+
+@media (max-width: 880px) {
+  .scan-stage-desktop { display: none; }
+
+  .scan-hero {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 20px; padding: 40px 20px 16px; text-align: center;
+  }
+  .scan-hero-icon {
+    width: 88px; height: 88px; border-radius: 28px;
+    background: var(--ink); color: var(--bg);
+    display: grid; place-items: center;
+    box-shadow: 0 8px 28px -8px rgba(0,0,0,0.28);
+  }
+  .scan-hero-icon svg { width: 38px; height: 38px; }
+  .scan-hero-label {
+    font-size: 15px; color: var(--ink-2); line-height: 1.55;
+    max-width: 260px; margin: 0;
+  }
+
+  .scan-cta-btn { height: 56px; font-size: 16px; border-radius: var(--r-xl); }
+
+  .scan-actions-sticky {
+    position: sticky;
+    bottom: calc(var(--tabbar-h) + 8px);
+    margin: 16px -22px -22px;
+    padding: 24px 22px 12px;
+    background: linear-gradient(to bottom, transparent, var(--bg-elevated) 40%);
+  }
+  .scan-confirm-btn { flex: 1; height: 50px; font-size: 15px; border-radius: var(--r-xl); }
+}
