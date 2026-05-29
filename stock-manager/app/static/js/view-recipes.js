@@ -1,14 +1,14 @@
 /*
    View: Recipes — library + builder
-   v0.7.0
+   v0.8.1
 */
 
 let recipesQuery = '';
-let recipesFilter = 'todas'; // todas | rapidas | proteina | despensa
-let recipeBuilder = null; // null when not building, otherwise {name, serves, time, tags, ingredients[]}
+let recipesFilter = 'todas';
+let recipeBuilder = null;
 
 function _emptyDraft() {
-    return { name: '', serves: 1, time: 15, tags: [], ingredients: [] };
+    return { name: '', serves: 1, time: 15, tags: [], ingredients: [], output_product_id: null, output_qty: 0 };
 }
 
 function _filterRecipes() {
@@ -56,6 +56,7 @@ window.renderRecipes = function() {
                         ${hasAll ? `<span class="chip good">✓ Tengo todo</span>` : ''}
                     </div>
                     <div class="row" style="margin-top:12px; justify-content:flex-end; gap:6px">
+                        <button class="btn sm accent" data-make="${window.esc(r.id)}">🍳 Hacer</button>
                         <button class="btn sm ghost" data-edit="${window.esc(r.id)}">${window.icon('edit')}</button>
                         <button class="btn sm ghost" data-delete-recipe="${window.esc(r.id)}">${window.icon('trash')}</button>
                     </div>
@@ -131,6 +132,37 @@ function _renderBuilder() {
         `;
     }).join('');
 
+    const outputProduct = d.output_product_id ? window.findProductById(d.output_product_id) : null;
+    const outputName = outputProduct ? outputProduct.name : null;
+    const outputUnit = outputProduct ? (outputProduct.unit_type === 'uds' ? 'ud' : (outputProduct.unit_type || 'ud')) : 'ud';
+
+    const outputHTML = `
+        <div style="margin-top:18px; padding-top:16px; border-top:1px solid var(--border)">
+            <div class="spread" style="margin-bottom:10px">
+                <div class="card-title">Resultado en despensa</div>
+                <button class="btn sm" data-action="pick-output">${outputName ? 'Cambiar' : 'Vincular producto'}</button>
+            </div>
+            ${outputName ? `
+                <div class="card sunken" style="padding:10px 14px; display:flex; align-items:center; gap:10px; margin-bottom:10px">
+                    <span style="font-size:18px">📦</span>
+                    <div style="flex:1">
+                        <div style="font-size:13px; font-weight:600">${window.esc(outputName)}</div>
+                        <div class="muted" style="font-size:11px">se añadirá al stock al hacer la receta</div>
+                    </div>
+                    <button class="btn icon sm ghost" data-action="clear-output" title="Quitar">✕</button>
+                </div>
+                <div class="field">
+                    <label class="field-label">Unidades producidas (${outputUnit})</label>
+                    <input id="rb-output-qty" class="input num" type="number" min="0" step="0.1" value="${d.output_qty || 0}"/>
+                </div>
+            ` : `
+                <div class="muted" style="font-size:12px; padding:6px 0">
+                    Opcional. Vinculá un producto de tu despensa que se sumará al stock cuando hagas esta receta.
+                </div>
+            `}
+        </div>
+    `;
+
     return `
         <div class="page-head">
             <div>
@@ -170,9 +202,11 @@ function _renderBuilder() {
                 </div>
 
                 ${d.ingredients.length === 0 ? `<div class="empty"><div class="t">Sin ingredientes</div><div>Empieza añadiendo el primero.</div></div>` : ingredientsHTML}
+
+                ${outputHTML}
             </div>
 
-            <div class="stack" style="gap:16px">
+            <div class="stack" id="rb-macros" style="gap:16px">
                 <div class="card">
                     <div class="card-head">
                         <div class="card-title">Por ración</div>
@@ -191,6 +225,83 @@ function _renderBuilder() {
             </div>
         </div>
     `;
+}
+
+function _refreshMacros() {
+    const d = recipeBuilder;
+    if (!d) return;
+    const panel = document.getElementById('rb-macros');
+    if (!panel) return;
+    const totals = window.sumMacros(d.ingredients);
+    const serves = Math.max(1, d.serves || 1);
+    const perServe = {
+        kcal: totals.kcal / serves,
+        p:    totals.p / serves,
+        c:    totals.c / serves,
+        fat:  totals.fat / serves,
+    };
+    panel.innerHTML = `
+        <div class="card">
+            <div class="card-head">
+                <div class="card-title">Por ración</div>
+                <span class="card-sub">${serves} raciones</span>
+            </div>
+            <div style="display:flex; justify-content:center; padding:8px 0 14px">
+                ${window.macroRingHTML(perServe.kcal, Math.max(perServe.kcal, 500), perServe.p, perServe.c, perServe.fat, 180, 14)}
+            </div>
+            ${window.macroBarsHTML(perServe, { kcal: Math.max(Math.round(perServe.kcal), 1), p: Math.max(Math.round(perServe.p), 1), c: Math.max(Math.round(perServe.c), 1), fat: Math.max(Math.round(perServe.fat), 1) })}
+        </div>
+        <div class="card sunken">
+            <div class="card-title" style="margin-bottom:6px">Receta completa</div>
+            <div class="muted" style="font-size:12px; margin-bottom:8px">Total para ${serves} ración${serves > 1 ? 'es' : ''}</div>
+            ${window.macroChipsHTML(totals)}
+        </div>
+    `;
+}
+
+async function _makeRecipe(r) {
+    const ingredients = r.ingredients || [];
+    if (ingredients.length === 0) {
+        window.showToast('Esta receta no tiene ingredientes', 'error');
+        return;
+    }
+
+    const missing = [];
+    for (const ing of ingredients) {
+        const p = window.findProductById(ing.productId);
+        if (!p) continue;
+        if ((p.stock || 0) < ing.qty) {
+            missing.push(p.name);
+        }
+    }
+
+    const confirmMsg = missing.length > 0
+        ? `Faltan ${missing.length} ingrediente(s) con stock insuficiente (${missing.join(', ')}). ¿Continuar igual?`
+        : `¿Hacer "${r.name}"? Se descontarán los ingredientes del stock.`;
+
+    const ok = await window.confirmDialog(confirmMsg);
+    if (!ok) return;
+
+    for (const ing of ingredients) {
+        const p = window.findProductById(ing.productId);
+        if (!p) continue;
+        try {
+            await window.apiCall(`/products/${p.barcode}/stock`, 'POST', { quantity: -(ing.qty), reason: 'recipe' });
+        } catch (e) {
+            window.showToast(`Error descontando ${p.name}`, 'error');
+        }
+    }
+
+    if (r.output_product_id && (r.output_qty || 0) > 0) {
+        try {
+            await window.apiCall(`/products/${r.output_product_id}/stock`, 'POST', { quantity: r.output_qty });
+        } catch (e) {
+            window.showToast('Error añadiendo resultado al stock', 'error');
+        }
+    }
+
+    if (window.loadProducts) await window.loadProducts();
+    window.showToast(`"${r.name}" lista. Stock actualizado.`, 'success');
 }
 
 window.initRecipes = function() {
@@ -238,6 +349,15 @@ window.initRecipes = function() {
             window.renderPage();
         });
     });
+
+    root.querySelectorAll('[data-make]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const id = btn.dataset.make;
+            const r = (window.AppState.recipes || []).find(x => x.id === id);
+            if (!r) return;
+            await _makeRecipe(r);
+        });
+    });
 };
 
 function _wireBuilder(root) {
@@ -251,20 +371,29 @@ function _wireBuilder(root) {
         });
     }
     bind('rb-name', 'name');
-    bind('rb-serves', 'serves', v => Math.max(1, parseInt(v) || 1));
     bind('rb-time', 'time', v => Math.max(0, parseInt(v) || 0));
+
     const tagsEl = root.querySelector('#rb-tags');
     if (tagsEl) tagsEl.addEventListener('input', e => {
         d.tags = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
     });
 
+    // Serves updates model + refreshes macros panel without re-render
+    const servesEl = root.querySelector('#rb-serves');
+    if (servesEl) servesEl.addEventListener('input', e => {
+        d.serves = Math.max(1, parseInt(e.target.value) || 1);
+        _refreshMacros();
+    });
+
+    // Qty changes update model + refresh macros only — no full re-render (fixes focus loss)
     root.querySelectorAll('[data-ing-qty]').forEach(el => {
         el.addEventListener('input', e => {
             const i = Number(el.dataset.ingQty);
             d.ingredients[i].qty = Math.max(0, Number(e.target.value) || 0);
-            window.renderPage();
+            _refreshMacros();
         });
     });
+
     root.querySelectorAll('[data-ing-remove]').forEach(btn => {
         btn.addEventListener('click', () => {
             const i = Number(btn.dataset.ingRemove);
@@ -281,6 +410,28 @@ function _wireBuilder(root) {
                 window.renderPage();
             }
         });
+    });
+
+    root.querySelector('[data-action="pick-output"]')?.addEventListener('click', () => {
+        window.openFoodPicker({
+            title: 'Producto resultado',
+            onPick: (item) => {
+                d.output_product_id = item.productId;
+                d.output_qty = item.qty;
+                window.renderPage();
+            }
+        });
+    });
+
+    root.querySelector('[data-action="clear-output"]')?.addEventListener('click', () => {
+        d.output_product_id = null;
+        d.output_qty = 0;
+        window.renderPage();
+    });
+
+    const outputQtyEl = root.querySelector('#rb-output-qty');
+    if (outputQtyEl) outputQtyEl.addEventListener('input', e => {
+        d.output_qty = Math.max(0, Number(e.target.value) || 0);
     });
 
     root.querySelector('[data-action="cancel"]')?.addEventListener('click', () => {
@@ -300,6 +451,8 @@ function _wireBuilder(root) {
             time: d.time,
             tags: d.tags || [],
             ingredients: d.ingredients,
+            output_product_id: d.output_product_id || null,
+            output_qty: d.output_qty || 0,
         };
         if (d._editing) {
             const idx = all.findIndex(r => r.id === d.id);
