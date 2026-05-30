@@ -1,6 +1,6 @@
 /*
    View: Recipes — library + builder
-   v0.8.7
+   v0.8.8
 */
 
 let recipesQuery = '';
@@ -457,7 +457,7 @@ window.initRecipes = function() {
     root.querySelectorAll('[data-make]').forEach(btn => {
         btn.addEventListener('click', async () => {
             const id = btn.dataset.make;
-            const r = (window.AppState.recipes || []).find(x => x.id === id);
+            const r = (window.AppState.recipes || []).find(x => String(x.id) === String(id));
             if (!r) return;
             await _makeRecipe(r);
         });
