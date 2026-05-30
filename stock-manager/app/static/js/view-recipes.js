@@ -1,6 +1,6 @@
 /*
    View: Recipes — library + builder
-   v0.8.1
+   v0.8.6
 */
 
 let recipesQuery = '';
@@ -8,7 +8,7 @@ let recipesFilter = 'todas';
 let recipeBuilder = null;
 
 function _emptyDraft() {
-    return { name: '', serves: 1, time: 15, tags: [], ingredients: [], output_product_id: null, output_qty: 0 };
+    return { name: '', serves: 1, time: 15, tags: [], ingredients: [], output_product_id: null, output_qty: 1, default_expiry_days: null };
 }
 
 function _filterRecipes() {
@@ -135,31 +135,55 @@ function _renderBuilder() {
     const outputProduct = d.output_product_id ? window.findProductById(d.output_product_id) : null;
     const outputName = outputProduct ? outputProduct.name : null;
     const outputUnit = outputProduct ? (outputProduct.unit_type === 'uds' ? 'ud' : (outputProduct.unit_type || 'ud')) : 'ud';
+    const expiryVal = (d.default_expiry_days === 0 || d.default_expiry_days) ? d.default_expiry_days : '';
+    const autoName = d.name.trim() || 'tu receta';
+
+    const linkBlock = outputName ? `
+        <div class="card sunken" style="padding:10px 14px; display:flex; align-items:center; gap:10px; margin-bottom:10px">
+            <span style="font-size:18px">📦</span>
+            <div style="flex:1">
+                <div style="font-size:13px; font-weight:600">${window.esc(outputName)}</div>
+                <div class="muted" style="font-size:11px">producto vinculado manualmente</div>
+            </div>
+            <button class="btn icon sm ghost" data-action="clear-output" title="Desvincular">✕</button>
+        </div>
+    ` : `
+        <div class="card sunken" style="padding:10px 14px; display:flex; align-items:center; gap:10px; margin-bottom:10px">
+            <span style="font-size:18px">✨</span>
+            <div style="flex:1">
+                <div style="font-size:13px; font-weight:600">Se creará «${window.esc(autoName)}»</div>
+                <div class="muted" style="font-size:11px">la primera vez que la hagas se generará un artículo en tu despensa</div>
+            </div>
+        </div>
+    `;
 
     const outputHTML = `
         <div style="margin-top:18px; padding-top:16px; border-top:1px solid var(--border)">
-            <div class="spread" style="margin-bottom:10px">
-                <div class="card-title">Resultado en despensa</div>
-                <button class="btn sm" data-action="pick-output">${outputName ? 'Cambiar' : 'Vincular producto'}</button>
-            </div>
-            ${outputName ? `
-                <div class="card sunken" style="padding:10px 14px; display:flex; align-items:center; gap:10px; margin-bottom:10px">
-                    <span style="font-size:18px">📦</span>
-                    <div style="flex:1">
-                        <div style="font-size:13px; font-weight:600">${window.esc(outputName)}</div>
-                        <div class="muted" style="font-size:11px">se añadirá al stock al hacer la receta</div>
-                    </div>
-                    <button class="btn icon sm ghost" data-action="clear-output" title="Quitar">✕</button>
-                </div>
+            <div class="card-title" style="margin-bottom:10px">Al hacer la receta</div>
+            ${linkBlock}
+            <div class="grid cols-2" style="gap:12px">
                 <div class="field">
-                    <label class="field-label">Unidades producidas (${outputUnit})</label>
+                    <label class="field-label">Unidades producidas${outputName ? ` (${outputUnit})` : ''}</label>
                     <input id="rb-output-qty" class="input num" type="number" min="0" step="0.1" value="${d.output_qty || 0}"/>
                 </div>
-            ` : `
-                <div class="muted" style="font-size:12px; padding:6px 0">
-                    Opcional. Vinculá un producto de tu despensa que se sumará al stock cuando hagas esta receta.
+                <div class="field">
+                    <label class="field-label">Caducidad (días)</label>
+                    <input id="rb-expiry-days" class="input num" type="number" min="0" step="1" value="${expiryVal}" placeholder="ej. 4"/>
                 </div>
-            `}
+            </div>
+            <div class="muted" style="font-size:11px; margin-top:6px">
+                Cada vez que hagas la receta se añadirán esas unidades con caducidad = hoy + N días. Déjalo en blanco para no fijar caducidad.
+            </div>
+
+            <details style="margin-top:14px">
+                <summary class="muted" style="font-size:12px; cursor:pointer">Avanzado: vincular a un producto existente</summary>
+                <div style="margin-top:8px">
+                    <button class="btn sm" data-action="pick-output">${outputName ? 'Cambiar producto' : 'Elegir producto…'}</button>
+                    <div class="muted" style="font-size:11px; margin-top:6px">
+                        Si vinculás un producto, el stock se sumará a ese en vez de a uno autogenerado.
+                    </div>
+                </div>
+            </details>
         </div>
     `;
 
@@ -261,6 +285,72 @@ function _refreshMacros() {
     `;
 }
 
+function _autoBarcodeFor(recipeId) {
+    return `rcp-${recipeId}`;
+}
+
+function _expiryFromDays(days) {
+    if (days === null || days === undefined || days === '') return null;
+    const n = Number(days);
+    if (Number.isNaN(n) || n < 0) return null;
+    const dt = new Date(); dt.setHours(0, 0, 0, 0);
+    dt.setDate(dt.getDate() + n);
+    return dt.toISOString().slice(0, 10);
+}
+
+async function _ensureOutputProduct(r) {
+    const outputQty = Number(r.output_qty) || 0;
+    if (outputQty <= 0) return null;
+
+    const linked = r.output_product_id ? window.findProductById(r.output_product_id) : null;
+    if (linked) return r.output_product_id;
+
+    // Manual link that no longer exists → fail loudly
+    if (r.output_product_id && !r.output_product_id.startsWith(`rcp-${r.id}`)) {
+        window.showToast('El producto vinculado ya no existe', 'error');
+        return null;
+    }
+
+    // (Re)create autogenerated product
+    const barcode = _autoBarcodeFor(r.id);
+    const totals = window.sumMacros(r.ingredients || []);
+    const per = {
+        kcal: totals.kcal / outputQty,
+        p:    totals.p / outputQty,
+        c:    totals.c / outputQty,
+        fat:  totals.fat / outputQty,
+    };
+    try {
+        await window.apiCall('/products', 'POST', {
+            barcode,
+            name: r.name,
+            category: 'Recetas',
+            unit_type: 'uds',
+            min_stock: 0,
+            weight_g: 100,
+            kcal_100g: per.kcal,
+            proteins_100g: per.p,
+            carbs_100g: per.c,
+            fat_100g: per.fat,
+        });
+    } catch (e) {
+        const m = String(e.message || '').toLowerCase();
+        if (!m.includes('already') && !m.includes('exist')) {
+            window.showToast('No se pudo crear el artículo: ' + e.message, 'error');
+            return null;
+        }
+    }
+
+    if (!r.output_product_id) {
+        try {
+            await window.apiCall(`/recipes/${r.id}`, 'PUT', window._recipeToApi({ ...r, output_product_id: barcode }));
+        } catch (e) {
+            console.warn('No se pudo guardar el vínculo en la receta', e);
+        }
+    }
+    return barcode;
+}
+
 async function _makeRecipe(r) {
     const ingredients = r.ingredients || [];
     if (ingredients.length === 0) {
@@ -294,15 +384,23 @@ async function _makeRecipe(r) {
         }
     }
 
-    if (r.output_product_id && (r.output_qty || 0) > 0) {
-        try {
-            await window.apiCall(`/products/${r.output_product_id}/stock`, 'POST', { quantity: r.output_qty });
-        } catch (e) {
-            window.showToast('Error añadiendo resultado al stock', 'error');
+    const outputQty = Number(r.output_qty) || 0;
+    if (outputQty > 0) {
+        const outputBarcode = await _ensureOutputProduct(r);
+        if (outputBarcode) {
+            try {
+                await window.apiCall(`/products/${outputBarcode}/stock`, 'POST', {
+                    quantity: outputQty,
+                    expiry_date: _expiryFromDays(r.default_expiry_days),
+                });
+            } catch (e) {
+                window.showToast('Error añadiendo resultado al stock', 'error');
+            }
         }
     }
 
-    if (window.loadProducts) await window.loadProducts();
+    if (window.reloadProducts) await window.reloadProducts();
+    if (window.reloadRecipes) await window.reloadRecipes();
     window.showToast(`"${r.name}" lista. Stock actualizado.`, 'success');
 }
 
@@ -423,7 +521,6 @@ function _wireBuilder(root) {
             title: 'Producto resultado',
             onPick: (item) => {
                 d.output_product_id = item.productId;
-                d.output_qty = item.qty;
                 window.renderPage();
             }
         });
@@ -431,13 +528,23 @@ function _wireBuilder(root) {
 
     root.querySelector('[data-action="clear-output"]')?.addEventListener('click', () => {
         d.output_product_id = null;
-        d.output_qty = 0;
         window.renderPage();
     });
 
     const outputQtyEl = root.querySelector('#rb-output-qty');
     if (outputQtyEl) outputQtyEl.addEventListener('input', e => {
         d.output_qty = Math.max(0, Number(e.target.value) || 0);
+    });
+
+    const expiryDaysEl = root.querySelector('#rb-expiry-days');
+    if (expiryDaysEl) expiryDaysEl.addEventListener('input', e => {
+        const v = e.target.value;
+        if (v === '' || v === null || v === undefined) {
+            d.default_expiry_days = null;
+        } else {
+            const n = parseInt(v, 10);
+            d.default_expiry_days = Number.isNaN(n) || n < 0 ? null : n;
+        }
     });
 
     root.querySelector('[data-action="cancel"]')?.addEventListener('click', () => {

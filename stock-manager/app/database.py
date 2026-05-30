@@ -126,6 +126,7 @@ class Database:
                     tags TEXT DEFAULT '[]',
                     output_product_id TEXT DEFAULT NULL,
                     output_qty REAL DEFAULT 0,
+                    default_expiry_days INTEGER DEFAULT NULL,
                     kcal REAL,
                     proteins REAL,
                     carbs REAL,
@@ -145,6 +146,8 @@ class Database:
                 await db.execute("ALTER TABLE recipes ADD COLUMN output_product_id TEXT DEFAULT NULL")
             if 'output_qty' not in recipe_cols:
                 await db.execute("ALTER TABLE recipes ADD COLUMN output_qty REAL DEFAULT 0")
+            if 'default_expiry_days' not in recipe_cols:
+                await db.execute("ALTER TABLE recipes ADD COLUMN default_expiry_days INTEGER DEFAULT NULL")
 
             # Create recipe_ingredients table
             await db.execute("""
@@ -702,12 +705,12 @@ class Database:
     async def create_recipe(self, recipe: RecipeCreate) -> Recipe:
         async with aiosqlite.connect(self.db_path) as db:
             cursor = await db.execute("""
-                INSERT INTO recipes (name, description, instructions, servings, time, tags, output_product_id, output_qty, kcal, proteins, carbs, fat, image_url)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO recipes (name, description, instructions, servings, time, tags, output_product_id, output_qty, default_expiry_days, kcal, proteins, carbs, fat, image_url)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 recipe.name, recipe.description, recipe.instructions, recipe.servings,
                 recipe.time, json.dumps(recipe.tags or []),
-                recipe.output_product_id, recipe.output_qty,
+                recipe.output_product_id, recipe.output_qty, recipe.default_expiry_days,
                 recipe.kcal, recipe.proteins, recipe.carbs, recipe.fat, recipe.image_url
             ))
             recipe_id = cursor.lastrowid
@@ -725,13 +728,13 @@ class Database:
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute("""
                 UPDATE recipes SET name=?, description=?, instructions=?, servings=?,
-                time=?, tags=?, output_product_id=?, output_qty=?,
+                time=?, tags=?, output_product_id=?, output_qty=?, default_expiry_days=?,
                 kcal=?, proteins=?, carbs=?, fat=?, image_url=?
                 WHERE id=?
             """, (
                 recipe.name, recipe.description, recipe.instructions, recipe.servings,
                 recipe.time, json.dumps(recipe.tags or []),
-                recipe.output_product_id, recipe.output_qty,
+                recipe.output_product_id, recipe.output_qty, recipe.default_expiry_days,
                 recipe.kcal, recipe.proteins, recipe.carbs, recipe.fat, recipe.image_url,
                 recipe_id
             ))

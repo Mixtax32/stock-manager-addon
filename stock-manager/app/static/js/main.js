@@ -1,6 +1,6 @@
 /*
    Main entry — app initialization
-   v0.8.1
+   v0.8.6
 */
 
 // Wrap HA API call (api.js)'s loadProducts to populate AppState.products
@@ -34,11 +34,13 @@ window._recipeFromApi = function(r) {
             .map(ing => ({ productId: ing.product_barcode, qty: ing.quantity })),
         output_product_id: r.output_product_id || null,
         output_qty: r.output_qty || 0,
+        default_expiry_days: (r.default_expiry_days === 0 || r.default_expiry_days) ? r.default_expiry_days : null,
     };
 };
 
 // Map frontend recipe draft → API payload (backend format)
 window._recipeToApi = function(d) {
+    const ed = (d.default_expiry_days === 0 || d.default_expiry_days) ? Number(d.default_expiry_days) : null;
     return {
         name: d.name.trim(),
         servings: d.serves,
@@ -46,6 +48,7 @@ window._recipeToApi = function(d) {
         tags: d.tags || [],
         output_product_id: d.output_product_id || null,
         output_qty: d.output_qty || 0,
+        default_expiry_days: (ed === null || Number.isNaN(ed)) ? null : ed,
         ingredients: (d.ingredients || []).map(ing => {
             const p = window.findProductById(ing.productId);
             const unit = p ? (p.unit_type === 'uds' ? 'ud' : (p.unit_type || 'g')) : 'g';

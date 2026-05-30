@@ -101,6 +101,7 @@ class Recipe(BaseModel):
     tags: List[str] = []
     output_product_id: Optional[str] = None
     output_qty: float = 0
+    default_expiry_days: Optional[int] = None
     kcal: Optional[float] = None
     proteins: Optional[float] = None
     carbs: Optional[float] = None
@@ -117,6 +118,7 @@ class RecipeCreate(BaseModel):
     tags: List[str] = []
     output_product_id: Optional[str] = None
     output_qty: float = 0
+    default_expiry_days: Optional[int] = None
     kcal: Optional[float] = None
     proteins: Optional[float] = None
     carbs: Optional[float] = None
