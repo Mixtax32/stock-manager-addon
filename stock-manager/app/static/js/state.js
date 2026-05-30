@@ -403,19 +403,5 @@ window.todayDowId = function() {
     return window.DAY_LABELS[idx].id;
 };
 
-// ===== Active page mutators (helpers used by views) =====
-window.addToMeal = function(mealId, item) {
-    const log = window.AppState.todayLog;
-    log.meals[mealId] = log.meals[mealId] || [];
-    log.meals[mealId].push(item);
-    window.saveTodayLog(log);
-};
-window.removeFromMeal = function(mealId, idx) {
-    const log = window.AppState.todayLog;
-    if (!log.meals[mealId]) return;
-    log.meals[mealId].splice(idx, 1);
-    window.saveTodayLog(log);
-};
-
 // Apply theme on load
 document.body.setAttribute('data-theme', window.AppState.theme === 'dark' ? 'dark' : 'cream');
