@@ -341,14 +341,17 @@ window.initSettings = function() {
     if (!root) return;
     const d = settingsDraft;
 
+    // `input` updates the draft silently while typing; `change` (fires on blur or
+    // Enter) is what triggers the re-render. Re-rendering on every keystroke
+    // destroys the DOM and rips focus out of the field on mobile.
     function bind(id, key, parse) {
         const el = root.querySelector('#' + id);
         if (!el) return;
         el.addEventListener('input', e => {
             const v = parse(e.target.value);
             d[key] = Number.isFinite(v) ? v : 0;
-            window.renderPage();
         });
+        el.addEventListener('change', () => window.renderPage());
     }
 
     bind('s-weight', 'weight', parseFloat);
@@ -366,8 +369,8 @@ window.initSettings = function() {
         if (!el) return;
         el.addEventListener('input', e => {
             d.factors[key] = Math.max(0, parseFloat(e.target.value) || 0);
-            window.renderPage();
         });
+        el.addEventListener('change', () => window.renderPage());
     });
 
     root.querySelectorAll('[data-mode]').forEach(btn => {

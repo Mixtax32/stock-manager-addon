@@ -177,18 +177,20 @@ function _renderBuilder() {
 
         <div class="grid cols-2 layout-panel-r" style="gap:22px">
             <div class="card">
-                <div class="grid cols-3" style="gap:12px; margin-bottom:18px">
-                    <div class="field" style="grid-column:span 3">
+                <div class="stack" style="gap:12px; margin-bottom:18px">
+                    <div class="field">
                         <label class="field-label">Nombre</label>
                         <input id="rb-name" class="input" placeholder="Ej. Bowl de pollo y arroz" value="${window.esc(d.name)}"/>
                     </div>
-                    <div class="field">
-                        <label class="field-label">Raciones</label>
-                        <input id="rb-serves" class="input num" type="number" min="1" value="${d.serves}"/>
-                    </div>
-                    <div class="field">
-                        <label class="field-label">Tiempo (min)</label>
-                        <input id="rb-time" class="input num" type="number" min="0" value="${d.time}"/>
+                    <div class="grid cols-2" style="gap:12px">
+                        <div class="field">
+                            <label class="field-label">Raciones</label>
+                            <input id="rb-serves" class="input num" type="number" min="1" value="${d.serves}"/>
+                        </div>
+                        <div class="field">
+                            <label class="field-label">Tiempo (min)</label>
+                            <input id="rb-time" class="input num" type="number" min="0" value="${d.time}"/>
+                        </div>
                     </div>
                     <div class="field">
                         <label class="field-label">Etiquetas</label>
