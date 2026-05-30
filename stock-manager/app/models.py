@@ -145,3 +145,6 @@ class DietPlanCreate(BaseModel):
     custom_name: Optional[str] = None
     quantity: float = 1.0
 
+class MovementUpdate(BaseModel):
+    quantity: float  # new absolute consumed quantity (positive); backend stores as negative quantity_change
+

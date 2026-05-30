@@ -673,6 +673,70 @@ class Database:
             await db.commit()
             return True
 
+    async def update_movement_quantity(self, movement_id: int, new_quantity: float) -> Optional[dict]:
+        """Atomically adjust a movement's quantity_change and reconcile stock."""
+        if new_quantity <= 0:
+            return None  # caller should refuse with 400 before reaching here
+
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+
+            # 1. Fetch current movement
+            async with db.execute("SELECT * FROM movements WHERE id = ?", (movement_id,)) as cursor:
+                movement = await cursor.fetchone()
+                if not movement:
+                    return None
+
+            barcode = movement['barcode']
+            old_abs = abs(movement['quantity_change'])
+            new_abs = new_quantity
+            delta = new_abs - old_abs  # positive = consume more, negative = restore
+
+            if delta > 0:
+                # User under-reported: consume delta more from stock (FIFO batches)
+                remaining = delta
+                batches = await self._get_batches(db, barcode)
+                for batch in batches:
+                    if remaining <= 0:
+                        break
+                    consume = min(batch.quantity, remaining)
+                    new_qty = batch.quantity - consume
+                    if new_qty == 0:
+                        await db.execute("DELETE FROM batches WHERE id = ?", (batch.id,))
+                    else:
+                        await db.execute("UPDATE batches SET quantity = ? WHERE id = ?", (new_qty, batch.id))
+                    remaining -= consume
+            elif delta < 0:
+                # User over-reported: restore abs(delta) to stock
+                qty_restored = abs(delta)
+                async with db.execute(
+                    "SELECT id FROM batches WHERE barcode = ? ORDER BY expiry_date ASC LIMIT 1",
+                    (barcode,)
+                ) as cursor:
+                    batch = await cursor.fetchone()
+
+                if batch:
+                    await db.execute("UPDATE batches SET quantity = quantity + ? WHERE id = ?", (qty_restored, batch['id']))
+                else:
+                    await db.execute(
+                        "INSERT INTO batches (barcode, quantity, added_date) VALUES (?, ?, ?)",
+                        (barcode, qty_restored, date.today().isoformat())
+                    )
+
+            # 2. Update movement row: preserve reason, meal_type, timestamp
+            await db.execute(
+                "UPDATE movements SET quantity_change = ? WHERE id = ?",
+                (-new_abs, movement_id)
+            )
+
+            await self._sync_product_stock(db, barcode)
+            await db.commit()
+
+            # 3. Return updated movement dict
+            async with db.execute("SELECT * FROM movements WHERE id = ?", (movement_id,)) as cursor:
+                row = await cursor.fetchone()
+                return dict(row) if row else None
+
     # --- Recipes Methods ---
 
     def _parse_recipe_row(self, recipe_dict: dict) -> dict:

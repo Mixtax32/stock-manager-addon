@@ -53,6 +53,7 @@ window.renderToday = function() {
                         <span class="chip f" title="Grasas">G ${Math.round(im.fat)}</span>
                     </div>
                     <div class="actions">
+                        <button class="btn icon sm ghost" data-edit="${meal.id}:${it.movementId || i}:${it.qty}" title="Editar cantidad">${window.icon('edit')}</button>
                         <button class="btn icon sm ghost" data-remove="${meal.id}:${it.movementId || i}" title="Eliminar">${window.icon('trash')}</button>
                     </div>
                 </div>
@@ -185,6 +186,18 @@ window.initToday = function() {
                     window.renderPage();
                 },
             });
+        });
+    });
+
+    root.querySelectorAll('[data-edit]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const [, rawId, rawQty] = btn.dataset.edit.split(':');
+            const movementId = Number(rawId);
+            const currentQty = Number(rawQty);
+            const newQty = await window.promptQty(currentQty);
+            if (newQty == null) return;
+            await window.editMeal(movementId, newQty);
+            window.renderPage();
         });
     });
 

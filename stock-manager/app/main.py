@@ -8,7 +8,7 @@ import logging
 from typing import List
 
 from .database import db
-from .models import Product, ProductCreate, StockUpdate, ProductUpdate, Batch, BatchUpdate, BatchStockUpdate, MacroGoals, MacroGoalsUpdate, Recipe, RecipeCreate, DietPlan, DietPlanCreate
+from .models import Product, ProductCreate, StockUpdate, ProductUpdate, Batch, BatchUpdate, BatchStockUpdate, MacroGoals, MacroGoalsUpdate, Recipe, RecipeCreate, DietPlan, DietPlanCreate, MovementUpdate
 from .barcode_service import get_product_from_barcode
 from .telegram_service import telegram_bot
 import asyncio
@@ -261,6 +261,16 @@ async def delete_movement(movement_id: int, restore_stock: bool = True):
     if not success:
         raise HTTPException(status_code=404, detail="Movimiento no encontrado")
     return {"message": "Movimiento eliminado"}
+
+@app.patch("/api/movements/{movement_id}")
+async def update_movement(movement_id: int, update: MovementUpdate):
+    """Adjust the consumed quantity of a movement and reconcile stock."""
+    if update.quantity <= 0:
+        raise HTTPException(status_code=400, detail="La cantidad debe ser mayor a 0")
+    result = await db.update_movement_quantity(movement_id, update.quantity)
+    if not result:
+        raise HTTPException(status_code=404, detail="Movimiento no encontrado")
+    return result
 
 @app.get("/api/export")
 async def export_data():

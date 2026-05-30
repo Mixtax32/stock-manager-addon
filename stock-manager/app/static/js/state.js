@@ -189,6 +189,21 @@ window.removeFromMeal = async function(mealId, movementId) {
     }
 };
 
+window.editMeal = async function(movementId, newQty) {
+    if (!Number.isFinite(newQty) || newQty <= 0) {
+        window.showToast('La cantidad debe ser mayor a 0', 'error');
+        return;
+    }
+    try {
+        await window.apiCall(`/movements/${movementId}`, 'PATCH', { quantity: newQty });
+        await window.reloadProducts();
+        await window.reloadTodayLog();
+    } catch (e) {
+        console.error('editMeal failed', e);
+        window.showToast('Error editando cantidad: ' + e.message, 'error');
+    }
+};
+
 // ===== Week helpers =====
 
 function _mondayOfCurrentWeek() {

@@ -166,8 +166,9 @@ window.openFoodPicker = function(options) {
         return window.macroChipsHTML(m, true);
     }
 
-    function render() {
-        const list = results();
+    let shellBuilt = false;
+
+    function buildShell() {
         mount.innerHTML = `
         <div class="modal-backdrop" data-close="1">
             <div class="modal" data-stop="1">
@@ -177,12 +178,47 @@ window.openFoodPicker = function(options) {
                 </div>
                 <div class="modal-sub">Busca un producto e indica la cantidad.</div>
 
-                <div class="search" style="margin-bottom:12px">
+                <div class="search" id="fp-search-wrap" style="margin-bottom:12px">
                     ${window.icon('search')}
-                    <input id="fp-search" autofocus placeholder="Pollo, avena, plátano…" value="${window.esc(q)}"/>
+                    <input id="fp-search" autofocus placeholder="Pollo, avena, plátano…"/>
                 </div>
 
-                ${!sel ? `
+                <div id="fp-body"></div>
+            </div>
+        </div>
+        `;
+
+        // Wire close handlers (shell-level — never recreated)
+        mount.querySelector('[data-close]').addEventListener('click', (e) => {
+            if (e.target.dataset.close === '1') close();
+        });
+        mount.querySelectorAll('[data-action="close"]').forEach(b => b.addEventListener('click', close));
+
+        // Wire search input once — only updates the results list, never re-renders the shell
+        const search = mount.querySelector('#fp-search');
+        search.addEventListener('input', (e) => {
+            q = e.target.value;
+            renderBody();
+        });
+        // Focus + cursor at end on initial mount only
+        setTimeout(() => {
+            search.focus();
+            search.setSelectionRange(search.value.length, search.value.length);
+        }, 0);
+
+        shellBuilt = true;
+    }
+
+    function renderBody() {
+        const body = mount.querySelector('#fp-body');
+        const searchWrap = mount.querySelector('#fp-search-wrap');
+        if (!body) return;
+
+        if (!sel) {
+            // Show search input, render results list
+            if (searchWrap) searchWrap.style.display = '';
+            const list = results();
+            body.innerHTML = `
                 <div style="max-height:260px; overflow:auto; margin:0 -4px">
                     ${list.map(p => {
                         const m = window.macrosFor(p.barcode, 100);
@@ -203,7 +239,20 @@ window.openFoodPicker = function(options) {
                     }).join('')}
                     ${list.length === 0 ? `<div class="empty">${q ? `Sin resultados para "${window.esc(q)}"` : 'Escanea o crea un producto primero.'}</div>` : ''}
                 </div>
-                ` : `
+            `;
+
+            // Wire pick buttons (only inside #fp-body)
+            body.querySelectorAll('.fp-pick').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    sel = window.findProductById(btn.dataset.id);
+                    qty = 100;
+                    renderBody();
+                });
+            });
+        } else {
+            // Hide search input in selected-product mode
+            if (searchWrap) searchWrap.style.display = 'none';
+            body.innerHTML = `
                 <div>
                     <div class="card sunken" style="margin-bottom:14px">
                         <div class="row">
@@ -232,52 +281,39 @@ window.openFoodPicker = function(options) {
                         <button class="btn accent" data-action="confirm">Añadir</button>
                     </div>
                 </div>
-                `}
-            </div>
-        </div>
-        `;
+            `;
 
-        // Wire events
-        mount.querySelector('[data-close]').addEventListener('click', (e) => {
-            if (e.target.dataset.close === '1') close();
-        });
-        mount.querySelectorAll('[data-action="close"]').forEach(b => b.addEventListener('click', close));
-        const search = mount.querySelector('#fp-search');
-        if (search) {
-            search.addEventListener('input', (e) => { q = e.target.value; render(); });
-            // restore focus + cursor
-            setTimeout(() => search.focus(), 0);
-        }
-        mount.querySelectorAll('.fp-pick').forEach(btn => {
-            btn.addEventListener('click', () => {
-                sel = window.findProductById(btn.dataset.id);
-                qty = 100;
-                render();
+            body.querySelector('[data-action="change"]').addEventListener('click', () => {
+                sel = null;
+                // Restore search input visibility and re-show it with current query
+                const searchWrap = mount.querySelector('#fp-search-wrap');
+                if (searchWrap) searchWrap.style.display = '';
+                renderBody();
             });
-        });
-        const changeBtn = mount.querySelector('[data-action="change"]');
-        if (changeBtn) changeBtn.addEventListener('click', () => { sel = null; render(); });
-        const qtyIn = mount.querySelector('#fp-qty');
-        if (qtyIn) {
-            qtyIn.addEventListener('input', (e) => {
-                qty = Number(e.target.value) || 0;
-                const pv = mount.querySelector('#fp-preview');
-                if (pv) pv.innerHTML = macroPreview();
+            const qtyIn = body.querySelector('#fp-qty');
+            if (qtyIn) {
+                qtyIn.addEventListener('input', (e) => {
+                    qty = Number(e.target.value) || 0;
+                    const pv = body.querySelector('#fp-preview');
+                    if (pv) pv.innerHTML = macroPreview();
+                });
+            }
+            body.querySelector('[data-action="confirm"]').addEventListener('click', () => {
+                if (!sel) return;
+                onPick({ productId: sel.barcode, qty: Number(qty) || 0 });
+                close();
             });
+            body.querySelectorAll('[data-action="close"]').forEach(b => b.addEventListener('click', close));
         }
-        const okBtn = mount.querySelector('[data-action="confirm"]');
-        if (okBtn) okBtn.addEventListener('click', () => {
-            if (!sel) return;
-            onPick({ productId: sel.barcode, qty: Number(qty) || 0 });
-            close();
-        });
     }
 
     function close() {
         mount.innerHTML = '';
+        shellBuilt = false;
     }
 
-    render();
+    buildShell();
+    renderBody();
 };
 
 // ===== Simple confirm dialog =====
@@ -300,5 +336,50 @@ window.confirmDialog = function(message) {
         mount.querySelector('[data-close]').addEventListener('click', e => { if (e.target.dataset.close === '1') close(false); });
         mount.querySelector('[data-action="no"]').addEventListener('click', () => close(false));
         mount.querySelector('[data-action="yes"]').addEventListener('click', () => close(true));
+    });
+};
+
+// ===== Quantity prompt dialog =====
+// Returns a Promise<number|null>: resolved number = new quantity, null = cancelled.
+window.promptQty = function(currentQty) {
+    return new Promise(resolve => {
+        const mount = document.getElementById('modal-mount');
+        if (!mount) { resolve(null); return; }
+        mount.innerHTML = `
+            <div class="modal-backdrop" data-close="1">
+                <div class="modal" data-stop="1" style="max-width:340px">
+                    <h3>Editar cantidad</h3>
+                    <div class="modal-sub" style="margin-bottom:14px">Ingresá la nueva cantidad.</div>
+                    <input id="pq-input" class="input lg num" type="number" min="0.01" step="any" value="${Number(currentQty) || 0}" style="width:100%; margin-bottom:16px"/>
+                    <div class="row" style="justify-content:flex-end; gap:8px">
+                        <button class="btn ghost" data-action="cancel">Cancelar</button>
+                        <button class="btn accent" data-action="save">Guardar</button>
+                    </div>
+                </div>
+            </div>`;
+
+        const input = mount.querySelector('#pq-input');
+
+        const close = (val) => { mount.innerHTML = ''; resolve(val); };
+
+        mount.querySelector('[data-close]').addEventListener('click', e => { if (e.target.dataset.close === '1') close(null); });
+        mount.querySelector('[data-action="cancel"]').addEventListener('click', () => close(null));
+        mount.querySelector('[data-action="save"]').addEventListener('click', () => {
+            const v = parseFloat(input.value);
+            if (!Number.isFinite(v) || v <= 0) {
+                window.showToast('La cantidad debe ser mayor a 0', 'error');
+                return;
+            }
+            close(v);
+        });
+
+        // Allow Enter to confirm, Escape to cancel
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') mount.querySelector('[data-action="save"]').click();
+            if (e.key === 'Escape') close(null);
+        });
+
+        // Autofocus + select all so user can type the new value immediately
+        setTimeout(() => { input.focus(); input.select(); }, 0);
     });
 };
