@@ -1,6 +1,6 @@
 /* ============================================
    Stock Manager — Mobile-first design system
-   v0.8.3
+   v0.8.4
    Breakpoints:
      base   : < 640px  (phone)
      >= 640 : tablet portrait
@@ -400,14 +400,23 @@ input, select, textarea { font-family: inherit; }
     .grid.cols-4.keep { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
-/* ===== Two-panel responsive layouts ===== */
+/* ===== Two-panel responsive layouts =====
+   Selectors compound with .grid so they beat .grid.cols-2 specificity (0,2,0)
+   when the markup uses `class="grid cols-2 layout-*"`. Without the .grid prefix
+   the layout never collapses to one column on mobile.
+*/
+.grid.layout-today-kpi,
+.grid.layout-panel-r,
+.grid.layout-week,
+.grid.layout-shopping,
+.grid.pantry-layout,
 .layout-today-kpi,
 .layout-panel-r,
 .layout-week,
 .layout-shopping,
 .pantry-layout {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 16px;
 }
 .layout-today-kpi > *,
@@ -417,10 +426,15 @@ input, select, textarea { font-family: inherit; }
 .pantry-layout > * { min-width: 0; }
 
 @media (min-width: 1024px) {
+    .grid.layout-today-kpi,
     .layout-today-kpi { grid-template-columns: 340px 1fr; gap: 22px; }
+    .grid.layout-panel-r,
     .layout-panel-r   { grid-template-columns: 1.4fr 1fr; gap: 22px; }
+    .grid.layout-week,
     .layout-week      { grid-template-columns: 1fr 280px; gap: 22px; }
+    .grid.layout-shopping,
     .layout-shopping  { grid-template-columns: 1.6fr 1fr; gap: 22px; }
+    .grid.pantry-layout,
     .pantry-layout    { grid-template-columns: 1.5fr 1fr; gap: 22px; }
 }
 

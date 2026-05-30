@@ -423,7 +423,7 @@ window.renderWeek = function() {
                     ${dayTotalsRow}
                 </div>
 
-                <div class="grid cols-4 keep" style="gap:14px; margin-top:22px">
+                <div class="grid cols-4" style="gap:14px; margin-top:22px">
                     <div class="card tight"><div class="tiny">Calorías / semana</div><div class="num" style="font-size:22px; margin-top:4px">${Math.round(wt.kcal)}</div><div class="muted" style="font-size:11px; font-family:var(--mono)">media ${Math.round(wt.kcal/7)} / día</div></div>
                     <div class="card tight"><div class="tiny">Proteína / semana</div><div class="num" style="font-size:22px; margin-top:4px">${Math.round(wt.p)}g</div><div class="muted" style="font-size:11px; font-family:var(--mono)">media ${Math.round(wt.p/7)}g / día</div></div>
                     <div class="card tight"><div class="tiny">Carbos / semana</div><div class="num" style="font-size:22px; margin-top:4px">${Math.round(wt.c)}g</div><div class="muted" style="font-size:11px; font-family:var(--mono)">media ${Math.round(wt.c/7)}g / día</div></div>

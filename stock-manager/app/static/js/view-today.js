@@ -138,7 +138,7 @@ window.renderToday = function() {
                 </div>
                 ${window.macroBarsHTML(totals, goals)}
                 <div style="height:1px; background:var(--line); margin:20px 0 16px"></div>
-                <div class="grid cols-4 keep" style="gap:16px">
+                <div class="grid cols-4" style="gap:16px">
                     <div class="kpi"><div class="l">Restante</div><div class="v">${Math.round(remaining.kcal)}<span class="delta">kcal</span></div></div>
                     <div class="kpi"><div class="l">Proteína</div><div class="v">${Math.round(remaining.p)}<span class="delta">g</span></div></div>
                     <div class="kpi"><div class="l">Carbos</div><div class="v">${Math.round(remaining.c)}<span class="delta">g</span></div></div>
