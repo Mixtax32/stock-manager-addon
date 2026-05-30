@@ -179,7 +179,7 @@ function _renderSettingsMobile() {
 /* ---- Desktop render ---- */
 
 window.renderSettings = function() {
-    if (window.innerWidth <= 880) return _renderSettingsMobile();
+    if (window.innerWidth < 1024) return _renderSettingsMobile();
 
     if (!settingsDraft) settingsDraft = _initDraft();
     const d = settingsDraft;

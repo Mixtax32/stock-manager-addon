@@ -325,7 +325,7 @@ function _renderWeekMobile() {
 /* ---- Desktop render ---- */
 
 window.renderWeek = function() {
-    if (window.innerWidth <= 880) return _renderWeekMobile();
+    if (window.innerWidth < 1024) return _renderWeekMobile();
 
     const week = window.AppState.week || {};
     const goals = window.AppState.goals;
@@ -504,7 +504,7 @@ window.initWeek = function() {
     const root = document.getElementById('page-root');
     if (!root) return;
 
-    if (window.innerWidth <= 880) {
+    if (window.innerWidth < 1024) {
         _initWeekMobile(root);
         return;
     }
