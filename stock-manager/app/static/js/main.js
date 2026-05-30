@@ -1,6 +1,6 @@
 /*
    Main entry — app initialization
-   v0.8.6
+   v0.8.7
 */
 
 // Wrap HA API call (api.js)'s loadProducts to populate AppState.products

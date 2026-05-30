@@ -1,6 +1,6 @@
 /*
    View: Recipes — library + builder
-   v0.8.6
+   v0.8.7
 */
 
 let recipesQuery = '';
