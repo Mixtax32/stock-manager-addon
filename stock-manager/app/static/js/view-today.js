@@ -30,6 +30,17 @@ window.renderToday = function() {
         return { recipe: r, macros: m, score: diffK + diffP };
     }).sort((a, b) => a.score - b.score).slice(0, 4);
 
+    const quickAddChipsHTML = `
+        <div style="margin-bottom:14px">
+            <div class="muted" style="font-size:12px; margin-bottom:6px">Añadir rápido a:</div>
+            <div class="row" style="gap:6px; flex-wrap:wrap">
+                ${window.MEAL_ORDER.map(meal => `
+                    <button class="btn sm ghost" data-add-meal="${meal.id}">${meal.name}</button>
+                `).join('')}
+            </div>
+        </div>
+    `;
+
     const mealsHTML = window.MEAL_ORDER.map(meal => {
         const items = meals[meal.id] || [];
         const m = window.sumMacros(items);
@@ -61,7 +72,7 @@ window.renderToday = function() {
         return `
             <div class="meal">
                 <div class="meal-head">
-                    <div class="meal-name"><span class="time">${meal.time}</span><span>${meal.name}</span></div>
+                    <div class="meal-name"><span>${meal.name}</span></div>
                     <div class="row" style="gap:10px">
                         ${items.length > 0 ? window.macroChipsHTML(m, true) : ''}
                     </div>
@@ -113,16 +124,10 @@ window.renderToday = function() {
                 <div class="page-eyebrow">${window.formatTodayDate()}</div>
                 <h1 class="page-title">Tu día</h1>
             </div>
-            <div class="row" style="gap:8px">
-                <div class="seg">
-                    <button aria-pressed="true">Hoy</button>
-                    <button aria-pressed="false" data-page="week">Semana</button>
-                </div>
-            </div>
         </div>
 
-        <div class="grid cols-2 layout-today-kpi" style="margin-bottom:22px">
-            <div class="card" style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; padding:26px">
+        <div class="card" style="margin-bottom:22px; display:flex; flex-direction:column; align-items:center; gap:0; padding:26px 26px 20px">
+            <div style="display:flex; flex-direction:column; align-items:center; gap:18px; width:100%">
                 ${window.macroRingHTML(totals.kcal, goals.kcal, totals.p, totals.c, totals.fat, 220, 18)}
                 <div class="row" style="gap:14px; flex-wrap:wrap; justify-content:center">
                     <span class="row" style="gap:6px"><span class="dot p"></span><span class="tiny">Proteína</span></span>
@@ -130,20 +135,13 @@ window.renderToday = function() {
                     <span class="row" style="gap:6px"><span class="dot f"></span><span class="tiny">Grasas</span></span>
                 </div>
             </div>
-
-            <div class="card">
-                <div class="card-head">
+            <div style="height:1px; background:var(--line); margin:20px 0 16px; width:100%"></div>
+            <div style="width:100%">
+                <div class="card-head" style="padding:0 0 12px">
                     <div class="card-title">Objetivo de macros</div>
                     <span class="card-sub">${Math.round(totals.kcal)} / ${Math.round(goals.kcal)} kcal</span>
                 </div>
                 ${window.macroBarsHTML(totals, goals)}
-                <div style="height:1px; background:var(--line); margin:20px 0 16px"></div>
-                <div class="grid cols-4" style="gap:16px">
-                    <div class="kpi"><div class="l">Restante</div><div class="v">${Math.round(remaining.kcal)}<span class="delta">kcal</span></div></div>
-                    <div class="kpi"><div class="l">Proteína</div><div class="v">${Math.round(remaining.p)}<span class="delta">g</span></div></div>
-                    <div class="kpi"><div class="l">Carbos</div><div class="v">${Math.round(remaining.c)}<span class="delta">g</span></div></div>
-                    <div class="kpi"><div class="l">Grasas</div><div class="v">${Math.round(remaining.fat)}<span class="delta">g</span></div></div>
-                </div>
             </div>
         </div>
 
@@ -153,9 +151,9 @@ window.renderToday = function() {
                     <div class="card-title">Diario de comidas</div>
                     <div class="row" style="gap:6px">
                         <button class="btn sm ghost" data-page="scan">${window.icon('scan')} Escanear</button>
-                        <button class="btn sm" data-add-meal="snacks">${window.icon('plus')} Añadir rápido</button>
                     </div>
                 </div>
+                ${quickAddChipsHTML}
                 ${mealsHTML}
             </div>
 
