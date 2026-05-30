@@ -88,70 +88,121 @@ async function clearWeek() {
 async function generateAuto() {
     const candidates = (window.AppState.recipes || []).slice();
     if (candidates.length === 0) {
-        window.showToast('No hay recetas: crea algunas en Recetas primero.', 'info');
+        window.showToast('No hay recetas: creá algunas en Recetas primero.', 'info');
         return;
     }
-    const target = window.AppState.goals.kcal;
 
-    const poolFor = (mealId) => {
-        const c = candidates.filter(r => {
-            const tags = r.tags || [];
-            const time = r.time || 30;
-            if (mealId === 'desayuno') return tags.includes('desayuno') || time <= 15;
-            if (mealId === 'almuerzo') return tags.includes('snack') || tags.includes('merienda') || time <= 10;
-            if (mealId === 'comida')   return tags.includes('comida') || tags.includes('post-entreno') || time >= 20;
-            if (mealId === 'merienda') return tags.includes('snack') || tags.includes('merienda') || time <= 15;
-            if (mealId === 'cena')     return tags.includes('cena') || time <= 30;
-            if (mealId === 'snacks')   return time <= 10;
-            return true;
-        });
-        return c.length ? c : candidates;
-    };
-    const pools = {
-        desayuno: poolFor('desayuno'),
-        almuerzo: poolFor('almuerzo'),
-        comida:   poolFor('comida'),
-        merienda: poolFor('merienda'),
-        cena:     poolFor('cena'),
-        snacks:   poolFor('snacks'),
-    };
-    const pick = arr => arr[Math.floor(Math.random() * arr.length)];
-    const kcalOf = r => window.recipeMacros(r).kcal;
-    const dayKcal = (cfg) => Object.values(cfg).reduce((acc, ids) =>
-        acc + (ids || []).reduce((a, id) => a + kcalOf(recipeById(id)), 0), 0);
+    const MEAL_IDS = ['desayuno', 'almuerzo', 'comida', 'merienda', 'cena'];
+    const goals = window.AppState.goals;
 
-    function bestForDay(prevPickIds) {
-        let best = null, bestErr = Infinity;
-        for (let i = 0; i < 300; i++) {
-            const cfg = {};
-            const dr = pick(pools.desayuno);
-            const co = pick(pools.comida);
-            const cn = pick(pools.cena);
-            if (dr) cfg.desayuno = [dr.id];
-            if (co) cfg.comida   = [co.id];
-            if (cn) cfg.cena     = [cn.id];
-            if (Math.random() < 0.55) { const r = pick(pools.almuerzo); if (r) cfg.almuerzo = [r.id]; }
-            if (Math.random() < 0.70) { const r = pick(pools.merienda); if (r) cfg.merienda = [r.id]; }
-            if (Math.random() < 0.25) { const r = pick(pools.snacks);   if (r) cfg.snacks   = [r.id]; }
+    // Build pool per meal: strict tag match if >= 3 results, else all recipes
+    const pools = {};
+    MEAL_IDS.forEach(mealId => {
+        const strict = candidates.filter(r => (r.tags || []).includes(mealId));
+        pools[mealId] = strict.length >= 3 ? strict : candidates;
+    });
 
-            const k = dayKcal(cfg);
-            const diff = k - target;
-            const err = diff < 0 ? Math.abs(diff) * 1.2 : Math.abs(diff);
-            const repeat = Object.values(cfg).flat().filter(id => prevPickIds.has(id)).length;
-            const score = err + repeat * 25;
-            if (score < bestErr) { bestErr = score; best = cfg; }
-            if (bestErr < 30) break;
-        }
-        return best;
+    const pickRandom = arr => arr[Math.floor(Math.random() * arr.length)];
+
+    // Sum macros for a day configuration { mealId: [recipeId, ...], ... }
+    function dayMacros(cfg) {
+        const t = { kcal: 0, p: 0, c: 0, fat: 0 };
+        Object.values(cfg).forEach(arr => (arr || []).forEach(rid => {
+            const r = recipeById(rid);
+            if (!r) return;
+            const m = window.recipeMacros(r);
+            t.kcal += m.kcal; t.p += m.p; t.c += m.c; t.fat += m.fat;
+        }));
+        return t;
     }
 
+    // Score a day config: lower is better.
+    // macroErr: sum of squared relative errors for non-zero goals only.
+    // varietyPenalty: heavy if used in last 2 days, mild if earlier in the week.
+    function dayScore(cfg, recentlyUsed) {
+        const t = dayMacros(cfg);
+        const sq = x => x * x;
+        let macroErr = 0;
+        if (goals.kcal > 0) macroErr += sq((t.kcal - goals.kcal) / goals.kcal);
+        if (goals.p   > 0) macroErr += sq((t.p   - goals.p)   / goals.p);
+        if (goals.c   > 0) macroErr += sq((t.c   - goals.c)   / goals.c);
+        if (goals.fat > 0) macroErr += sq((t.fat - goals.fat) / goals.fat);
+
+        let varietyPenalty = 0;
+        Object.values(cfg).forEach(arr => (arr || []).forEach(rid => {
+            if (!recentlyUsed.has(rid)) return;
+            const daysSince = recentlyUsed.get(rid);
+            varietyPenalty += daysSince <= 2 ? 0.5 : 0.1;
+        }));
+
+        return macroErr + varietyPenalty;
+    }
+
+    // Two-phase search: random sampling (2000 iters) + hill climbing (up to 10 passes)
+    function bestConfigForDay(recentlyUsed) {
+        // Phase 1: random sampling
+        let bestCfg = null;
+        let bestScore = Infinity;
+
+        for (let i = 0; i < 2000; i++) {
+            const cfg = {};
+            MEAL_IDS.forEach(mealId => {
+                const pool = pools[mealId];
+                if (pool.length === 0) return;
+                const r = pickRandom(pool);
+                if (r) cfg[mealId] = [r.id];
+            });
+            const score = dayScore(cfg, recentlyUsed);
+            if (score < bestScore) { bestScore = score; bestCfg = cfg; }
+        }
+
+        if (!bestCfg) return {};
+
+        // Phase 2: hill climbing
+        let improved = true;
+        let passes = 0;
+        while (improved && passes < 10) {
+            improved = false;
+            passes++;
+            MEAL_IDS.forEach(mealId => {
+                const pool = pools[mealId];
+                if (pool.length === 0) return;
+                const currentScore = dayScore(bestCfg, recentlyUsed);
+                pool.forEach(candidate => {
+                    const trial = Object.assign({}, bestCfg, { [mealId]: [candidate.id] });
+                    const trialScore = dayScore(trial, recentlyUsed);
+                    if (trialScore < currentScore) {
+                        bestCfg = trial;
+                        improved = true;
+                    }
+                });
+            });
+        }
+
+        return bestCfg;
+    }
+
+    // Process days Monday → Sunday, tracking recipe usage by day index
+    // recentlyUsed: Map<recipeId, lastDayIdx> — daysSince = currentDayIdx - lastDayIdx
+    const recentlyUsed = new Map();
     const newWeek = {};
-    let prev = new Set();
-    window.DAY_LABELS.forEach(d => {
-        const cfg = bestForDay(prev) || {};
+
+    window.DAY_LABELS.forEach((d, dayIdx) => {
+        // Reframe map to daysSince for scoring
+        const daysSinceMap = new Map();
+        recentlyUsed.forEach((lastDayIdx, rid) => {
+            daysSinceMap.set(rid, dayIdx - lastDayIdx);
+        });
+
+        const cfg = bestConfigForDay(daysSinceMap);
         newWeek[d.id] = cfg;
-        prev = new Set(Object.values(cfg).flat());
+
+        // Update recentlyUsed with this day's picks
+        Object.values(cfg).forEach(arr => (arr || []).forEach(rid => {
+            recentlyUsed.set(rid, dayIdx);
+        }));
     });
+
     await window.saveWeek(newWeek);
     window.showToast('Plan semanal generado', 'success');
     window.renderPage();
