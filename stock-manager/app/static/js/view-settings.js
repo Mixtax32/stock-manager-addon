@@ -396,8 +396,8 @@ window.initSettings = function() {
         window.renderPage();
     });
 
-    root.querySelector('[data-action="save"]').addEventListener('click', () => {
-        window.saveGoals({
+    root.querySelector('[data-action="save"]').addEventListener('click', async () => {
+        await window.saveGoals({
             kcal: d.kcal, p: d.p, c: d.c, fat: d.fat,
             factors: Object.assign({}, d.factors),
         });

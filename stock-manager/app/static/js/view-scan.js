@@ -362,7 +362,7 @@ async function _confirmScan() {
             });
             window.showToast('Producto añadido al inventario', 'success');
         } else if (scanState.target === 'diary') {
-            window.addToMeal(scanState.meal, { productId: scanState.barcode, qty: scanState.qty });
+            await window.addToMeal(scanState.meal, { productId: scanState.barcode, qty: scanState.qty });
             window.showToast('Añadido al diario', 'success');
         } else {
             await window.apiCall(`/products/${scanState.barcode}/stock`, 'POST', {

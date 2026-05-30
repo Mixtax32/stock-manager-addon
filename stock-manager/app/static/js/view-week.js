@@ -46,39 +46,46 @@ function weekTotalsAll() {
     return t;
 }
 
-function placeRecipe(dayId, mealId, recipeId, source) {
-    const week = JSON.parse(JSON.stringify(window.AppState.week || {}));
-    if (source && (source.fromDay !== dayId || source.fromMeal !== mealId)) {
-        const srcArr = ((week[source.fromDay] || {})[source.fromMeal] || []).filter((_, i) => i !== source.idx);
-        week[source.fromDay] = week[source.fromDay] || {};
-        week[source.fromDay][source.fromMeal] = srcArr;
-    } else if (source && source.fromDay === dayId && source.fromMeal === mealId) {
-        return;
+async function placeRecipe(dayId, mealId, recipeId, source) {
+    if (source && source.fromDay === dayId && source.fromMeal === mealId) return;
+
+    if (source) {
+        // Remove from source position first
+        const planIds = (window.AppState._weekPlanIds || {});
+        const srcPlanIds = ((planIds[source.fromDay] || {})[source.fromMeal] || []);
+        const planId = srcPlanIds[source.idx];
+        if (planId) {
+            await window.deleteWeekItem(planId);
+        }
     }
-    week[dayId] = week[dayId] || {};
-    const arr = (week[dayId][mealId] || []).slice();
-    arr.push(recipeId);
-    week[dayId][mealId] = arr;
-    window.saveWeek(week);
+    await window.saveWeekItem(dayId, mealId, recipeId);
     window.renderPage();
 }
 
-function removeFromCell(dayId, mealId, idx) {
-    const week = JSON.parse(JSON.stringify(window.AppState.week || {}));
-    if (!week[dayId] || !week[dayId][mealId]) return;
-    week[dayId][mealId] = week[dayId][mealId].filter((_, i) => i !== idx);
-    window.saveWeek(week);
+async function removeFromCell(dayId, mealId, idx) {
+    const planIds = (window.AppState._weekPlanIds || {});
+    const cellPlanIds = ((planIds[dayId] || {})[mealId] || []);
+    const planId = cellPlanIds[idx];
+    if (planId) {
+        await window.deleteWeekItem(planId);
+    } else {
+        // Fallback: rebuild from week state
+        const week = JSON.parse(JSON.stringify(window.AppState.week || {}));
+        if (!week[dayId] || !week[dayId][mealId]) return;
+        week[dayId][mealId] = week[dayId][mealId].filter((_, i) => i !== idx);
+        await window.saveWeek(week);
+    }
     window.renderPage();
 }
 
-function clearWeek() {
+async function clearWeek() {
     const empty = {};
     window.DAY_LABELS.forEach(d => empty[d.id] = {});
-    window.saveWeek(empty);
+    await window.saveWeek(empty);
     window.renderPage();
 }
 
-function generateAuto() {
+async function generateAuto() {
     const candidates = (window.AppState.recipes || []).slice();
     if (candidates.length === 0) {
         window.showToast('No hay recetas: crea algunas en Recetas primero.', 'info');
@@ -145,7 +152,7 @@ function generateAuto() {
         newWeek[d.id] = cfg;
         prev = new Set(Object.values(cfg).flat());
     });
-    window.saveWeek(newWeek);
+    await window.saveWeek(newWeek);
     window.showToast('Plan semanal generado', 'success');
     window.renderPage();
 }
@@ -467,8 +474,8 @@ function _initWeekMobile(root) {
     });
 
     root.querySelectorAll('[data-rm-day]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            removeFromCell(btn.dataset.rmDay, btn.dataset.rmMeal, Number(btn.dataset.rmIdx));
+        btn.addEventListener('click', async () => {
+            await removeFromCell(btn.dataset.rmDay, btn.dataset.rmMeal, Number(btn.dataset.rmIdx));
         });
     });
 
@@ -484,17 +491,18 @@ function _initWeekMobile(root) {
     });
 
     root.querySelectorAll('[data-pick-recipe]').forEach(pill => {
-        pill.addEventListener('click', () => {
+        pill.addEventListener('click', async () => {
             if (!weekMobilePicker) return;
-            placeRecipe(weekMobilePicker.dayId, weekMobilePicker.mealId, pill.dataset.pickRecipe, null);
+            const { dayId, mealId } = weekMobilePicker;
             weekMobilePicker = null;
+            await placeRecipe(dayId, mealId, pill.dataset.pickRecipe, null);
         });
     });
 
     root.querySelector('[data-action="clear"]')?.addEventListener('click', async () => {
-        if (await window.confirmDialog('¿Vaciar todo el plan semanal?')) clearWeek();
+        if (await window.confirmDialog('¿Vaciar todo el plan semanal?')) await clearWeek();
     });
-    root.querySelector('[data-action="auto"]')?.addEventListener('click', generateAuto);
+    root.querySelector('[data-action="auto"]')?.addEventListener('click', async () => generateAuto());
     root.querySelector('[data-action="shopping"]')?.addEventListener('click', generateShoppingFromWeek);
 }
 
@@ -516,9 +524,9 @@ window.initWeek = function() {
     });
 
     root.querySelector('[data-action="clear"]').addEventListener('click', async () => {
-        if (await window.confirmDialog('¿Vaciar todo el plan semanal?')) clearWeek();
+        if (await window.confirmDialog('¿Vaciar todo el plan semanal?')) await clearWeek();
     });
-    root.querySelector('[data-action="auto"]').addEventListener('click', generateAuto);
+    root.querySelector('[data-action="auto"]').addEventListener('click', async () => generateAuto());
     root.querySelector('[data-action="shopping"]').addEventListener('click', generateShoppingFromWeek);
 
     root.querySelectorAll('.recipe-pill[draggable="true"]').forEach(pill => {
@@ -539,21 +547,22 @@ window.initWeek = function() {
             e.dataTransfer.effectAllowed = 'move';
         });
         slot.addEventListener('dragend', () => { weekDragState = null; });
-        slot.addEventListener('click', () => {
-            removeFromCell(slot.dataset.day, slot.dataset.meal, Number(slot.dataset.idx));
+        slot.addEventListener('click', async () => {
+            await removeFromCell(slot.dataset.day, slot.dataset.meal, Number(slot.dataset.idx));
         });
     });
 
     root.querySelectorAll('[data-cell]').forEach(cell => {
         cell.addEventListener('dragover', (e) => { e.preventDefault(); cell.classList.add('dragover'); });
         cell.addEventListener('dragleave', () => cell.classList.remove('dragover'));
-        cell.addEventListener('drop', (e) => {
+        cell.addEventListener('drop', async (e) => {
             e.preventDefault();
             cell.classList.remove('dragover');
             if (!weekDragState) return;
             const [day, meal] = cell.dataset.cell.split(':');
-            placeRecipe(day, meal, weekDragState.recipeId, weekDragState.source);
+            const dragState = weekDragState;
             weekDragState = null;
+            await placeRecipe(day, meal, dragState.recipeId, dragState.source);
         });
     });
 };

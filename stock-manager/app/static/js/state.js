@@ -52,10 +52,6 @@ function todayDateStr() {
 
 // ===== Storage =====
 const LS_KEYS = {
-    goals: 'sm_goals',
-    todayLog: 'sm_today_log',
-    week: 'sm_week',
-    recipes: 'sm_recipes',
     shopping: 'sm_shopping',
     theme: 'sm_theme',
 };
@@ -76,27 +72,14 @@ window.AppState = {
     page: 'today',
     theme: lsGet(LS_KEYS.theme, 'cream'),
 
-    goals: Object.assign({}, DEFAULT_GOALS, lsGet(LS_KEYS.goals, {})),
+    // goals: loaded from HA backend via reloadGoals()
+    goals: Object.assign({}, DEFAULT_GOALS),
 
-    // today's diary — auto-resets when date changes
-    todayLog: (() => {
-        const stored = lsGet(LS_KEYS.todayLog, null);
-        const today = todayDateStr();
-        if (!stored || stored.date !== today) {
-            return { date: today, meals: emptyMeals() };
-        }
-        // ensure structure
-        stored.meals = Object.assign(emptyMeals(), stored.meals || {});
-        return stored;
-    })(),
+    // today's diary: loaded from HA backend via reloadTodayLog()
+    todayLog: { date: todayDateStr(), meals: emptyMeals() },
 
-    week: (() => {
-        const stored = lsGet(LS_KEYS.week, null);
-        if (!stored) return emptyWeek();
-        const def = emptyWeek();
-        Object.keys(def).forEach(k => { if (stored[k]) def[k] = stored[k]; });
-        return def;
-    })(),
+    // weekly plan: loaded from HA backend via reloadWeek()
+    week: emptyWeek(),
 
     recipes: [], // loaded from HA backend via reloadRecipes()
     shopping: lsGet(LS_KEYS.shopping, []),
@@ -106,18 +89,6 @@ window.AppState = {
 };
 
 // ===== Persist helpers =====
-window.saveGoals = function(goals) {
-    window.AppState.goals = goals;
-    lsSet(LS_KEYS.goals, goals);
-};
-window.saveTodayLog = function(log) {
-    window.AppState.todayLog = log;
-    lsSet(LS_KEYS.todayLog, log);
-};
-window.saveWeek = function(week) {
-    window.AppState.week = week;
-    lsSet(LS_KEYS.week, week);
-};
 window.saveRecipes = function(recipes) {
     // Kept for compatibility — recipes are persisted via the HA API, not localStorage
     window.AppState.recipes = recipes;
@@ -130,6 +101,220 @@ window.saveTheme = function(theme) {
     window.AppState.theme = theme;
     lsSet(LS_KEYS.theme, theme);
     document.body.setAttribute('data-theme', theme === 'dark' ? 'dark' : 'cream');
+};
+
+// ===== Backend-wired state functions =====
+
+window.reloadGoals = async function() {
+    try {
+        const data = await window.apiCall('/stats/macro-goals', 'GET');
+        window.AppState.goals = {
+            kcal: data.kcal,
+            p: data.proteins,
+            c: data.carbs,
+            fat: data.fat,
+            factors: Object.assign({}, DEFAULT_GOALS.factors, window.AppState.goals.factors),
+        };
+    } catch (e) {
+        console.error('reloadGoals failed', e);
+    }
+};
+
+window.saveGoals = async function(goals) {
+    try {
+        await window.apiCall('/stats/macro-goals', 'PATCH', {
+            kcal: goals.kcal,
+            proteins: goals.p,
+            carbs: goals.c,
+            fat: goals.fat,
+        });
+        window.AppState.goals = goals;
+    } catch (e) {
+        console.error('saveGoals failed', e);
+        window.showToast('Error guardando objetivos: ' + e.message, 'error');
+    }
+};
+
+window.reloadTodayLog = async function() {
+    try {
+        const movements = await window.apiCall('/stats/today-movements', 'GET');
+        const meals = emptyMeals();
+        (movements || []).forEach(m => {
+            const mealKey = m.meal_type || 'snacks';
+            if (!meals[mealKey]) meals[mealKey] = [];
+            meals[mealKey].push({
+                productId: m.barcode,
+                qty: Math.abs(m.quantity_change),
+                movementId: m.id,
+            });
+        });
+        window.AppState.todayLog = { date: todayDateStr(), meals };
+    } catch (e) {
+        console.error('reloadTodayLog failed', e);
+    }
+};
+
+window.addToMeal = async function(mealId, item) {
+    const product = window.findProductById(item.productId);
+    if (!product) {
+        window.showToast('Producto no encontrado', 'error');
+        return;
+    }
+    try {
+        await window.apiCall(`/products/${item.productId}/stock`, 'POST', {
+            quantity: -item.qty,
+            reason: 'consumed',
+            meal_type: mealId,
+        });
+        // Optimistic local update before full reload
+        const log = window.AppState.todayLog;
+        log.meals[mealId] = log.meals[mealId] || [];
+        log.meals[mealId].push(item);
+        await window.reloadProducts();
+        await window.reloadTodayLog();
+    } catch (e) {
+        console.error('addToMeal failed', e);
+        window.showToast('Error añadiendo al diario: ' + e.message, 'error');
+    }
+};
+
+window.removeFromMeal = async function(mealId, movementId) {
+    try {
+        await window.apiCall(`/movements/${movementId}?restore_stock=true`, 'DELETE');
+        await window.reloadProducts();
+        await window.reloadTodayLog();
+    } catch (e) {
+        console.error('removeFromMeal failed', e);
+        window.showToast('Error eliminando del diario: ' + e.message, 'error');
+    }
+};
+
+// ===== Week helpers =====
+
+function _mondayOfCurrentWeek() {
+    const now = new Date();
+    const dow = (now.getDay() + 6) % 7; // Monday = 0
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - dow);
+    monday.setHours(0, 0, 0, 0);
+    return monday;
+}
+
+function _isoDate(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
+function _dateForDayId(dayId) {
+    const idx = window.DAY_LABELS.findIndex(d => d.id === dayId);
+    if (idx < 0) return null;
+    const monday = _mondayOfCurrentWeek();
+    const target = new Date(monday);
+    target.setDate(monday.getDate() + idx);
+    return _isoDate(target);
+}
+
+window.reloadWeek = async function() {
+    try {
+        const monday = _mondayOfCurrentWeek();
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+        const start = _isoDate(monday);
+        const end = _isoDate(sunday);
+        const plans = await window.apiCall(`/diet-plan?start_date=${start}&end_date=${end}`, 'GET');
+
+        const week = emptyWeek();
+        // Store planId mapping: week[dayId][mealId] is array of recipeIds for rendering
+        // We also maintain a planId lookup: weekPlanIds[dayId][mealId] = [planId, ...]
+        const planIds = {};
+        window.DAY_LABELS.forEach(d => { planIds[d.id] = {}; });
+
+        (plans || []).forEach(plan => {
+            // Find dayId from plan.date
+            const planDate = new Date(plan.date + 'T00:00:00');
+            const dow = (planDate.getDay() + 6) % 7; // Monday = 0
+            const dayId = window.DAY_LABELS[dow] ? window.DAY_LABELS[dow].id : null;
+            if (!dayId) return;
+            const mealId = plan.meal_type;
+            if (!week[dayId][mealId]) week[dayId][mealId] = [];
+            if (!planIds[dayId][mealId]) planIds[dayId][mealId] = [];
+            // Use recipe_id for the week grid (existing render logic expects recipe IDs)
+            if (plan.recipe_id) {
+                week[dayId][mealId].push(plan.recipe_id);
+                planIds[dayId][mealId].push(plan.id);
+            }
+        });
+
+        window.AppState.week = week;
+        window.AppState._weekPlanIds = planIds;
+    } catch (e) {
+        console.error('reloadWeek failed', e);
+    }
+};
+
+window.saveWeekItem = async function(dayId, mealType, recipeId) {
+    try {
+        const date = _dateForDayId(dayId);
+        if (!date) return;
+        await window.apiCall('/diet-plan', 'POST', {
+            date,
+            meal_type: mealType,
+            recipe_id: recipeId,
+            quantity: 1,
+        });
+        await window.reloadWeek();
+    } catch (e) {
+        console.error('saveWeekItem failed', e);
+        window.showToast('Error guardando plan: ' + e.message, 'error');
+    }
+};
+
+window.deleteWeekItem = async function(planId) {
+    try {
+        await window.apiCall(`/diet-plan/${planId}`, 'DELETE');
+        await window.reloadWeek();
+    } catch (e) {
+        console.error('deleteWeekItem failed', e);
+        window.showToast('Error eliminando del plan: ' + e.message, 'error');
+    }
+};
+
+// saveWeek: kept for compatibility with view-week.js generateAuto / clearWeek.
+// Replaces the full week in the backend by deleting existing plans and re-inserting.
+window.saveWeek = async function(week) {
+    // Optimistic local update first
+    window.AppState.week = week;
+    try {
+        // Delete all existing plans for current week
+        const monday = _mondayOfCurrentWeek();
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+        const existing = await window.apiCall(`/diet-plan?start_date=${_isoDate(monday)}&end_date=${_isoDate(sunday)}`, 'GET');
+        for (const plan of (existing || [])) {
+            await window.apiCall(`/diet-plan/${plan.id}`, 'DELETE');
+        }
+        // Insert new plans
+        for (const [dayId, meals] of Object.entries(week)) {
+            const date = _dateForDayId(dayId);
+            if (!date) continue;
+            for (const [mealId, items] of Object.entries(meals || {})) {
+                for (const recipeId of (items || [])) {
+                    await window.apiCall('/diet-plan', 'POST', {
+                        date,
+                        meal_type: mealId,
+                        recipe_id: recipeId,
+                        quantity: 1,
+                    });
+                }
+            }
+        }
+        await window.reloadWeek();
+    } catch (e) {
+        console.error('saveWeek failed', e);
+        window.showToast('Error guardando semana: ' + e.message, 'error');
+    }
 };
 
 // ===== Macro math (works on HA products + recipe ingredients alike) =====

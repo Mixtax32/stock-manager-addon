@@ -49,6 +49,7 @@ class StockUpdate(BaseModel):
     quantity: float
     expiry_date: Optional[str] = None
     reason: Optional[str] = None  # "consumed", "lost", etc.
+    meal_type: Optional[str] = None
 
 class ProductUpdate(BaseModel):
     name: Optional[str] = None

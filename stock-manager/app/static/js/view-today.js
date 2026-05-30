@@ -53,7 +53,7 @@ window.renderToday = function() {
                         <span class="chip f" title="Grasas">G ${Math.round(im.fat)}</span>
                     </div>
                     <div class="actions">
-                        <button class="btn icon sm ghost" data-remove="${meal.id}:${i}" title="Eliminar">${window.icon('trash')}</button>
+                        <button class="btn icon sm ghost" data-remove="${meal.id}:${it.movementId || i}" title="Eliminar">${window.icon('trash')}</button>
                     </div>
                 </div>
             `;
@@ -180,8 +180,8 @@ window.initToday = function() {
             const meal = window.MEAL_ORDER.find(m => m.id === mealId);
             window.openFoodPicker({
                 title: meal ? `Añadir a ${meal.name}` : 'Añadir alimento',
-                onPick: (item) => {
-                    window.addToMeal(mealId, item);
+                onPick: async (item) => {
+                    await window.addToMeal(mealId, item);
                     window.renderPage();
                 },
             });
@@ -189,22 +189,23 @@ window.initToday = function() {
     });
 
     root.querySelectorAll('[data-remove]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const [mealId, idx] = btn.dataset.remove.split(':');
-            window.removeFromMeal(mealId, Number(idx));
+        btn.addEventListener('click', async () => {
+            const [mealId, rawId] = btn.dataset.remove.split(':');
+            const movementId = Number(rawId);
+            await window.removeFromMeal(mealId, movementId);
             window.renderPage();
         });
     });
 
     root.querySelectorAll('[data-add-recipe]').forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', async () => {
             const recipeId = btn.dataset.addRecipe;
             const r = (window.AppState.recipes || []).find(x => x.id === recipeId);
             if (!r) return;
             const serves = Math.max(1, r.serves || 1);
-            (r.ingredients || []).forEach(ing => {
-                window.addToMeal('cena', { productId: ing.productId, qty: (ing.qty || 0) / serves });
-            });
+            for (const ing of (r.ingredients || [])) {
+                await window.addToMeal('cena', { productId: ing.productId, qty: (ing.qty || 0) / serves });
+            }
             window.showToast(`Receta "${r.name}" añadida a cena`, 'success');
             window.renderPage();
         });

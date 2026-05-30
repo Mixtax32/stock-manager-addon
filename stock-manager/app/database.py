@@ -98,9 +98,16 @@ class Database:
                     quantity_change REAL NOT NULL,
                     reason TEXT DEFAULT 'consumed',
                     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    meal_type TEXT DEFAULT NULL,
                     FOREIGN KEY (barcode) REFERENCES products(barcode) ON DELETE CASCADE
                 )
             """)
+
+            # Migration: add meal_type column to existing movements table
+            async with db.execute("PRAGMA table_info(movements)") as cursor:
+                movement_cols = [row[1] for row in await cursor.fetchall()]
+            if 'meal_type' not in movement_cols:
+                await db.execute("ALTER TABLE movements ADD COLUMN meal_type TEXT DEFAULT NULL")
 
             # Migration: create batch entries for existing products that have stock but no batches
             async with db.execute("""
@@ -257,11 +264,11 @@ class Database:
             await db.commit()
         return await self.get_product(product.barcode)
 
-    async def _log_movement(self, db, barcode: str, quantity_change: float, reason: str = "consumed"):
+    async def _log_movement(self, db, barcode: str, quantity_change: float, reason: str = "consumed", meal_type: Optional[str] = None):
         """Log a stock movement for traceability"""
         await db.execute(
-            "INSERT INTO movements (barcode, quantity_change, reason) VALUES (?, ?, ?)",
-            (barcode, quantity_change, reason)
+            "INSERT INTO movements (barcode, quantity_change, reason, meal_type) VALUES (?, ?, ?, ?)",
+            (barcode, quantity_change, reason, meal_type)
         )
 
     async def update_stock(self, barcode: str, update: StockUpdate) -> Optional[Product]:
@@ -290,7 +297,7 @@ class Database:
 
             # Log movement with reason (default to "removed" if not specified)
             reason = update.reason or "removed"
-            await self._log_movement(db, barcode, update.quantity, reason)
+            await self._log_movement(db, barcode, update.quantity, reason, update.meal_type)
             await self._sync_product_stock(db, barcode)
             await db.commit()
         return await self.get_product(barcode)
@@ -612,17 +619,19 @@ class Database:
             return await self.get_macro_goals()
             
     async def get_today_movements(self) -> List[dict]:
-        """Get list of products consumed today"""
+        """Get list of products consumed today with full macro fields"""
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
             async with db.execute("""
-                SELECT m.*, p.name 
+                SELECT m.id, m.meal_type, m.quantity_change, m.timestamp,
+                       p.name, p.barcode, p.unit_type, p.weight_g,
+                       p.kcal_100g, p.proteins_100g, p.carbs_100g, p.fat_100g
                 FROM movements m
                 JOIN products p ON m.barcode = p.barcode
-                WHERE m.quantity_change < 0 
+                WHERE m.quantity_change < 0
                 AND m.reason = 'consumed'
                 AND date(m.timestamp) = date('now')
-                ORDER BY m.timestamp DESC
+                ORDER BY m.timestamp ASC
             """) as cursor:
                 rows = await cursor.fetchall()
                 return [dict(row) for row in rows]

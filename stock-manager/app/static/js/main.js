@@ -101,8 +101,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.renderNav();
     window.renderPage();
 
-    // Fetch products and recipes from HA
-    await window.reloadProducts();
-    await window.reloadRecipes();
+    // Fetch all data from HA backend
+    await Promise.all([
+        window.reloadProducts(),
+        window.reloadRecipes(),
+        window.reloadGoals(),
+        window.reloadTodayLog(),
+        window.reloadWeek(),
+    ]);
     window.renderPage();
+});
+
+// Refresh state when the user returns to the app (cross-device sync)
+document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'visible') {
+        await Promise.all([
+            window.reloadProducts(),
+            window.reloadTodayLog(),
+            window.reloadWeek(),
+        ]);
+        window.renderPage();
+    }
 });
