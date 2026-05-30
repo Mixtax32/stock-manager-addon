@@ -29,26 +29,34 @@ window._recipeFromApi = function(r) {
         serves: r.servings || 1,
         time: r.time || 15,
         tags: Array.isArray(r.tags) ? r.tags : [],
+        meal_types: Array.isArray(r.meal_types) ? r.meal_types : [],
         ingredients: (r.ingredients || [])
             .filter(ing => ing.product_barcode)
             .map(ing => ({ productId: ing.product_barcode, qty: ing.quantity })),
         output_product_id: r.output_product_id || null,
         output_qty: r.output_qty || 0,
         default_expiry_days: (r.default_expiry_days === 0 || r.default_expiry_days) ? r.default_expiry_days : null,
+        fridge_expiry_days: (r.fridge_expiry_days === 0 || r.fridge_expiry_days) ? r.fridge_expiry_days : null,
+        freezer_expiry_days: (r.freezer_expiry_days === 0 || r.freezer_expiry_days) ? r.freezer_expiry_days : null,
     };
 };
 
 // Map frontend recipe draft → API payload (backend format)
 window._recipeToApi = function(d) {
     const ed = (d.default_expiry_days === 0 || d.default_expiry_days) ? Number(d.default_expiry_days) : null;
+    const fd = (d.fridge_expiry_days === 0 || d.fridge_expiry_days) ? Number(d.fridge_expiry_days) : null;
+    const fzd = (d.freezer_expiry_days === 0 || d.freezer_expiry_days) ? Number(d.freezer_expiry_days) : null;
     return {
         name: d.name.trim(),
         servings: d.serves,
         time: d.time,
         tags: d.tags || [],
+        meal_types: d.meal_types || [],
         output_product_id: d.output_product_id || null,
         output_qty: d.output_qty || 0,
         default_expiry_days: (ed === null || Number.isNaN(ed)) ? null : ed,
+        fridge_expiry_days: (fd === null || Number.isNaN(fd)) ? null : fd,
+        freezer_expiry_days: (fzd === null || Number.isNaN(fzd)) ? null : fzd,
         ingredients: (d.ingredients || []).map(ing => {
             const p = window.findProductById(ing.productId);
             const unit = p ? (p.unit_type === 'uds' ? 'ud' : (p.unit_type || 'g')) : 'g';

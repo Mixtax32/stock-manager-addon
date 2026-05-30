@@ -8,7 +8,7 @@ let recipesFilter = 'todas';
 let recipeBuilder = null;
 
 function _emptyDraft() {
-    return { name: '', serves: 1, time: 15, tags: [], ingredients: [], output_product_id: null, output_qty: 1, default_expiry_days: null };
+    return { name: '', serves: 1, time: 15, tags: [], meal_types: [], ingredients: [], output_product_id: null, output_qty: 1, default_expiry_days: null, fridge_expiry_days: null, freezer_expiry_days: null };
 }
 
 function _filterRecipes() {
@@ -135,7 +135,6 @@ function _renderBuilder() {
     const outputProduct = d.output_product_id ? window.findProductById(d.output_product_id) : null;
     const outputName = outputProduct ? outputProduct.name : null;
     const outputUnit = outputProduct ? (outputProduct.unit_type === 'uds' ? 'ud' : (outputProduct.unit_type || 'ud')) : 'ud';
-    const expiryVal = (d.default_expiry_days === 0 || d.default_expiry_days) ? d.default_expiry_days : '';
     const autoName = d.name.trim() || 'tu receta';
 
     const linkBlock = outputName ? `
@@ -157,6 +156,9 @@ function _renderBuilder() {
         </div>
     `;
 
+    const fridgeVal = (d.fridge_expiry_days === 0 || d.fridge_expiry_days) ? d.fridge_expiry_days : '';
+    const freezerVal = (d.freezer_expiry_days === 0 || d.freezer_expiry_days) ? d.freezer_expiry_days : '';
+
     const outputHTML = `
         <div style="margin-top:18px; padding-top:16px; border-top:1px solid var(--border)">
             <div class="card-title" style="margin-bottom:10px">Al hacer la receta</div>
@@ -166,13 +168,19 @@ function _renderBuilder() {
                     <label class="field-label">Unidades producidas${outputName ? ` (${outputUnit})` : ''}</label>
                     <input id="rb-output-qty" class="input num" type="number" min="0" step="0.1" value="${d.output_qty || 0}"/>
                 </div>
+            </div>
+            <div class="grid cols-2" style="gap:12px; margin-top:12px">
                 <div class="field">
-                    <label class="field-label">Caducidad (días)</label>
-                    <input id="rb-expiry-days" class="input num" type="number" min="0" step="1" value="${expiryVal}" placeholder="ej. 4"/>
+                    <label class="field-label">Caducidad en nevera (días)</label>
+                    <input id="rb-fridge-days" class="input num" type="number" min="0" step="1" value="${fridgeVal}" placeholder="ej. 4"/>
+                </div>
+                <div class="field">
+                    <label class="field-label">Caducidad en congelador (días)</label>
+                    <input id="rb-freezer-days" class="input num" type="number" min="0" step="1" value="${freezerVal}" placeholder="ej. 60"/>
                 </div>
             </div>
             <div class="muted" style="font-size:11px; margin-top:6px">
-                Cada vez que hagas la receta se añadirán esas unidades con caducidad = hoy + N días. Déjalo en blanco para no fijar caducidad.
+                Al hacer la receta elegirás dónde guardarlo y se usará la caducidad correspondiente. Déjalo en blanco para no fijar caducidad.
             </div>
 
             <details style="margin-top:14px">
@@ -219,6 +227,17 @@ function _renderBuilder() {
                     <div class="field">
                         <label class="field-label">Etiquetas</label>
                         <input id="rb-tags" class="input" placeholder="post-entreno, vegetariano…" value="${window.esc((d.tags || []).join(', '))}"/>
+                    </div>
+                    <div class="field">
+                        <label class="field-label">Para qué comida</label>
+                        <div class="row" id="rb-meal-types" style="gap:6px; flex-wrap:wrap">
+                            ${['desayuno','almuerzo','comida','merienda','cena','snacks'].map(mt => {
+                                const on = (d.meal_types || []).includes(mt);
+                                const label = { desayuno:'Desayuno', almuerzo:'Almuerzo', comida:'Comida', merienda:'Merienda', cena:'Cena', snacks:'Snacks' }[mt];
+                                return `<button type="button" class="chip ${on ? 'chip-on' : ''}" data-meal-type="${mt}">${label}</button>`;
+                            }).join('')}
+                        </div>
+                        <div class="muted" style="font-size:11px; margin-top:4px">El generador semanal usará esto para sugerir la receta en esas comidas.</div>
                     </div>
                 </div>
 
@@ -358,50 +377,67 @@ async function _makeRecipe(r) {
         return;
     }
 
-    const missing = [];
-    for (const ing of ingredients) {
-        const p = window.findProductById(ing.productId);
-        if (!p) continue;
-        if ((p.stock || 0) < ing.qty) {
-            missing.push(p.name);
-        }
-    }
-
-    const confirmMsg = missing.length > 0
-        ? `Faltan ${missing.length} ingrediente(s) con stock insuficiente (${missing.join(', ')}). ¿Continuar igual?`
-        : `¿Hacer "${r.name}"? Se descontarán los ingredientes del stock.`;
-
-    const ok = await window.confirmDialog(confirmMsg);
-    if (!ok) return;
-
-    for (const ing of ingredients) {
-        const p = window.findProductById(ing.productId);
-        if (!p) continue;
-        try {
-            await window.apiCall(`/products/${p.barcode}/stock`, 'POST', { quantity: -(ing.qty), reason: 'recipe' });
-        } catch (e) {
-            window.showToast(`Error descontando ${p.name}`, 'error');
-        }
-    }
-
-    const outputQty = Number(r.output_qty) || 0;
-    if (outputQty > 0) {
-        const outputBarcode = await _ensureOutputProduct(r);
-        if (outputBarcode) {
-            try {
-                await window.apiCall(`/products/${outputBarcode}/stock`, 'POST', {
-                    quantity: outputQty,
-                    expiry_date: _expiryFromDays(r.default_expiry_days),
-                });
-            } catch (e) {
-                window.showToast('Error añadiendo resultado al stock', 'error');
+    window.openMakeRecipeDialog({
+        recipe: r,
+        onConfirm: async ({ qty, storage }) => {
+            const baseQty = (Number(r.output_qty) > 0) ? Number(r.output_qty) : (r.serves || 1);
+            const ratio = qty / baseQty;
+            if (ratio <= 0) {
+                window.showToast('La cantidad debe ser mayor a 0', 'error');
+                return;
             }
-        }
-    }
 
-    if (window.reloadProducts) await window.reloadProducts();
-    if (window.reloadRecipes) await window.reloadRecipes();
-    window.showToast(`"${r.name}" lista. Stock actualizado.`, 'success');
+            // Soft warning if any ingredient is short (non-blocking)
+            const short = [];
+            for (const ing of ingredients) {
+                const p = window.findProductById(ing.productId);
+                if (!p) continue;
+                if ((p.stock || 0) < ing.qty * ratio) short.push(p.name);
+            }
+            if (short.length > 0) {
+                window.showToast(`Stock insuficiente: ${short.join(', ')}`, 'warn');
+            }
+
+            // Deduct ingredients
+            for (const ing of ingredients) {
+                const p = window.findProductById(ing.productId);
+                if (!p) continue;
+                const needed = ing.qty * ratio;
+                try {
+                    await window.apiCall(`/products/${p.barcode}/stock`, 'POST', { quantity: -needed, reason: 'recipe' });
+                } catch (e) {
+                    window.showToast(`Error descontando ${p.name}`, 'error');
+                }
+            }
+
+            // Add output product if configured
+            const outputQty = Number(r.output_qty) || 0;
+            if (outputQty > 0) {
+                const outputProduced = outputQty * ratio;
+                let expiryDays = null;
+                if (storage === 'freezer') {
+                    expiryDays = r.freezer_expiry_days != null ? r.freezer_expiry_days : r.default_expiry_days;
+                } else {
+                    expiryDays = r.fridge_expiry_days != null ? r.fridge_expiry_days : r.default_expiry_days;
+                }
+                const outputBarcode = await _ensureOutputProduct(r);
+                if (outputBarcode) {
+                    try {
+                        await window.apiCall(`/products/${outputBarcode}/stock`, 'POST', {
+                            quantity: outputProduced,
+                            expiry_date: _expiryFromDays(expiryDays),
+                        });
+                    } catch (e) {
+                        window.showToast('Error añadiendo resultado al stock', 'error');
+                    }
+                }
+            }
+
+            if (window.reloadProducts) await window.reloadProducts();
+            if (window.reloadRecipes) await window.reloadRecipes();
+            window.showToast(`"${r.name}" lista. Stock actualizado.`, 'success');
+        }
+    });
 }
 
 window.initRecipes = function() {
@@ -435,6 +471,10 @@ window.initRecipes = function() {
             if (!r) return;
             recipeBuilder = Object.assign(_emptyDraft(), JSON.parse(JSON.stringify(r)));
             recipeBuilder._editing = true;
+            // Legacy migration: if no fridge_expiry_days but default_expiry_days is set, pre-fill fridge
+            if (recipeBuilder.fridge_expiry_days == null && recipeBuilder.default_expiry_days != null) {
+                recipeBuilder.fridge_expiry_days = recipeBuilder.default_expiry_days;
+            }
             window.renderPage();
         });
     });
@@ -480,6 +520,20 @@ function _wireBuilder(root) {
     const tagsEl = root.querySelector('#rb-tags');
     if (tagsEl) tagsEl.addEventListener('input', e => {
         d.tags = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+    });
+
+    root.querySelectorAll('[data-meal-type]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const mt = btn.dataset.mealType;
+            d.meal_types = d.meal_types || [];
+            if (d.meal_types.includes(mt)) {
+                d.meal_types = d.meal_types.filter(x => x !== mt);
+            } else {
+                d.meal_types.push(mt);
+            }
+            btn.classList.toggle('chip-on');
+        });
     });
 
     // Serves updates model + refreshes macros panel without re-render
@@ -536,14 +590,25 @@ function _wireBuilder(root) {
         d.output_qty = Math.max(0, Number(e.target.value) || 0);
     });
 
-    const expiryDaysEl = root.querySelector('#rb-expiry-days');
-    if (expiryDaysEl) expiryDaysEl.addEventListener('input', e => {
+    const fridgeDaysEl = root.querySelector('#rb-fridge-days');
+    if (fridgeDaysEl) fridgeDaysEl.addEventListener('input', e => {
         const v = e.target.value;
         if (v === '' || v === null || v === undefined) {
-            d.default_expiry_days = null;
+            d.fridge_expiry_days = null;
         } else {
             const n = parseInt(v, 10);
-            d.default_expiry_days = Number.isNaN(n) || n < 0 ? null : n;
+            d.fridge_expiry_days = Number.isNaN(n) || n < 0 ? null : n;
+        }
+    });
+
+    const freezerDaysEl = root.querySelector('#rb-freezer-days');
+    if (freezerDaysEl) freezerDaysEl.addEventListener('input', e => {
+        const v = e.target.value;
+        if (v === '' || v === null || v === undefined) {
+            d.freezer_expiry_days = null;
+        } else {
+            const n = parseInt(v, 10);
+            d.freezer_expiry_days = Number.isNaN(n) || n < 0 ? null : n;
         }
     });
 

@@ -155,6 +155,12 @@ class Database:
                 await db.execute("ALTER TABLE recipes ADD COLUMN output_qty REAL DEFAULT 0")
             if 'default_expiry_days' not in recipe_cols:
                 await db.execute("ALTER TABLE recipes ADD COLUMN default_expiry_days INTEGER DEFAULT NULL")
+            if 'meal_types' not in recipe_cols:
+                await db.execute("ALTER TABLE recipes ADD COLUMN meal_types TEXT DEFAULT '[]'")
+            if 'fridge_expiry_days' not in recipe_cols:
+                await db.execute("ALTER TABLE recipes ADD COLUMN fridge_expiry_days INTEGER DEFAULT NULL")
+            if 'freezer_expiry_days' not in recipe_cols:
+                await db.execute("ALTER TABLE recipes ADD COLUMN freezer_expiry_days INTEGER DEFAULT NULL")
 
             # Create recipe_ingredients table
             await db.execute("""
@@ -746,6 +752,11 @@ class Database:
             recipe_dict['tags'] = json.loads(tags_raw) if isinstance(tags_raw, str) else tags_raw
         except Exception:
             recipe_dict['tags'] = []
+        meal_types_raw = recipe_dict.get('meal_types') or '[]'
+        try:
+            recipe_dict['meal_types'] = json.loads(meal_types_raw) if isinstance(meal_types_raw, str) else meal_types_raw
+        except Exception:
+            recipe_dict['meal_types'] = []
         return recipe_dict
 
     async def get_all_recipes(self) -> List[Recipe]:
@@ -778,12 +789,13 @@ class Database:
     async def create_recipe(self, recipe: RecipeCreate) -> Recipe:
         async with aiosqlite.connect(self.db_path) as db:
             cursor = await db.execute("""
-                INSERT INTO recipes (name, description, instructions, servings, time, tags, output_product_id, output_qty, default_expiry_days, kcal, proteins, carbs, fat, image_url)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO recipes (name, description, instructions, servings, time, tags, meal_types, output_product_id, output_qty, default_expiry_days, fridge_expiry_days, freezer_expiry_days, kcal, proteins, carbs, fat, image_url)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 recipe.name, recipe.description, recipe.instructions, recipe.servings,
-                recipe.time, json.dumps(recipe.tags or []),
+                recipe.time, json.dumps(recipe.tags or []), json.dumps(recipe.meal_types or []),
                 recipe.output_product_id, recipe.output_qty, recipe.default_expiry_days,
+                recipe.fridge_expiry_days, recipe.freezer_expiry_days,
                 recipe.kcal, recipe.proteins, recipe.carbs, recipe.fat, recipe.image_url
             ))
             recipe_id = cursor.lastrowid
@@ -801,13 +813,15 @@ class Database:
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute("""
                 UPDATE recipes SET name=?, description=?, instructions=?, servings=?,
-                time=?, tags=?, output_product_id=?, output_qty=?, default_expiry_days=?,
+                time=?, tags=?, meal_types=?, output_product_id=?, output_qty=?, default_expiry_days=?,
+                fridge_expiry_days=?, freezer_expiry_days=?,
                 kcal=?, proteins=?, carbs=?, fat=?, image_url=?
                 WHERE id=?
             """, (
                 recipe.name, recipe.description, recipe.instructions, recipe.servings,
-                recipe.time, json.dumps(recipe.tags or []),
+                recipe.time, json.dumps(recipe.tags or []), json.dumps(recipe.meal_types or []),
                 recipe.output_product_id, recipe.output_qty, recipe.default_expiry_days,
+                recipe.fridge_expiry_days, recipe.freezer_expiry_days,
                 recipe.kcal, recipe.proteins, recipe.carbs, recipe.fat, recipe.image_url,
                 recipe_id
             ))

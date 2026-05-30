@@ -339,6 +339,120 @@ window.confirmDialog = function(message) {
     });
 };
 
+// ===== Make Recipe dialog =====
+// Opens a modal to confirm qty + storage before executing _makeRecipe.
+// options: { recipe, onConfirm(result) } where result = { qty, storage: 'fridge'|'freezer'|null }
+window.openMakeRecipeDialog = function(options) {
+    options = options || {};
+    const recipe = options.recipe || {};
+    const onConfirm = options.onConfirm || function() {};
+
+    const mount = document.getElementById('modal-mount');
+    if (!mount) return;
+
+    const hasOutput = Number(recipe.output_qty) > 0;
+    const baseQty = hasOutput ? Number(recipe.output_qty) : (recipe.serves || 1);
+    let qty = baseQty;
+    let storage = 'fridge';
+
+    function expiryHint(st) {
+        if (!hasOutput) return '';
+        const days = st === 'freezer'
+            ? (recipe.freezer_expiry_days != null ? recipe.freezer_expiry_days : (recipe.default_expiry_days != null ? recipe.default_expiry_days : null))
+            : (recipe.fridge_expiry_days != null ? recipe.fridge_expiry_days : (recipe.default_expiry_days != null ? recipe.default_expiry_days : null));
+        return days != null
+            ? `<div class="muted" style="font-size:11px; margin-top:4px">Caducidad: ${days} días</div>`
+            : `<div class="muted" style="font-size:11px; margin-top:4px">Sin caducidad fijada</div>`;
+    }
+
+    function ratioText(q) {
+        const ratio = q / baseQty;
+        const pct = Math.round(ratio * 100);
+        return `Esto consumirá ${pct}% de cada ingrediente`;
+    }
+
+    function buildShell() {
+        mount.innerHTML = `
+        <div class="modal-backdrop" data-close="1">
+            <div class="modal" data-stop="1" style="max-width:400px">
+                <div class="spread" style="margin-bottom:4px">
+                    <h3>Hacer «${window.esc(recipe.name)}»</h3>
+                    <button class="btn icon sm ghost" data-action="close" aria-label="Cerrar">${window.icon('close')}</button>
+                </div>
+                <div class="modal-sub" style="margin-bottom:16px">Vas a hacer esta receta. Calculamos los ingredientes según la cantidad.</div>
+
+                <div class="field" style="margin-bottom:12px">
+                    <label class="field-label">${hasOutput ? '¿Cuántas unidades?' : '¿Cuántas raciones?'}</label>
+                    <input id="mrd-qty" class="input lg num" type="number" min="0.01" step="any" value="${qty}"/>
+                    <div id="mrd-ratio" class="muted" style="font-size:11px; margin-top:4px">${ratioText(qty)}</div>
+                </div>
+
+                ${hasOutput ? `
+                <div class="field" style="margin-bottom:16px">
+                    <label class="field-label">¿Dónde lo guardás?</label>
+                    <div class="row" style="gap:8px; margin-top:6px">
+                        <button type="button" class="btn sm ${storage === 'fridge' ? 'accent' : 'ghost'}" data-storage="fridge">Nevera</button>
+                        <button type="button" class="btn sm ${storage === 'freezer' ? 'accent' : 'ghost'}" data-storage="freezer">Congelador</button>
+                    </div>
+                    <div id="mrd-expiry-hint">${expiryHint(storage)}</div>
+                </div>
+                ` : ''}
+
+                <div class="row" style="justify-content:flex-end; gap:8px">
+                    <button class="btn ghost" data-action="close">Cancelar</button>
+                    <button class="btn accent" data-action="confirm">Hacer</button>
+                </div>
+            </div>
+        </div>`;
+
+        // Close handlers
+        mount.querySelector('[data-close]').addEventListener('click', e => {
+            if (e.target.dataset.close === '1') close();
+        });
+        mount.querySelectorAll('[data-action="close"]').forEach(b => b.addEventListener('click', close));
+
+        // Qty input — only update ratio text, no full re-render
+        const qtyIn = mount.querySelector('#mrd-qty');
+        if (qtyIn) {
+            qtyIn.addEventListener('input', e => {
+                qty = Number(e.target.value) || 0;
+                const ratioEl = mount.querySelector('#mrd-ratio');
+                if (ratioEl) ratioEl.textContent = ratioText(qty);
+            });
+            setTimeout(() => { qtyIn.focus(); qtyIn.select(); }, 0);
+        }
+
+        // Storage buttons — targeted DOM updates, no full re-render
+        mount.querySelectorAll('[data-storage]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                storage = btn.dataset.storage;
+                mount.querySelectorAll('[data-storage]').forEach(b => {
+                    b.className = `btn sm ${b.dataset.storage === storage ? 'accent' : 'ghost'}`;
+                });
+                const hint = mount.querySelector('#mrd-expiry-hint');
+                if (hint) hint.innerHTML = expiryHint(storage);
+            });
+        });
+
+        // Confirm
+        mount.querySelector('[data-action="confirm"]').addEventListener('click', () => {
+            const finalQty = Number(mount.querySelector('#mrd-qty')?.value) || 0;
+            if (finalQty <= 0) {
+                window.showToast('La cantidad debe ser mayor a 0', 'error');
+                return;
+            }
+            close();
+            onConfirm({ qty: finalQty, storage: hasOutput ? storage : null });
+        });
+    }
+
+    function close() {
+        mount.innerHTML = '';
+    }
+
+    buildShell();
+};
+
 // ===== Quantity prompt dialog =====
 // Returns a Promise<number|null>: resolved number = new quantity, null = cancelled.
 window.promptQty = function(currentQty) {

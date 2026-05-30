@@ -98,7 +98,12 @@ async function generateAuto() {
     // Build pool per meal: strict tag match if >= 3 results, else all recipes
     const pools = {};
     MEAL_IDS.forEach(mealId => {
-        const strict = candidates.filter(r => (r.tags || []).includes(mealId));
+        const strict = candidates.filter(r => {
+            const mts = r.meal_types || [];
+            if (mts.length > 0) return mts.includes(mealId);
+            // Legacy fallback: use tags if no meal_types defined
+            return (r.tags || []).includes(mealId);
+        });
         pools[mealId] = strict.length >= 3 ? strict : candidates;
     });
 

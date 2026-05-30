@@ -100,9 +100,12 @@ class Recipe(BaseModel):
     servings: int = 1
     time: Optional[int] = None
     tags: List[str] = []
+    meal_types: List[str] = []
     output_product_id: Optional[str] = None
     output_qty: float = 0
     default_expiry_days: Optional[int] = None
+    fridge_expiry_days: Optional[int] = None
+    freezer_expiry_days: Optional[int] = None
     kcal: Optional[float] = None
     proteins: Optional[float] = None
     carbs: Optional[float] = None
@@ -117,9 +120,12 @@ class RecipeCreate(BaseModel):
     servings: int = 1
     time: Optional[int] = None
     tags: List[str] = []
+    meal_types: List[str] = []
     output_product_id: Optional[str] = None
     output_qty: float = 0
     default_expiry_days: Optional[int] = None
+    fridge_expiry_days: Optional[int] = None
+    freezer_expiry_days: Optional[int] = None
     kcal: Optional[float] = None
     proteins: Optional[float] = None
     carbs: Optional[float] = None

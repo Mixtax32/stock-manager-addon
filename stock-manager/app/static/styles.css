@@ -518,6 +518,8 @@ input, select, textarea { font-family: inherit; }
 .chip.k { background: var(--kcal-soft); color: var(--ink); }
 .chip.warn { background: var(--warn-soft); color: #6b2f1c; }
 .chip.good { background: var(--good-soft); color: #2f4a1c; }
+.chip.chip-on { background: var(--accent); color: #fff; border-color: var(--accent); }
+[data-theme="dark"] .chip.chip-on { color: #fff; }
 [data-theme="dark"] .chip.p { color: #f6c9ab; }
 [data-theme="dark"] .chip.c { color: #f6d59a; }
 [data-theme="dark"] .chip.f { color: #d8c79a; }
