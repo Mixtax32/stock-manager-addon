@@ -30,17 +30,6 @@ window.renderToday = function() {
         return { recipe: r, macros: m, score: diffK + diffP };
     }).sort((a, b) => a.score - b.score).slice(0, 4);
 
-    const quickAddChipsHTML = `
-        <div style="margin-bottom:14px">
-            <div class="muted" style="font-size:12px; margin-bottom:6px">Añadir rápido a:</div>
-            <div class="row" style="gap:6px; flex-wrap:wrap">
-                ${window.MEAL_ORDER.map(meal => `
-                    <button class="btn sm ghost" data-add-meal="${meal.id}">${meal.name}</button>
-                `).join('')}
-            </div>
-        </div>
-    `;
-
     const mealsHTML = window.MEAL_ORDER.map(meal => {
         const items = meals[meal.id] || [];
         const m = window.sumMacros(items);
@@ -71,17 +60,14 @@ window.renderToday = function() {
         }).join('');
         return `
             <div class="meal">
-                <div class="meal-head">
+                <div class="meal-head" data-add-meal="${meal.id}" role="button" tabindex="0" style="cursor:pointer">
                     <div class="meal-name"><span>${meal.name}</span></div>
                     <div class="row" style="gap:10px">
                         ${items.length > 0 ? window.macroChipsHTML(m, true) : ''}
+                        <span style="color:var(--ink-3); width:16px; height:16px; display:flex; align-items:center; justify-content:center; flex-shrink:0">${window.icon('plus')}</span>
                     </div>
                 </div>
                 ${itemsHTML}
-                <button class="add-food" data-add-meal="${meal.id}">
-                    ${window.icon('plus')}
-                    Añadir alimento a ${meal.name.toLowerCase()}
-                </button>
             </div>
         `;
     }).join('');
@@ -153,7 +139,6 @@ window.renderToday = function() {
                         <button class="btn sm ghost" data-page="scan">${window.icon('scan')} Escanear</button>
                     </div>
                 </div>
-                ${quickAddChipsHTML}
                 ${mealsHTML}
             </div>
 
