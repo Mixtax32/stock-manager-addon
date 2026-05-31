@@ -115,7 +115,8 @@ window.renderPantry = function() {
                     ${exp ? `<span class="exp-pill ${expCls}">${expTxt}</span>` : ''}
                     <div class="qty-pill">
                         <button data-qty="-1" data-barcode="${window.esc(p.barcode)}">−</button>
-                        <span class="qty">${stockDisplay} ${unit}</span>
+                        <input class="qty-input" type="number" step="any" min="0" inputmode="decimal" value="${stockDisplay}" data-barcode="${window.esc(p.barcode)}" data-current="${stockNum}"/>
+                        <span class="qty-unit">${unit}</span>
                         <button data-qty="1" data-barcode="${window.esc(p.barcode)}">+</button>
                     </div>
                 </div>
@@ -202,6 +203,38 @@ window.initPantry = function() {
         });
     });
 
+    root.querySelectorAll('.qty-input').forEach(input => {
+        input.addEventListener('focus', () => input.select());
+        input.addEventListener('change', async () => {
+            const barcode = input.dataset.barcode;
+            const oldVal = Number(input.dataset.current) || 0;
+            const newVal = parseFloat(input.value);
+            if (!Number.isFinite(newVal) || newVal < 0) {
+                input.value = oldVal;
+                return;
+            }
+            const delta = newVal - oldVal;
+            if (delta === 0) return;
+            const p = window.findProductById(barcode);
+            if (!p) return;
+            try {
+                if (p.batches && p.batches.length > 0) {
+                    await window.apiCall(`/batches/${p.batches[0].id}/stock`, 'POST', { quantity: delta, reason: delta < 0 ? 'removed' : 'added' });
+                } else if (delta > 0) {
+                    await window.apiCall(`/products/${barcode}/stock`, 'POST', { quantity: delta });
+                } else {
+                    window.showToast('Sin stock para quitar', 'info');
+                    input.value = oldVal;
+                    return;
+                }
+                await window.reloadProducts();
+            } catch (e) {
+                window.showToast('Error: ' + e.message, 'error');
+                input.value = oldVal;
+            }
+        });
+    });
+
     root.querySelectorAll('[data-action="edit"]').forEach(btn => {
         btn.addEventListener('click', () => window.openEditProduct(btn.dataset.barcode));
     });
@@ -235,7 +268,10 @@ window.openEditProduct = function(barcode) {
         <div class="modal-backdrop" data-close="1">
             <div class="modal" data-stop="1" style="max-height:80vh; overflow-y:auto">
                 <div class="spread" style="margin-bottom:16px">
-                    <h3 style="margin:0; font-size:18px; font-weight:600">Editar producto</h3>
+                    <div>
+                        <div class="muted" style="font-size:11px; text-transform:uppercase; letter-spacing:.05em">Editar producto</div>
+                        <h3 style="margin:2px 0 0; font-size:18px; font-weight:600">${window.esc(p.name)}</h3>
+                    </div>
                     <button class="btn icon sm ghost" data-action="close" aria-label="Cerrar">${window.icon('close')}</button>
                 </div>
                 <div class="stack" style="gap:14px">
