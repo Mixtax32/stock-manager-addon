@@ -8,7 +8,7 @@ import logging
 from typing import List
 
 from .database import db
-from .models import Product, ProductCreate, StockUpdate, ProductUpdate, Batch, BatchUpdate, BatchStockUpdate, MacroGoals, MacroGoalsUpdate, Recipe, RecipeCreate, DietPlan, DietPlanCreate, MovementUpdate
+from .models import Product, ProductCreate, StockUpdate, ProductUpdate, Batch, BatchUpdate, BatchStockUpdate, MacroGoals, MacroGoalsUpdate, Recipe, RecipeCreate, DietPlan, DietPlanCreate, MovementUpdate, BodyWeight, BodyWeightCreate
 from .barcode_service import get_product_from_barcode
 from .telegram_service import telegram_bot
 import asyncio
@@ -248,6 +248,20 @@ async def get_macro_goals():
 async def update_macro_goals(update: MacroGoalsUpdate):
     """Update daily macro goals"""
     return await db.update_macro_goals(update)
+
+@app.post("/api/weight", response_model=BodyWeight)
+async def post_weight(payload: BodyWeightCreate):
+    result = await db.save_body_weight(payload.weight, payload.date)
+    return result
+
+@app.get("/api/weight", response_model=List[BodyWeight])
+async def get_weights():
+    return await db.get_body_weights()
+
+@app.get("/api/weight/latest")
+async def get_weight_latest():
+    result = await db.get_latest_body_weight()
+    return result or {}
 
 @app.get("/api/stats/today-movements")
 async def get_today_movements():

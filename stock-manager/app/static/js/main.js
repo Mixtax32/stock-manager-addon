@@ -122,6 +122,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.reloadGoals(),
         window.reloadTodayLog(),
         window.reloadWeek(),
+        window.reloadBodyWeight(),
     ]);
     window.renderPage();
 });

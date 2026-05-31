@@ -3,7 +3,7 @@ import os
 import json
 from datetime import datetime, date
 from typing import List, Optional
-from .models import Product, ProductCreate, StockUpdate, ProductUpdate, Batch, BatchUpdate, BatchStockUpdate, MacroGoals, MacroGoalsUpdate, Ingredient, Recipe, RecipeCreate, DietPlan, DietPlanCreate
+from .models import Product, ProductCreate, StockUpdate, ProductUpdate, Batch, BatchUpdate, BatchStockUpdate, MacroGoals, MacroGoalsUpdate, Ingredient, Recipe, RecipeCreate, DietPlan, DietPlanCreate, BodyWeight, BodyWeightCreate
 
 DATABASE_PATH = os.getenv('DATABASE_PATH', '/data/stock_manager/stock.db')
 
@@ -196,6 +196,15 @@ class Database:
                     is_consumed INTEGER DEFAULT 0,
                     FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE SET NULL,
                     FOREIGN KEY (product_barcode) REFERENCES products(barcode) ON DELETE SET NULL
+                )
+            """)
+
+            # Create weight_log table
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS weight_log (
+                    date TEXT PRIMARY KEY,
+                    weight REAL NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
 
@@ -936,5 +945,32 @@ class Database:
             cursor = await db.execute("DELETE FROM diet_plans WHERE id = ?", (plan_id,))
             await db.commit()
             return cursor.rowcount > 0
+
+    async def save_body_weight(self, weight: float, date_str: Optional[str] = None) -> dict:
+        """Upsert today's (or given date's) body weight."""
+        from datetime import date as _date
+        d = date_str or _date.today().isoformat()
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                "INSERT INTO weight_log (date, weight) VALUES (?, ?) "
+                "ON CONFLICT(date) DO UPDATE SET weight = excluded.weight, created_at = CURRENT_TIMESTAMP",
+                (d, weight)
+            )
+            await db.commit()
+        return {"date": d, "weight": weight}
+
+    async def get_body_weights(self) -> List[dict]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT date, weight, created_at FROM weight_log ORDER BY date ASC") as cursor:
+                rows = await cursor.fetchall()
+                return [dict(r) for r in rows]
+
+    async def get_latest_body_weight(self) -> Optional[dict]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT date, weight, created_at FROM weight_log ORDER BY date DESC LIMIT 1") as cursor:
+                row = await cursor.fetchone()
+                return dict(row) if row else None
 
 db = Database()

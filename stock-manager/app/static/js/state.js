@@ -86,6 +86,8 @@ window.AppState = {
 
     // HA API data — products and barcodes (loaded async)
     products: [],
+
+    bodyWeight: 75, // overwritten by reloadBodyWeight() on boot
 };
 
 // ===== Persist helpers =====
@@ -104,6 +106,27 @@ window.saveTheme = function(theme) {
 };
 
 // ===== Backend-wired state functions =====
+
+window.reloadBodyWeight = async function() {
+    try {
+        const data = await window.apiCall('/weight/latest', 'GET');
+        if (data && Number.isFinite(data.weight)) {
+            window.AppState.bodyWeight = data.weight;
+        }
+    } catch (e) {
+        console.error('reloadBodyWeight failed', e);
+    }
+};
+
+window.saveBodyWeight = async function(weight) {
+    try {
+        await window.apiCall('/weight', 'POST', { weight });
+        window.AppState.bodyWeight = weight;
+    } catch (e) {
+        console.error('saveBodyWeight failed', e);
+        window.showToast('Error guardando peso: ' + e.message, 'error');
+    }
+};
 
 window.reloadGoals = async function() {
     try {

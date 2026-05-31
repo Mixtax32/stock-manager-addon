@@ -157,3 +157,12 @@ class DietPlanCreate(BaseModel):
 class MovementUpdate(BaseModel):
     quantity: float  # new absolute consumed quantity (positive); backend stores as negative quantity_change
 
+class BodyWeight(BaseModel):
+    date: str
+    weight: float
+    created_at: Optional[datetime] = None
+
+class BodyWeightCreate(BaseModel):
+    weight: float
+    date: Optional[str] = None  # defaults to today server-side
+
