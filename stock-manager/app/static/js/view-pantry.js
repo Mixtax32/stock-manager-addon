@@ -229,6 +229,7 @@ window.openEditProduct = function(barcode) {
     if (!mount) return;
 
     const unitLabel = p.unit_type === 'ml' ? '100 ml' : p.unit_type === 'uds' ? 'ud' : '100 g';
+    const round2 = v => v == null ? '' : Math.round(Number(v) * 100) / 100;
 
     mount.innerHTML = `
         <div class="modal-backdrop" data-close="1">
@@ -238,12 +239,6 @@ window.openEditProduct = function(barcode) {
                     <button class="btn icon sm ghost" data-action="close" aria-label="Cerrar">${window.icon('close')}</button>
                 </div>
                 <div class="stack" style="gap:14px">
-                    <div class="field">
-                        <label class="field-label">Ubicación por defecto</label>
-                        <input id="ep-loc" class="input" placeholder="Nevera, Despensa…" value="${window.esc(p.location || '')}"/>
-                        <div class="muted" style="font-size:11px; margin-top:4px">Se usa cuando un lote no tiene su propia ubicación.</div>
-                    </div>
-
                     <div>
                         <div class="field-label" style="font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin-bottom:10px">Lotes</div>
                         ${(p.batches && p.batches.length > 0) ? p.batches.map(b => {
@@ -277,26 +272,31 @@ window.openEditProduct = function(barcode) {
                         <div class="grid cols-2 keep" style="gap:10px; margin-top:10px">
                             <div class="field">
                                 <label class="field-label">Energía (kcal)</label>
-                                <input id="ep-kcal" class="input num" type="number" step="0.1" placeholder="ej. 350" value="${p.kcal_100g ?? ''}"/>
+                                <input id="ep-kcal" class="input num" type="number" step="0.01" placeholder="ej. 350" value="${round2(p.kcal_100g)}"/>
                             </div>
                             <div class="field">
                                 <label class="field-label">Proteína (g)</label>
-                                <input id="ep-prot" class="input num" type="number" step="0.1" placeholder="ej. 25" value="${p.proteins_100g ?? ''}"/>
+                                <input id="ep-prot" class="input num" type="number" step="0.01" placeholder="ej. 25" value="${round2(p.proteins_100g)}"/>
                             </div>
                             <div class="field">
                                 <label class="field-label">Carbohidratos (g)</label>
-                                <input id="ep-carbs" class="input num" type="number" step="0.1" placeholder="ej. 40" value="${p.carbs_100g ?? ''}"/>
+                                <input id="ep-carbs" class="input num" type="number" step="0.01" placeholder="ej. 40" value="${round2(p.carbs_100g)}"/>
                             </div>
                             <div class="field">
                                 <label class="field-label">Grasas (g)</label>
-                                <input id="ep-fat" class="input num" type="number" step="0.1" placeholder="ej. 10" value="${p.fat_100g ?? ''}"/>
+                                <input id="ep-fat" class="input num" type="number" step="0.01" placeholder="ej. 10" value="${round2(p.fat_100g)}"/>
                             </div>
                         </div>
                     </details>
 
                     <details style="border-top:1px solid var(--border); padding-top:12px">
-                        <summary style="cursor:pointer; font-weight:600; font-size:13px; padding:4px 0">Todo lo demás</summary>
+                        <summary style="cursor:pointer; font-weight:600; font-size:13px; padding:4px 0">Ajustes avanzados</summary>
                         <div class="stack" style="gap:12px; margin-top:10px">
+                            <div class="field">
+                                <label class="field-label">Ubicación por defecto</label>
+                                <input id="ep-loc" class="input" placeholder="Nevera, Despensa…" value="${window.esc(p.location || '')}"/>
+                                <div class="muted" style="font-size:11px; margin-top:4px">Se usa cuando un lote no tiene su propia ubicación.</div>
+                            </div>
                             <div class="field">
                                 <label class="field-label">Nombre</label>
                                 <input id="ep-name" class="input" value="${window.esc(p.name)}"/>
