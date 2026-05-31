@@ -27,6 +27,7 @@ class Product(BaseModel):
     fat_100g: Optional[float] = None
     serving_size: Optional[float] = None # Cantidad usual/paquete
     package_quantity: Optional[str] = None # Cantidad descriptiva de OFF (ej: "6 x 125g")
+    tracking_mode: str = "manual"  # "manual" or "scale" (auto-tracked by load cell)
     batches: List[Batch] = []
     last_updated: Optional[datetime] = None
 
@@ -45,6 +46,7 @@ class ProductCreate(BaseModel):
     fat_100g: Optional[float] = None
     serving_size: Optional[float] = None
     package_quantity: Optional[str] = None
+    tracking_mode: str = "manual"
 
 class StockUpdate(BaseModel):
     quantity: float
@@ -67,6 +69,7 @@ class ProductUpdate(BaseModel):
     fat_100g: Optional[float] = None
     serving_size: Optional[float] = None
     package_quantity: Optional[str] = None
+    tracking_mode: Optional[str] = None
 
 class BatchUpdate(BaseModel):
     expiry_date: Optional[str] = None
@@ -165,4 +168,67 @@ class BodyWeight(BaseModel):
 class BodyWeightCreate(BaseModel):
     weight: float
     date: Optional[str] = None  # defaults to today server-side
+
+
+# --- Smart Scale models (ESP32 + HX711 integration) -------------------------
+
+class Scale(BaseModel):
+    id: int
+    name: str
+    ha_entity_id: Optional[str] = None
+    product_barcode: Optional[str] = None
+    batch_id: Optional[int] = None
+    tare_g: float = 0
+    last_stable_weight_g: Optional[float] = None
+    last_event_weight_g: Optional[float] = None
+    last_event_at: Optional[datetime] = None
+    calibration_factor: float = 1.0
+    created_at: Optional[datetime] = None
+
+class ScaleCreate(BaseModel):
+    name: str
+    ha_entity_id: Optional[str] = None
+    product_barcode: Optional[str] = None
+    tare_g: float = 0
+    calibration_factor: float = 1.0
+
+class ScaleUpdate(BaseModel):
+    name: Optional[str] = None
+    ha_entity_id: Optional[str] = None
+    product_barcode: Optional[str] = None
+    batch_id: Optional[int] = None
+    tare_g: Optional[float] = None
+    calibration_factor: Optional[float] = None
+
+class ScaleWeight(BaseModel):
+    """Stable weight reading pushed by the ESP32 — updates live stock display,
+    does NOT create a movement entry."""
+    weight_g: float
+
+class ScaleEvent(BaseModel):
+    """Semantic event triggered by a physical button on the scale."""
+    type: str  # "tare" | "consumo" | "nuevo_lote"
+    weight_g: float
+
+class PendingRefill(BaseModel):
+    id: int
+    product_barcode: str
+    qty_estimated: float
+    source: str  # "barcode_scan" | "ticket_ocr" | "manual"
+    source_meta: Optional[str] = None
+    status: str = "pending"  # "pending" | "resolved" | "cancelled"
+    created_at: Optional[datetime] = None
+    resolved_at: Optional[datetime] = None
+    resolved_batch_id: Optional[int] = None
+
+class PendingRefillCreate(BaseModel):
+    product_barcode: str
+    qty_estimated: float
+    source: str
+    source_meta: Optional[str] = None
+
+class PendingRefillResolve(BaseModel):
+    """Manually resolve a pending refill with a concrete weight (when the user
+    chose 'add now' instead of waiting for the NUEVO LOTE button)."""
+    actual_qty: float
 

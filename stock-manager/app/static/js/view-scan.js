@@ -539,6 +539,39 @@ function _resetScan() {
 
 // ─── Confirm actions ──────────────────────────────────────────────────────────
 
+// Gate for scale-mode products: instead of adding stock directly, create a
+// pending_refill and ask the user whether to materialize it now (with the
+// estimated qty) or wait for the physical NUEVO LOTE button on the scale.
+// Returns true if the product was gated (caller should NOT add stock normally).
+async function _gateScaleProduct(barcode, qty, sourceLabel) {
+    const product = (window.AppState.products || []).find(p => p.barcode === barcode);
+    if (!product || product.tracking_mode !== 'scale') return false;
+
+    const unit = product.unit_type || 'g';
+    const addNow = window.confirm(
+        `"${product.name}" está en modo báscula.\n\n` +
+        `OK = Agregarlo como lote ahora con ${qty} ${unit} (estimado).\n` +
+        `Cancelar = Esperar al botón NUEVO LOTE de la báscula.`
+    );
+
+    try {
+        const refill = await window.apiCall('/pending-refills', 'POST', {
+            product_barcode: barcode,
+            qty_estimated: qty,
+            source: sourceLabel,
+        });
+        if (addNow) {
+            await window.apiCall(`/pending-refills/${refill.id}/resolve`, 'POST', { actual_qty: qty });
+            window.showToast(`"${product.name}" agregado como lote (se ajustará al peso real)`, 'success');
+        } else {
+            window.showToast(`"${product.name}" pendiente — apretá NUEVO LOTE en la báscula`, 'info');
+        }
+    } catch (e) {
+        window.showToast('Error gestionando refill: ' + e.message, 'error');
+    }
+    return true;
+}
+
 async function _confirmTicket() {
     const toAdd = scanState.ticketItems.filter(it => it.checked && it.match);
     if (!toAdd.length) return;
@@ -546,6 +579,8 @@ async function _confirmTicket() {
     let successCount = 0;
     for (const item of toAdd) {
         try {
+            const gated = await _gateScaleProduct(item.match.barcode, item.qty, 'ticket_ocr');
+            if (gated) { successCount++; continue; }
             await window.apiCall(`/products/${item.match.barcode}/stock`, 'POST', {
                 quantity: item.qty,
                 reason: 'restock',
@@ -594,11 +629,15 @@ async function _confirmScan() {
             await window.addToMeal(scanState.meal, { productId: scanState.barcode, qty: scanState.qty });
             window.showToast('Añadido al diario', 'success');
         } else {
-            await window.apiCall(`/products/${scanState.barcode}/stock`, 'POST', {
-                quantity: scanState.qty,
-                expiry_date: scanState.expiry || null,
-            });
-            window.showToast('Stock actualizado', 'success');
+            // Restock to pantry — apply scale-mode gate if applicable.
+            const gated = await _gateScaleProduct(scanState.barcode, scanState.qty, 'barcode_scan');
+            if (!gated) {
+                await window.apiCall(`/products/${scanState.barcode}/stock`, 'POST', {
+                    quantity: scanState.qty,
+                    expiry_date: scanState.expiry || null,
+                });
+                window.showToast('Stock actualizado', 'success');
+            }
         }
         await window.reloadProducts();
         _resetScan();

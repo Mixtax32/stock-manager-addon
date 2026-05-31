@@ -5,10 +5,16 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import os
 import logging
-from typing import List
+from typing import List, Optional
 
 from .database import db
-from .models import Product, ProductCreate, StockUpdate, ProductUpdate, Batch, BatchUpdate, BatchStockUpdate, MacroGoals, MacroGoalsUpdate, Recipe, RecipeCreate, DietPlan, DietPlanCreate, MovementUpdate, BodyWeight, BodyWeightCreate
+from .models import (
+    Product, ProductCreate, StockUpdate, ProductUpdate, Batch, BatchUpdate, BatchStockUpdate,
+    MacroGoals, MacroGoalsUpdate, Recipe, RecipeCreate, DietPlan, DietPlanCreate,
+    MovementUpdate, BodyWeight, BodyWeightCreate,
+    Scale, ScaleCreate, ScaleUpdate, ScaleWeight, ScaleEvent,
+    PendingRefill, PendingRefillCreate, PendingRefillResolve,
+)
 from .barcode_service import get_product_from_barcode
 from .telegram_service import telegram_bot
 import asyncio
@@ -459,6 +465,88 @@ async def delete_diet_plan(plan_id: int):
     success = await db.delete_diet_plan(plan_id)
     if not success:
         raise HTTPException(status_code=404, detail="Plan not found")
+    return None
+
+# --- Smart Scale Endpoints (ESP32 + HX711 integration) --------------------
+
+@app.get("/api/scales", response_model=List[Scale])
+async def get_scales():
+    """List all configured scales."""
+    return await db.get_all_scales()
+
+@app.get("/api/scales/{scale_id}", response_model=Scale)
+async def get_scale(scale_id: int):
+    scale = await db.get_scale(scale_id)
+    if not scale:
+        raise HTTPException(status_code=404, detail="Scale not found")
+    return scale
+
+@app.post("/api/scales", response_model=Scale, status_code=201)
+async def create_scale(scale: ScaleCreate):
+    return await db.create_scale(scale)
+
+@app.patch("/api/scales/{scale_id}", response_model=Scale)
+async def update_scale(scale_id: int, update: ScaleUpdate):
+    result = await db.update_scale(scale_id, update)
+    if not result:
+        raise HTTPException(status_code=404, detail="Scale not found")
+    return result
+
+@app.delete("/api/scales/{scale_id}", status_code=204)
+async def delete_scale(scale_id: int):
+    success = await db.delete_scale(scale_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Scale not found")
+    return None
+
+@app.post("/api/scales/{scale_id}/weight")
+async def post_scale_weight(scale_id: int, payload: ScaleWeight):
+    """Webhook called by the ESP32 when a stable weight change is detected.
+    Updates the live stock display only — no movement entry is created."""
+    scale = await db.record_scale_weight(scale_id, payload.weight_g)
+    if not scale:
+        raise HTTPException(status_code=404, detail="Scale not found")
+    return {"ok": True, "weight_g": payload.weight_g}
+
+@app.post("/api/scales/{scale_id}/event")
+async def post_scale_event(scale_id: int, payload: ScaleEvent):
+    """Webhook called by the ESP32 when a physical button is pressed.
+    Dispatches to tare / consumo / nuevo_lote handlers."""
+    if payload.type not in ("tare", "consumo", "nuevo_lote"):
+        raise HTTPException(status_code=400, detail=f"Unknown event type: {payload.type}")
+    result = await db.handle_scale_event(scale_id, payload.type, payload.weight_g)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Scale not found")
+    return result
+
+# --- Pending Refills ------------------------------------------------------
+
+@app.get("/api/pending-refills", response_model=List[PendingRefill])
+async def get_pending_refills(status: Optional[str] = None):
+    """List pending refills. Optionally filter by status (pending|resolved|cancelled)."""
+    return await db.list_pending_refills(status)
+
+@app.post("/api/pending-refills", response_model=PendingRefill, status_code=201)
+async def create_pending_refill(refill: PendingRefillCreate):
+    """Create a pending refill — used by scanner/OCR when detecting a scale-mode product."""
+    return await db.create_pending_refill(refill)
+
+@app.post("/api/pending-refills/{refill_id}/resolve")
+async def resolve_pending_refill(refill_id: int, payload: PendingRefillResolve):
+    """Resolve a pending refill immediately with the given quantity (user chose
+    'add now' instead of waiting for the NUEVO LOTE button)."""
+    if payload.actual_qty <= 0:
+        raise HTTPException(status_code=400, detail="Quantity must be greater than 0")
+    result = await db.resolve_pending_refill_now(refill_id, payload.actual_qty)
+    if not result:
+        raise HTTPException(status_code=404, detail="Pending refill not found or already resolved")
+    return result
+
+@app.delete("/api/pending-refills/{refill_id}", status_code=204)
+async def delete_pending_refill(refill_id: int):
+    success = await db.delete_pending_refill(refill_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Pending refill not found")
     return None
 
 # Health check

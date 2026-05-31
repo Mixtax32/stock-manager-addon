@@ -3,7 +3,13 @@ import os
 import json
 from datetime import datetime, date
 from typing import List, Optional
-from .models import Product, ProductCreate, StockUpdate, ProductUpdate, Batch, BatchUpdate, BatchStockUpdate, MacroGoals, MacroGoalsUpdate, Ingredient, Recipe, RecipeCreate, DietPlan, DietPlanCreate, BodyWeight, BodyWeightCreate
+from .models import (
+    Product, ProductCreate, StockUpdate, ProductUpdate, Batch, BatchUpdate, BatchStockUpdate,
+    MacroGoals, MacroGoalsUpdate, Ingredient, Recipe, RecipeCreate, DietPlan, DietPlanCreate,
+    BodyWeight, BodyWeightCreate,
+    Scale, ScaleCreate, ScaleUpdate, ScaleWeight, ScaleEvent,
+    PendingRefill, PendingRefillCreate, PendingRefillResolve,
+)
 
 DATABASE_PATH = os.getenv('DATABASE_PATH', '/data/stock_manager/stock.db')
 
@@ -32,6 +38,7 @@ class Database:
                     fat_100g REAL DEFAULT NULL,
                     serving_size REAL DEFAULT NULL,
                     package_quantity TEXT DEFAULT NULL,
+                    tracking_mode TEXT NOT NULL DEFAULT 'manual',
                     last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
@@ -60,6 +67,8 @@ class Database:
                 await db.execute("ALTER TABLE products ADD COLUMN fat_100g REAL DEFAULT NULL")
             if 'package_quantity' not in columns:
                 await db.execute("ALTER TABLE products ADD COLUMN package_quantity TEXT DEFAULT NULL")
+            if 'tracking_mode' not in columns:
+                await db.execute("ALTER TABLE products ADD COLUMN tracking_mode TEXT NOT NULL DEFAULT 'manual'")
 
             # Create batches table
             await db.execute("""
@@ -115,6 +124,8 @@ class Database:
                 movement_cols = [row[1] for row in await cursor.fetchall()]
             if 'meal_type' not in movement_cols:
                 await db.execute("ALTER TABLE movements ADD COLUMN meal_type TEXT DEFAULT NULL")
+            if 'scale_id' not in movement_cols:
+                await db.execute("ALTER TABLE movements ADD COLUMN scale_id INTEGER DEFAULT NULL")
 
             # Migration: create batch entries for existing products that have stock but no batches
             async with db.execute("""
@@ -208,6 +219,43 @@ class Database:
                 )
             """)
 
+            # Create scales table (smart scale integration — ESP32 + HX711)
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS scales (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    ha_entity_id TEXT DEFAULT NULL,
+                    product_barcode TEXT DEFAULT NULL,
+                    batch_id INTEGER DEFAULT NULL,
+                    tare_g REAL NOT NULL DEFAULT 0,
+                    last_stable_weight_g REAL DEFAULT NULL,
+                    last_event_weight_g REAL DEFAULT NULL,
+                    last_event_at TIMESTAMP DEFAULT NULL,
+                    calibration_factor REAL NOT NULL DEFAULT 1.0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (product_barcode) REFERENCES products(barcode) ON DELETE SET NULL,
+                    FOREIGN KEY (batch_id) REFERENCES batches(id) ON DELETE SET NULL
+                )
+            """)
+
+            # Create pending_refills table (bridge between scanner/ticket detection
+            # and physical NUEVO LOTE button press on the scale)
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS pending_refills (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    product_barcode TEXT NOT NULL,
+                    qty_estimated REAL NOT NULL,
+                    source TEXT NOT NULL,
+                    source_meta TEXT DEFAULT NULL,
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    resolved_at TIMESTAMP DEFAULT NULL,
+                    resolved_batch_id INTEGER DEFAULT NULL,
+                    FOREIGN KEY (product_barcode) REFERENCES products(barcode) ON DELETE CASCADE,
+                    FOREIGN KEY (resolved_batch_id) REFERENCES batches(id) ON DELETE SET NULL
+                )
+            """)
+
             await db.commit()
 
     async def _get_batches(self, db, barcode: str) -> List[Batch]:
@@ -278,10 +326,10 @@ class Database:
         """Create new product"""
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(
-                """INSERT INTO products (barcode, name, category, stock, min_stock, unit_type, location, image_url, weight_g, kcal_100g, proteins_100g, carbs_100g, fat_100g, serving_size, package_quantity, last_updated)
-                   VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (product.barcode, product.name, product.category, product.min_stock, product.unit_type, product.location, product.image_url, 
-                 product.weight_g, product.kcal_100g, product.proteins_100g, product.carbs_100g, product.fat_100g, product.serving_size, product.package_quantity, datetime.now())
+                """INSERT INTO products (barcode, name, category, stock, min_stock, unit_type, location, image_url, weight_g, kcal_100g, proteins_100g, carbs_100g, fat_100g, serving_size, package_quantity, tracking_mode, last_updated)
+                   VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (product.barcode, product.name, product.category, product.min_stock, product.unit_type, product.location, product.image_url,
+                 product.weight_g, product.kcal_100g, product.proteins_100g, product.carbs_100g, product.fat_100g, product.serving_size, product.package_quantity, product.tracking_mode, datetime.now())
             )
             await db.commit()
         return await self.get_product(product.barcode)
@@ -401,6 +449,8 @@ class Database:
             updates['serving_size'] = update.serving_size
         if hasattr(update, 'package_quantity') and update.package_quantity is not None:
             updates['package_quantity'] = update.package_quantity
+        if hasattr(update, 'tracking_mode') and update.tracking_mode is not None:
+            updates['tracking_mode'] = update.tracking_mode
 
         if updates:
             updates['last_updated'] = datetime.now()
@@ -994,5 +1044,257 @@ class Database:
             async with db.execute("SELECT date, weight, created_at FROM weight_log ORDER BY date DESC LIMIT 1") as cursor:
                 row = await cursor.fetchone()
                 return dict(row) if row else None
+
+    # =======================================================================
+    # Smart Scale (ESP32 + HX711) — methods
+    # =======================================================================
+
+    def _meal_type_from_hour(self, hour: int) -> str:
+        """Auto-assign a meal slot from the hour of day. User accepted occasional
+        misclassification because the daily kcal total is what matters."""
+        if   5 <= hour < 10: return 'desayuno'
+        elif 10 <= hour < 12: return 'almuerzo'
+        elif 12 <= hour < 16: return 'comida'
+        elif 16 <= hour < 19: return 'merienda'
+        else:                 return 'cena'  # 19-24 and 0-5
+
+    async def get_all_scales(self) -> List[Scale]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT * FROM scales ORDER BY name") as cursor:
+                rows = await cursor.fetchall()
+            return [Scale(**dict(r)) for r in rows]
+
+    async def get_scale(self, scale_id: int) -> Optional[Scale]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT * FROM scales WHERE id = ?", (scale_id,)) as cursor:
+                row = await cursor.fetchone()
+            return Scale(**dict(row)) if row else None
+
+    async def create_scale(self, scale: ScaleCreate) -> Scale:
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute(
+                """INSERT INTO scales (name, ha_entity_id, product_barcode, tare_g, calibration_factor)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (scale.name, scale.ha_entity_id, scale.product_barcode,
+                 scale.tare_g, scale.calibration_factor)
+            )
+            scale_id = cursor.lastrowid
+            await db.commit()
+        return await self.get_scale(scale_id)
+
+    async def update_scale(self, scale_id: int, update: ScaleUpdate) -> Optional[Scale]:
+        existing = await self.get_scale(scale_id)
+        if not existing:
+            return None
+        updates = {}
+        for field in ('name', 'ha_entity_id', 'product_barcode', 'batch_id',
+                      'tare_g', 'calibration_factor'):
+            val = getattr(update, field, None)
+            if val is not None:
+                updates[field] = val
+        if updates:
+            set_clause = ', '.join(f"{k} = ?" for k in updates.keys())
+            values = list(updates.values()) + [scale_id]
+            async with aiosqlite.connect(self.db_path) as db:
+                await db.execute(f"UPDATE scales SET {set_clause} WHERE id = ?", values)
+                await db.commit()
+        return await self.get_scale(scale_id)
+
+    async def delete_scale(self, scale_id: int) -> bool:
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute("DELETE FROM scales WHERE id = ?", (scale_id,))
+            await db.commit()
+            return cursor.rowcount > 0
+
+    async def record_scale_weight(self, scale_id: int, weight_g: float) -> Optional[Scale]:
+        """Stable weight reading from the ESP32 — refreshes the live stock display,
+        does NOT create a movement entry."""
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute(
+                "UPDATE scales SET last_stable_weight_g = ? WHERE id = ?",
+                (weight_g, scale_id)
+            )
+            await db.commit()
+            if cursor.rowcount == 0:
+                return None
+        return await self.get_scale(scale_id)
+
+    async def handle_scale_event(self, scale_id: int, event_type: str,
+                                 weight_g: float) -> Optional[dict]:
+        """Dispatch a physical button event. Returns a summary of what happened
+        (or None if scale not found / unknown event)."""
+        scale = await self.get_scale(scale_id)
+        if not scale:
+            return None
+
+        now = datetime.now()
+        result = {"scale_id": scale_id, "type": event_type, "weight_g": weight_g}
+
+        if event_type == "tare":
+            async with aiosqlite.connect(self.db_path) as db:
+                await db.execute(
+                    """UPDATE scales SET last_event_weight_g = ?, last_event_at = ?,
+                       tare_g = ?, last_stable_weight_g = ? WHERE id = ?""",
+                    (weight_g, now, weight_g, weight_g, scale_id)
+                )
+                await db.commit()
+            result["action"] = "tare"
+
+        elif event_type == "consumo":
+            previous = scale.last_event_weight_g if scale.last_event_weight_g is not None else weight_g
+            consumed = max(0.0, previous - weight_g)
+            meal_type = self._meal_type_from_hour(now.hour)
+            async with aiosqlite.connect(self.db_path) as db:
+                if consumed > 0 and scale.product_barcode:
+                    await db.execute(
+                        """INSERT INTO movements (barcode, quantity_change, reason, meal_type, scale_id)
+                           VALUES (?, ?, ?, ?, ?)""",
+                        (scale.product_barcode, -consumed, "consumed_via_scale",
+                         meal_type, scale.id)
+                    )
+                    if scale.batch_id:
+                        await db.execute(
+                            "UPDATE batches SET quantity = MAX(0, quantity - ?) WHERE id = ?",
+                            (consumed, scale.batch_id)
+                        )
+                    await self._sync_product_stock(db, scale.product_barcode)
+                await db.execute(
+                    """UPDATE scales SET last_event_weight_g = ?, last_event_at = ?,
+                       last_stable_weight_g = ? WHERE id = ?""",
+                    (weight_g, now, weight_g, scale_id)
+                )
+                await db.commit()
+            result.update({"action": "consumo", "consumed_g": consumed,
+                           "meal_type": meal_type})
+
+        elif event_type == "nuevo_lote":
+            new_batch_id = None
+            resolved_refill_id = None
+            async with aiosqlite.connect(self.db_path) as db:
+                if scale.product_barcode:
+                    if scale.batch_id:
+                        await db.execute(
+                            "UPDATE batches SET quantity = 0 WHERE id = ?",
+                            (scale.batch_id,)
+                        )
+                    location_label = f"Báscula: {scale.name}"
+                    cursor = await db.execute(
+                        """INSERT INTO batches (barcode, quantity, expiry_date, added_date, location)
+                           VALUES (?, ?, ?, ?, ?)""",
+                        (scale.product_barcode, weight_g, None,
+                         date.today().isoformat(), location_label)
+                    )
+                    new_batch_id = cursor.lastrowid
+                    await db.execute(
+                        """INSERT INTO movements (barcode, quantity_change, reason, scale_id)
+                           VALUES (?, ?, ?, ?)""",
+                        (scale.product_barcode, weight_g, "scale_new_batch", scale.id)
+                    )
+                    # Resolve oldest pending refill for this product, if any.
+                    db.row_factory = aiosqlite.Row
+                    async with db.execute(
+                        """SELECT id FROM pending_refills
+                           WHERE product_barcode = ? AND status = 'pending'
+                           ORDER BY created_at ASC LIMIT 1""",
+                        (scale.product_barcode,)
+                    ) as cursor:
+                        refill_row = await cursor.fetchone()
+                    if refill_row:
+                        resolved_refill_id = refill_row['id']
+                        await db.execute(
+                            """UPDATE pending_refills SET status = 'resolved',
+                               resolved_at = ?, resolved_batch_id = ? WHERE id = ?""",
+                            (now, new_batch_id, resolved_refill_id)
+                        )
+                    await self._sync_product_stock(db, scale.product_barcode)
+                await db.execute(
+                    """UPDATE scales SET batch_id = ?, last_event_weight_g = ?,
+                       last_event_at = ?, last_stable_weight_g = ? WHERE id = ?""",
+                    (new_batch_id, weight_g, now, weight_g, scale_id)
+                )
+                await db.commit()
+            result.update({"action": "nuevo_lote", "new_batch_id": new_batch_id,
+                           "resolved_pending_refill_id": resolved_refill_id})
+
+        else:
+            return None
+
+        return result
+
+    # --- Pending refills ---------------------------------------------------
+
+    async def list_pending_refills(self, status: Optional[str] = None) -> List[PendingRefill]:
+        query = "SELECT * FROM pending_refills"
+        params: list = []
+        if status:
+            query += " WHERE status = ?"
+            params.append(status)
+        query += " ORDER BY created_at DESC"
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(query, params) as cursor:
+                rows = await cursor.fetchall()
+            return [PendingRefill(**dict(r)) for r in rows]
+
+    async def create_pending_refill(self, refill: PendingRefillCreate) -> PendingRefill:
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute(
+                """INSERT INTO pending_refills (product_barcode, qty_estimated, source, source_meta)
+                   VALUES (?, ?, ?, ?)""",
+                (refill.product_barcode, refill.qty_estimated, refill.source, refill.source_meta)
+            )
+            refill_id = cursor.lastrowid
+            await db.commit()
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT * FROM pending_refills WHERE id = ?", (refill_id,)) as cursor:
+                row = await cursor.fetchone()
+            return PendingRefill(**dict(row))
+
+    async def resolve_pending_refill_now(self, refill_id: int,
+                                         actual_qty: float) -> Optional[dict]:
+        """User chose 'add now' instead of waiting for NUEVO LOTE — create the
+        batch immediately with the given quantity and mark the refill resolved.
+        A future NUEVO LOTE press will then create its own batch on top."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT * FROM pending_refills WHERE id = ? AND status = 'pending'",
+                (refill_id,)
+            ) as cursor:
+                row = await cursor.fetchone()
+            if not row:
+                return None
+            barcode = row['product_barcode']
+
+            cursor = await db.execute(
+                """INSERT INTO batches (barcode, quantity, expiry_date, added_date, location)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (barcode, actual_qty, None, date.today().isoformat(), None)
+            )
+            new_batch_id = cursor.lastrowid
+
+            await db.execute(
+                """INSERT INTO movements (barcode, quantity_change, reason)
+                   VALUES (?, ?, ?)""",
+                (barcode, actual_qty, "pending_refill_resolved")
+            )
+
+            await db.execute(
+                """UPDATE pending_refills SET status = 'resolved',
+                   resolved_at = ?, resolved_batch_id = ? WHERE id = ?""",
+                (datetime.now(), new_batch_id, refill_id)
+            )
+
+            await self._sync_product_stock(db, barcode)
+            await db.commit()
+        return {"refill_id": refill_id, "new_batch_id": new_batch_id, "qty": actual_qty}
+
+    async def delete_pending_refill(self, refill_id: int) -> bool:
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute("DELETE FROM pending_refills WHERE id = ?", (refill_id,))
+            await db.commit()
+            return cursor.rowcount > 0
 
 db = Database()

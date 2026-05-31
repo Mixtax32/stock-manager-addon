@@ -10,6 +10,7 @@ window.NAV_ITEMS = [
     { id: 'pantry',   name: 'Despensa', ico: 'pantry' },
     { id: 'shopping', name: 'Compra',   ico: 'shop' },
     { id: 'scan',     name: 'Escanear', ico: 'scan' },
+    { id: 'scales',   name: 'Básculas', ico: 'scale' },
     { id: 'charts',   name: 'Gráficos', ico: 'chart' },
     { id: 'settings', name: 'Ajustes',  ico: 'settings' },
 ];
@@ -95,6 +96,7 @@ window.renderPage = function() {
         shopping: window.renderShopping,
         settings: window.renderSettings,
         scan:     window.renderScan,
+        scales:   window.renderScales,
         charts:   window.renderCharts,
     };
     const inits = {
@@ -105,6 +107,7 @@ window.renderPage = function() {
         shopping: window.initShopping,
         settings: window.initSettings,
         scan:     window.initScan,
+        scales:   window.initScales,
         charts:   window.initCharts,
     };
     const fn = renderers[page];

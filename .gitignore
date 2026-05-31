@@ -1,0 +1,3 @@
+# Local credentials — never commit
+# Each ESP32 sketch / hardware project keeps its own secrets.h
+**/secrets.h
