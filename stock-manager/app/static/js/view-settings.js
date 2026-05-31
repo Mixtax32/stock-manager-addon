@@ -159,6 +159,27 @@ function _isDirty() {
     return _touched;
 }
 
+function _showUnsavedDialog() {
+    return new Promise(resolve => {
+        const mount = document.getElementById('modal-mount');
+        if (!mount) { resolve('cancel'); return; }
+        mount.innerHTML = `
+            <div class="modal-backdrop" data-close="1">
+                <div class="modal" data-stop="1" style="max-width:380px">
+                    <h3 style="margin:0 0 16px">Tienes cambios sin guardar</h3>
+                    <div class="row" style="justify-content:flex-end; gap:8px">
+                        <button class="btn ghost" data-action="discard">Salir sin guardar</button>
+                        <button class="btn accent" data-action="save">Guardar</button>
+                    </div>
+                </div>
+            </div>`;
+        const close = (v) => { mount.innerHTML = ''; resolve(v); };
+        mount.querySelector('[data-close]').addEventListener('click', e => { if (e.target.dataset.close === '1') close('cancel'); });
+        mount.querySelector('[data-action="discard"]').addEventListener('click', () => close('discard'));
+        mount.querySelector('[data-action="save"]').addEventListener('click', () => close('save'));
+    });
+}
+
 window.initSettings = function() {
     const root = document.getElementById('page-root');
     if (!root) return;
@@ -166,7 +187,18 @@ window.initSettings = function() {
 
     window.navGuard = async () => {
         if (!_isDirty()) return true;
-        return await window.confirmDialog('Tenés cambios sin guardar. ¿Salir igual?');
+        const choice = await _showUnsavedDialog();
+        if (choice === 'discard') { _touched = false; return true; }
+        if (choice === 'save') {
+            await window.saveGoals({
+                kcal: d.kcal, p: d.p, c: d.c, fat: d.fat,
+                factors: Object.assign({}, d.factors),
+            });
+            _touched = false;
+            window.showToast('Objetivos guardados', 'success');
+            return true;
+        }
+        return false;
     };
 
     const advancedEl = root.querySelector('#advanced-details');
