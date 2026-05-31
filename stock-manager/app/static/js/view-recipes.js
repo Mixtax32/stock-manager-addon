@@ -8,7 +8,7 @@ let recipesFilter = 'todas';
 let recipeBuilder = null;
 
 function _emptyDraft() {
-    return { name: '', serves: 1, time: 15, tags: [], meal_types: [], ingredients: [], output_product_id: null, output_qty: 1, default_expiry_days: null, fridge_expiry_days: null, freezer_expiry_days: null };
+    return { name: '', description: '', instructions: '', image_url: '', serves: 1, time: 15, tags: [], meal_types: [], ingredients: [], output_product_id: null, output_qty: 1, default_expiry_days: null, fridge_expiry_days: null, freezer_expiry_days: null };
 }
 
 function _filterRecipes() {
@@ -238,6 +238,18 @@ function _renderBuilder() {
                             }).join('')}
                         </div>
                         <div class="muted" style="font-size:11px; margin-top:4px">El generador semanal usará esto para sugerir la receta en esas comidas.</div>
+                    </div>
+                    <div class="field">
+                        <label class="field-label">URL de imagen</label>
+                        <input id="rb-img" class="input" placeholder="https://…" value="${window.esc(d.image_url || '')}"/>
+                    </div>
+                    <div class="field">
+                        <label class="field-label">Descripción</label>
+                        <textarea id="rb-desc" class="input" rows="2" placeholder="Una línea sobre la receta…">${window.esc(d.description || '')}</textarea>
+                    </div>
+                    <div class="field">
+                        <label class="field-label">Instrucciones</label>
+                        <textarea id="rb-instr" class="input" rows="5" placeholder="Paso 1…&#10;Paso 2…">${window.esc(d.instructions || '')}</textarea>
                     </div>
                 </div>
 
@@ -522,6 +534,9 @@ function _wireBuilder(root) {
     }
     bind('rb-name', 'name');
     bind('rb-time', 'time', v => Math.max(0, parseInt(v) || 0));
+    bind('rb-img', 'image_url');
+    bind('rb-desc', 'description');
+    bind('rb-instr', 'instructions');
 
     const tagsEl = root.querySelector('#rb-tags');
     if (tagsEl) tagsEl.addEventListener('input', e => {

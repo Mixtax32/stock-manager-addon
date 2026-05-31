@@ -38,6 +38,9 @@ window._recipeFromApi = function(r) {
         default_expiry_days: (r.default_expiry_days === 0 || r.default_expiry_days) ? r.default_expiry_days : null,
         fridge_expiry_days: (r.fridge_expiry_days === 0 || r.fridge_expiry_days) ? r.fridge_expiry_days : null,
         freezer_expiry_days: (r.freezer_expiry_days === 0 || r.freezer_expiry_days) ? r.freezer_expiry_days : null,
+        description: r.description || '',
+        instructions: r.instructions || '',
+        image_url: r.image_url || '',
     };
 };
 
@@ -48,6 +51,9 @@ window._recipeToApi = function(d) {
     const fzd = (d.freezer_expiry_days === 0 || d.freezer_expiry_days) ? Number(d.freezer_expiry_days) : null;
     return {
         name: d.name.trim(),
+        description: d.description || null,
+        instructions: d.instructions || null,
+        image_url: d.image_url || null,
         servings: d.serves,
         time: d.time,
         tags: d.tags || [],

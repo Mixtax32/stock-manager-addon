@@ -52,11 +52,6 @@ window.renderPantry = function() {
 
     const low = products.filter(p => p.min_stock != null && (p.stock || 0) < p.min_stock);
 
-    // Suggestable recipes: pantry has every ingredient
-    const pantryIds = new Set(products.map(p => String(p.barcode)));
-    const suggestable = (window.AppState.recipes || []).filter(r =>
-        (r.ingredients || []).every(ing => pantryIds.has(String(ing.productId)))
-    );
 
     const alertsHTML = alerts.length === 0 ? '' : `
         <div class="alert">
@@ -125,26 +120,6 @@ window.renderPantry = function() {
         `;
     }).join('');
 
-    const suggestHTML = suggestable.length === 0 ? `
-        <div class="empty"><div class="t">Nada por ahora</div><div>Añade más productos para ver sugerencias.</div></div>
-    ` : suggestable.slice(0, 5).map(r => {
-        const m = window.recipeMacros(r);
-        return `
-            <div class="suggest">
-                <div class="suggest-thumb">🍽️</div>
-                <div>
-                    <div class="suggest-title">${window.esc(r.name)}</div>
-                    <div class="suggest-sub">
-                        <span class="num">${Math.round(m.kcal)}</span> kcal · <span class="num">${Math.round(m.p)}g</span> P · ${r.time || '?'} min
-                    </div>
-                </div>
-                <span class="suggest-fit">✓ Tengo todo</span>
-            </div>
-        `;
-    }).join('');
-
-    const countByLoc = (loc) => products.filter(p => _locForProduct(p) === loc).length;
-
     return `
         <div class="page-head">
             <div>
@@ -153,7 +128,6 @@ window.renderPantry = function() {
             </div>
             <div class="row" style="gap:8px">
                 <button class="btn" data-page="scan">${window.icon('scan')} Escanear</button>
-                <button class="btn ghost" data-action="reload">${window.icon('refresh')} Actualizar</button>
             </div>
         </div>
 
@@ -163,41 +137,17 @@ window.renderPantry = function() {
             ${lowHTML}
         </div>` : ''}
 
-        <div class="pantry-layout">
-            <div>
-                <div class="row" style="gap:10px; margin-bottom:16px; flex-wrap:wrap">
-                    <div class="search" style="min-width:240px; flex:1; max-width:360px">
-                        ${window.icon('search')}
-                        <input id="pantry-search" placeholder="Buscar en mi despensa…" value="${window.esc(pantryQuery)}"/>
-                    </div>
-                </div>
-
-                <div class="pantry-cat-tabs">${tabsHTML}</div>
-
-                <div class="card" style="padding:0">
-                    ${filtered.length === 0 ? `<div class="empty"><div class="t">Sin productos</div><div>Cambia el filtro o escanea uno nuevo.</div></div>` : itemsHTML}
-                </div>
+        <div class="row" style="gap:10px; margin-bottom:16px; flex-wrap:wrap">
+            <div class="search" style="min-width:240px; flex:1; max-width:360px">
+                ${window.icon('search')}
+                <input id="pantry-search" placeholder="Buscar en mi despensa…" value="${window.esc(pantryQuery)}"/>
             </div>
+        </div>
 
-            <div class="stack" style="gap:16px">
-                <div class="card">
-                    <div class="card-head">
-                        <div class="card-title">${window.icon('sparkle')} Cocina con lo que tienes</div>
-                        <span class="card-sub">${suggestable.length} recetas</span>
-                    </div>
-                    <div class="muted" style="font-size:12px; margin-bottom:8px">Recetas en las que tienes todos los ingredientes en casa.</div>
-                    ${suggestHTML}
-                </div>
+        <div class="pantry-cat-tabs">${tabsHTML}</div>
 
-                <div class="card sunken">
-                    <div class="card-title" style="margin-bottom:10px">Resumen</div>
-                    <div class="grid cols-3" style="gap:12px">
-                        <div class="kpi"><div class="l">Nevera</div><div class="v">${countByLoc('nevera')}</div></div>
-                        <div class="kpi"><div class="l">Congelador</div><div class="v">${countByLoc('congelador')}</div></div>
-                        <div class="kpi"><div class="l">Despensa</div><div class="v">${countByLoc('despensa')}</div></div>
-                    </div>
-                </div>
-            </div>
+        <div class="card" style="padding:0">
+            ${filtered.length === 0 ? `<div class="empty"><div class="t">Sin productos</div><div>Cambia el filtro o escanea uno nuevo.</div></div>` : itemsHTML}
         </div>
     `;
 };
@@ -225,11 +175,6 @@ window.initPantry = function() {
             pantryCat = btn.dataset.cat;
             window.renderPage();
         });
-    });
-
-    root.querySelector('[data-action="reload"]')?.addEventListener('click', async () => {
-        await window.reloadProducts();
-        window.showToast('Inventario actualizado', 'success');
     });
 
     root.querySelector('[data-action="low-to-shopping"]')?.addEventListener('click', () => {
@@ -295,14 +240,17 @@ window.openEditProduct = function(barcode) {
     const mount = document.getElementById('modal-mount');
     if (!mount) return;
 
+    const unitLabel = p.unit_type === 'ml' ? '100 ml' : p.unit_type === 'uds' ? 'ud' : '100 g';
+
     mount.innerHTML = `
         <div class="modal-backdrop" data-close="1">
-            <div class="modal" data-stop="1">
+            <div class="modal" data-stop="1" style="max-height:80vh; overflow-y:auto">
                 <div class="spread" style="margin-bottom:16px">
                     <h3 style="margin:0; font-size:18px; font-weight:600">Editar producto</h3>
                     <button class="btn icon sm ghost" data-action="close" aria-label="Cerrar">${window.icon('close')}</button>
                 </div>
                 <div class="stack" style="gap:12px">
+                    <div class="field-label" style="font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted)">Básico</div>
                     <div class="field">
                         <label class="field-label">Nombre</label>
                         <input id="ep-name" class="input" value="${window.esc(p.name)}"/>
@@ -333,6 +281,42 @@ window.openEditProduct = function(barcode) {
                             </select>
                         </div>
                     </div>
+
+                    <div class="field-label" style="font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin-top:8px">Empaque</div>
+                    <div class="grid cols-2 keep" style="gap:10px">
+                        <div class="field">
+                            <label class="field-label">Peso por unidad / paquete (g)</label>
+                            <input id="ep-weight" class="input num" type="number" step="0.1" placeholder="ej. 200" value="${p.weight_g ?? ''}"/>
+                        </div>
+                        <div class="field">
+                            <label class="field-label">Ración estándar</label>
+                            <input id="ep-serving" class="input num" type="number" step="0.1" placeholder="ej. 30" value="${p.serving_size ?? ''}"/>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label class="field-label">URL de imagen</label>
+                        <input id="ep-img" class="input" type="url" placeholder="https://…" value="${window.esc(p.image_url || '')}"/>
+                    </div>
+
+                    <div class="field-label" style="font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin-top:8px">Macros (por ${unitLabel})</div>
+                    <div class="grid cols-2 keep" style="gap:10px">
+                        <div class="field">
+                            <label class="field-label">Energía (kcal)</label>
+                            <input id="ep-kcal" class="input num" type="number" step="0.1" placeholder="ej. 350" value="${p.kcal_100g ?? ''}"/>
+                        </div>
+                        <div class="field">
+                            <label class="field-label">Proteína (g)</label>
+                            <input id="ep-prot" class="input num" type="number" step="0.1" placeholder="ej. 25" value="${p.proteins_100g ?? ''}"/>
+                        </div>
+                        <div class="field">
+                            <label class="field-label">Carbohidratos (g)</label>
+                            <input id="ep-carbs" class="input num" type="number" step="0.1" placeholder="ej. 40" value="${p.carbs_100g ?? ''}"/>
+                        </div>
+                        <div class="field">
+                            <label class="field-label">Grasas (g)</label>
+                            <input id="ep-fat" class="input num" type="number" step="0.1" placeholder="ej. 10" value="${p.fat_100g ?? ''}"/>
+                        </div>
+                    </div>
                 </div>
                 <div class="row" style="justify-content:flex-end; gap:8px; margin-top:20px">
                     <button class="btn ghost" data-action="close">Cancelar</button>
@@ -350,15 +334,34 @@ window.openEditProduct = function(barcode) {
     mount.querySelector('[data-action="save"]').addEventListener('click', async () => {
         const name = mount.querySelector('#ep-name').value.trim();
         if (!name) { window.showToast('El nombre no puede estar vacío', 'error'); return; }
-        const minVal = mount.querySelector('#ep-min').value;
+        const minVal    = mount.querySelector('#ep-min').value;
+        const weightVal = mount.querySelector('#ep-weight').value;
+        const servingVal= mount.querySelector('#ep-serving').value;
+        const imgVal    = mount.querySelector('#ep-img').value.trim();
+        const kcalVal   = mount.querySelector('#ep-kcal').value;
+        const protVal   = mount.querySelector('#ep-prot').value;
+        const carbsVal  = mount.querySelector('#ep-carbs').value;
+        const fatVal    = mount.querySelector('#ep-fat').value;
+
+        const numOrNull = v => v === '' ? null : Number(v);
+
+        const payload = {
+            name,
+            location:      mount.querySelector('#ep-loc').value.trim() || null,
+            category:      mount.querySelector('#ep-cat').value,
+            min_stock:     numOrNull(minVal),
+            unit_type:     mount.querySelector('#ep-unit').value,
+        };
+        if (weightVal  !== '') payload.weight_g      = Number(weightVal);
+        if (servingVal !== '') payload.serving_size  = Number(servingVal);
+        if (imgVal     !== '') payload.image_url     = imgVal;
+        if (kcalVal    !== '') payload.kcal_100g     = Number(kcalVal);
+        if (protVal    !== '') payload.proteins_100g = Number(protVal);
+        if (carbsVal   !== '') payload.carbs_100g    = Number(carbsVal);
+        if (fatVal     !== '') payload.fat_100g      = Number(fatVal);
+
         try {
-            await window.apiCall(`/products/${barcode}`, 'PATCH', {
-                name,
-                location: mount.querySelector('#ep-loc').value.trim() || null,
-                category: mount.querySelector('#ep-cat').value,
-                min_stock: minVal === '' ? null : Number(minVal),
-                unit_type: mount.querySelector('#ep-unit').value,
-            });
+            await window.apiCall(`/products/${barcode}`, 'PATCH', payload);
             await window.reloadProducts();
             close();
             window.showToast('Producto actualizado', 'success');
