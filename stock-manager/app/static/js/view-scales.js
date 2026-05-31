@@ -58,8 +58,12 @@ function _formatRelativeTime(iso) {
 }
 
 function _webhookBase() {
-    const { protocol, host } = window.location;
-    return `${protocol}//${host}${window.API_BASE.replace(/\/api$/, '')}`;
+    // The browser may be hitting the addon via HA ingress
+    // (https://<ha>:8123/api/hassio_ingress/<token>/...), which uses a per-session
+    // token the ESP32 can't replicate. The ESP needs the addon's direct LAN port
+    // (8099 by default, exposed via `ports:` in config.yaml). Same hostname/IP,
+    // but http and port 8099 and no ingress prefix.
+    return `http://${window.location.hostname}:8099`;
 }
 
 function _scaleCard(scale) {
