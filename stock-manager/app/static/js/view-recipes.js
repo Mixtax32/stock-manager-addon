@@ -430,6 +430,12 @@ async function _makeRecipe(r) {
                     } catch (e) {
                         window.showToast('Error añadiendo resultado al stock', 'error');
                     }
+                    const locationLabel = storage === 'freezer' ? 'Congelador' : 'Nevera';
+                    try {
+                        await window.apiCall(`/products/${outputBarcode}`, 'PATCH', { location: locationLabel });
+                    } catch (e) {
+                        console.warn('Could not set product location', e);
+                    }
                 }
             }
 

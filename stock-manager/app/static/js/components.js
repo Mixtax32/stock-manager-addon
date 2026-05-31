@@ -365,10 +365,18 @@ window.openMakeRecipeDialog = function(options) {
             : `<div class="muted" style="font-size:11px; margin-top:4px">Sin caducidad fijada</div>`;
     }
 
-    function ratioText(q) {
+    function ingredientList(q) {
         const ratio = q / baseQty;
-        const pct = Math.round(ratio * 100);
-        return `Esto consumirá ${pct}% de cada ingrediente`;
+        const ings = recipe.ingredients || [];
+        if (ings.length === 0) return '';
+        return ings.map(ing => {
+            const p = window.findProductById(ing.productId);
+            const name = p ? p.name : `Producto ${ing.productId}`;
+            const unit = p ? (p.unit_type === 'uds' ? 'ud' : (p.unit_type || 'g')) : 'g';
+            const amount = ing.qty * ratio;
+            const fmt = amount >= 10 ? Math.round(amount) : Math.round(amount * 10) / 10;
+            return `${window.esc(name)}: ${fmt} ${unit}`;
+        }).join('<br>');
     }
 
     function buildShell() {
@@ -384,7 +392,7 @@ window.openMakeRecipeDialog = function(options) {
                 <div class="field" style="margin-bottom:12px">
                     <label class="field-label">${hasOutput ? '¿Cuántas unidades?' : '¿Cuántas raciones?'}</label>
                     <input id="mrd-qty" class="input lg num" type="number" min="0.01" step="any" value="${qty}"/>
-                    <div id="mrd-ratio" class="muted" style="font-size:11px; margin-top:4px">${ratioText(qty)}</div>
+                    <div id="mrd-ratio" class="muted" style="font-size:11px; margin-top:4px; line-height:1.5">${ingredientList(qty)}</div>
                 </div>
 
                 ${hasOutput ? `
@@ -417,7 +425,7 @@ window.openMakeRecipeDialog = function(options) {
             qtyIn.addEventListener('input', e => {
                 qty = Number(e.target.value) || 0;
                 const ratioEl = mount.querySelector('#mrd-ratio');
-                if (ratioEl) ratioEl.textContent = ratioText(qty);
+                if (ratioEl) ratioEl.innerHTML = ingredientList(qty);
             });
             setTimeout(() => { qtyIn.focus(); qtyIn.select(); }, 0);
         }
