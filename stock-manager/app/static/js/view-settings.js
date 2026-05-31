@@ -61,15 +61,9 @@ window.renderSettings = function() {
 
             <div class="card">
                 <div class="card-title" style="margin-bottom:14px">Calcular por peso corporal</div>
-                <div class="grid cols-2" style="gap:10px; margin-bottom:10px">
-                    <div class="field">
-                        <label class="field-label">Peso (kg)</label>
-                        <input id="s-weight" class="input num" type="number" step="0.1" min="0" value="${d.weight}"/>
-                    </div>
-                    <div class="field">
-                        <label class="field-label">Constante (kcal/kg)</label>
-                        <input id="s-kpkg" class="input num" type="number" step="0.01" min="0" value="${d.kPerKg}"/>
-                    </div>
+                <div class="field" style="margin-bottom:10px">
+                    <label class="field-label">Peso (kg)</label>
+                    <input id="s-weight" class="input num" type="number" step="0.1" min="0" value="${d.weight}"/>
                 </div>
                 <div class="field" style="margin-bottom:14px">
                     <label class="field-label">Calorías estimadas</label>
@@ -81,12 +75,31 @@ window.renderSettings = function() {
                 </div>
             </div>
 
+            <div class="card">
+                <div class="card-title" style="margin-bottom:12px">Apariencia</div>
+                <div class="row" style="gap:10px">
+                    <button class="btn ${window.AppState.theme === 'cream' ? 'primary' : ''}" data-theme="cream">${window.icon('sun')} Crema</button>
+                    <button class="btn ${window.AppState.theme === 'dark' ? 'primary' : ''}" data-theme="dark">${window.icon('moon')} Oscuro</button>
+                </div>
+            </div>
+
             <details>
                 <summary style="cursor:pointer; font-weight:600; font-size:14px; padding:10px 0; list-style:none; display:flex; align-items:center; gap:8px; color:var(--ink-2);">
                     <span style="font-size:16px">›</span> Ajustes avanzados
                 </summary>
 
                 <div class="stack" style="gap:14px; margin-top:12px">
+
+                    <div class="card">
+                        <div class="card-title" style="margin-bottom:14px">Constante calórica</div>
+                        <div class="field">
+                            <label class="field-label">Constante (kcal/kg)</label>
+                            <input id="s-kpkg" class="input num" type="number" step="0.01" min="0" value="${d.kPerKg}"/>
+                        </div>
+                        <div class="muted" style="font-size:12px; margin-top:8px; line-height:1.5">
+                            Multiplica tu peso para estimar las calorías diarias. <strong style="color:var(--ink)" class="num">22,68</strong> equivale a la regla de 50 kcal por libra.
+                        </div>
+                    </div>
 
                     <div class="card">
                         <div class="muted" style="font-size:12px; margin-bottom:10px">Distribución %</div>
@@ -130,14 +143,6 @@ window.renderSettings = function() {
                             <div class="field"><label class="field-label">kcal/g carbo</label><input id="s-fc" class="input num" type="number" step="0.05" min="0" value="${factors.c}"/></div>
                             <div class="field"><label class="field-label">kcal/g grasa</label><input id="s-ff" class="input num" type="number" step="0.05" min="0" value="${factors.fat}"/></div>
                         </div>` : ''}
-                    </div>
-
-                    <div class="card">
-                        <div class="card-title" style="margin-bottom:12px">Apariencia</div>
-                        <div class="row" style="gap:10px">
-                            <button class="btn ${window.AppState.theme === 'cream' ? 'primary' : ''}" data-theme="cream">${window.icon('sun')} Crema</button>
-                            <button class="btn ${window.AppState.theme === 'dark' ? 'primary' : ''}" data-theme="dark">${window.icon('moon')} Oscuro</button>
-                        </div>
                     </div>
 
                 </div>
