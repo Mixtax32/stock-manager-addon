@@ -10,6 +10,25 @@ function _locForProduct(p) {
     return (p.location || 'otros').toLowerCase();
 }
 
+// Effective location for a single batch: batch.location overrides product.location
+function _batchLoc(batch, product) {
+    return (batch.location || product.location || 'otros').toLowerCase();
+}
+
+// Returns Map<location, totalQty> for a product's batches
+function _stockByLocation(p) {
+    const map = new Map();
+    (p.batches || []).forEach(b => {
+        const loc = _batchLoc(b, p);
+        map.set(loc, (map.get(loc) || 0) + (b.quantity || 0));
+    });
+    if (map.size === 0 && (p.stock || 0) > 0) {
+        // Product has stock but no batches (legacy edge case) — fall back to product.location
+        map.set((p.location || 'otros').toLowerCase(), p.stock);
+    }
+    return map;
+}
+
 // Group batches and compute earliest expiry date for a product
 function _earliestExpiry(p) {
     if (!p.batches || p.batches.length === 0) return null;
@@ -30,11 +49,11 @@ window.renderPantry = function() {
 
     function countIn(cid) {
         if (cid === 'todas') return products.length;
-        return products.filter(p => _locForProduct(p) === cid).length;
+        return products.filter(p => _stockByLocation(p).has(cid)).length;
     }
 
     const filtered = products.filter(p => {
-        if (pantryCat !== 'todas' && _locForProduct(p) !== pantryCat) return false;
+        if (pantryCat !== 'todas' && !_stockByLocation(p).has(pantryCat)) return false;
         if (pantryQuery && !(p.name || '').toLowerCase().includes(pantryQuery.toLowerCase())) return false;
         return true;
     }).sort((a, b) => {
@@ -95,14 +114,34 @@ window.renderPantry = function() {
         const expCls = !exp ? '' : d < 0 ? 'bad' : d <= 3 ? 'warn' : '';
         const expTxt = !exp ? 'sin caducidad' : d < 0 ? `caducado hace ${-d}d` : d === 0 ? 'caduca hoy' : d === Infinity ? '' : `caduca en ${d}d`;
         const unit = p.unit_type === 'uds' ? 'ud' : (p.unit_type || 'g');
-        const stockNum = (p.stock || 0);
+
+        // Stock quantity: show location-specific qty when on a specific tab
+        const stockByLoc = _stockByLocation(p);
+        const stockNum = pantryCat === 'todas' ? (p.stock || 0) : (stockByLoc.get(pantryCat) || 0);
         const stockDisplay = stockNum % 1 === 0 ? stockNum : stockNum.toFixed(2).replace(/\.?0+$/, '');
+
+        // Location sub-line: compact breakdown when product spans multiple locations
+        let locSubText;
+        if (stockByLoc.size === 0) {
+            locSubText = 'SIN UBICACIÓN';
+        } else if (stockByLoc.size === 1) {
+            locSubText = [...stockByLoc.keys()][0].toUpperCase();
+        } else {
+            locSubText = [...stockByLoc.entries()]
+                .map(([loc, qty]) => {
+                    const qtyDisplay = qty % 1 === 0 ? qty : qty.toFixed(2).replace(/\.?0+$/, '');
+                    return `${loc.toUpperCase()}: ${qtyDisplay}`;
+                })
+                .join(' · ');
+        }
+        const macroSub = p.kcal_100g ? `${p.kcal_100g} kcal/100${unit}` : 'sin macros';
+
         return `
             <div class="stock-item">
                 <div class="stock-ico">${p.image_url ? `<img src="${window.esc(p.image_url)}" alt="">` : '📦'}</div>
                 <div>
                     <div class="stock-name">${window.esc(p.name)}</div>
-                    <div class="stock-sub">${(p.location || 'Sin ubicación').toUpperCase()} · ${p.kcal_100g ? `${p.kcal_100g} kcal/100${unit}` : 'sin macros'}</div>
+                    <div class="stock-sub">${locSubText} · ${macroSub}</div>
                 </div>
                 <div class="row" style="gap:10px">
                     ${exp ? `<span class="exp-pill ${expCls}">${expTxt}</span>` : ''}
@@ -318,6 +357,35 @@ window.openEditProduct = function(barcode) {
                         </div>
                     </div>
                 </div>
+
+                <div style="margin-top:16px; padding-top:14px; border-top:1px solid var(--border)">
+                    <div class="field-label" style="font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin-bottom:10px">Lotes</div>
+                    ${(p.batches && p.batches.length > 0) ? p.batches.map(b => {
+                        const bQtyDisplay = (b.quantity || 0) % 1 === 0 ? b.quantity : Number(b.quantity).toFixed(2).replace(/\.?0+$/, '');
+                        const bUnit = p.unit_type === 'uds' ? 'ud' : (p.unit_type || 'g');
+                        const bLoc = b.location || '';
+                        const bExp = b.expiry_date || '';
+                        return `
+                        <div class="batch-row" data-batch-id="${b.id}" style="display:flex; align-items:center; gap:8px; margin-bottom:8px; flex-wrap:wrap">
+                            <span class="muted" style="font-size:12px; min-width:60px">${bQtyDisplay} ${bUnit}</span>
+                            <div class="field" style="flex:1; min-width:120px; margin:0">
+                                <label class="field-label">Caducidad</label>
+                                <input type="date" class="input batch-exp" style="font-size:13px" value="${window.esc(bExp)}" data-batch-id="${b.id}"/>
+                            </div>
+                            <div class="field" style="flex:1; min-width:120px; margin:0">
+                                <label class="field-label">Ubicación</label>
+                                <select class="input batch-loc" style="font-size:13px" data-batch-id="${b.id}">
+                                    <option value="" ${!bLoc ? 'selected' : ''}>Sin ubicación</option>
+                                    <option value="Nevera" ${bLoc === 'Nevera' ? 'selected' : ''}>Nevera</option>
+                                    <option value="Congelador" ${bLoc === 'Congelador' ? 'selected' : ''}>Congelador</option>
+                                    <option value="Despensa" ${bLoc === 'Despensa' ? 'selected' : ''}>Despensa</option>
+                                    <option value="Otros" ${bLoc === 'Otros' ? 'selected' : ''}>Otros</option>
+                                </select>
+                            </div>
+                        </div>`;
+                    }).join('') : `<div class="muted" style="font-size:13px">Sin lotes registrados</div>`}
+                </div>
+
                 <div class="row" style="justify-content:flex-end; gap:8px; margin-top:20px">
                     <button class="btn ghost" data-action="close">Cancelar</button>
                     <button class="btn accent" data-action="save">Guardar cambios</button>
@@ -330,6 +398,28 @@ window.openEditProduct = function(barcode) {
         if (e.target.dataset.close === '1') close();
     });
     mount.querySelectorAll('[data-action="close"]').forEach(b => b.addEventListener('click', close));
+
+    // Batch fields: auto-save on blur
+    async function _saveBatchField(batchId, payload) {
+        try {
+            await window.apiCall(`/batches/${batchId}`, 'PATCH', payload);
+            await window.reloadProducts();
+        } catch (e) {
+            window.showToast('Error actualizando lote: ' + e.message, 'error');
+        }
+    }
+    mount.querySelectorAll('.batch-exp').forEach(el => {
+        el.addEventListener('change', async () => {
+            const batchId = el.dataset.batchId;
+            await _saveBatchField(batchId, { expiry_date: el.value || null });
+        });
+    });
+    mount.querySelectorAll('.batch-loc').forEach(el => {
+        el.addEventListener('change', async () => {
+            const batchId = el.dataset.batchId;
+            await _saveBatchField(batchId, { location: el.value || null });
+        });
+    });
 
     mount.querySelector('[data-action="save"]').addEventListener('click', async () => {
         const name = mount.querySelector('#ep-name').value.trim();

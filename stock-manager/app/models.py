@@ -8,6 +8,7 @@ class Batch(BaseModel):
     quantity: float
     expiry_date: Optional[str] = None
     added_date: Optional[str] = None
+    location: Optional[str] = None
 
 class Product(BaseModel):
     barcode: str
@@ -50,6 +51,7 @@ class StockUpdate(BaseModel):
     expiry_date: Optional[str] = None
     reason: Optional[str] = None  # "consumed", "lost", etc.
     meal_type: Optional[str] = None
+    location: Optional[str] = None
 
 class ProductUpdate(BaseModel):
     name: Optional[str] = None
@@ -68,6 +70,7 @@ class ProductUpdate(BaseModel):
 
 class BatchUpdate(BaseModel):
     expiry_date: Optional[str] = None
+    location: Optional[str] = None
 
 class BatchStockUpdate(BaseModel):
     quantity: float

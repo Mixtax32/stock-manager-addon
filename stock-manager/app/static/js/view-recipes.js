@@ -434,19 +434,15 @@ async function _makeRecipe(r) {
                 }
                 const outputBarcode = await _ensureOutputProduct(r);
                 if (outputBarcode) {
+                    const locationLabel = storage === 'freezer' ? 'Congelador' : 'Nevera';
                     try {
                         await window.apiCall(`/products/${outputBarcode}/stock`, 'POST', {
                             quantity: outputProduced,
                             expiry_date: _expiryFromDays(expiryDays),
+                            location: locationLabel,
                         });
                     } catch (e) {
                         window.showToast('Error añadiendo resultado al stock', 'error');
-                    }
-                    const locationLabel = storage === 'freezer' ? 'Congelador' : 'Nevera';
-                    try {
-                        await window.apiCall(`/products/${outputBarcode}`, 'PATCH', { location: locationLabel });
-                    } catch (e) {
-                        console.warn('Could not set product location', e);
                     }
                 }
             }

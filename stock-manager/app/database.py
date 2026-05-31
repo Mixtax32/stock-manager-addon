@@ -69,9 +69,16 @@ class Database:
                     quantity REAL NOT NULL,
                     expiry_date TEXT DEFAULT NULL,
                     added_date TEXT DEFAULT NULL,
+                    location TEXT DEFAULT NULL,
                     FOREIGN KEY (barcode) REFERENCES products(barcode) ON DELETE CASCADE
                 )
             """)
+
+            # Migration: add location column to existing batches table
+            async with db.execute("PRAGMA table_info(batches)") as cursor:
+                batch_cols = [row[1] for row in await cursor.fetchall()]
+            if 'location' not in batch_cols:
+                await db.execute("ALTER TABLE batches ADD COLUMN location TEXT DEFAULT NULL")
 
             # Create macro_goals table
             await db.execute("""
@@ -281,15 +288,59 @@ class Database:
         """Update product stock via batches"""
         async with aiosqlite.connect(self.db_path) as db:
             if update.quantity > 0:
-                # Adding stock: create a new batch
-                await db.execute(
-                    "INSERT INTO batches (barcode, quantity, expiry_date, added_date) VALUES (?, ?, ?, ?)",
-                    (barcode, update.quantity, update.expiry_date, date.today().isoformat())
-                )
+                # Adding stock: find existing batch matching (barcode, location, expiry_date) or create new one.
+                # NULL == NULL is treated as a match (both unspecified = same logical batch).
+                db.row_factory = aiosqlite.Row
+                if update.location is None and update.expiry_date is None:
+                    async with db.execute(
+                        "SELECT id FROM batches WHERE barcode = ? AND location IS NULL AND expiry_date IS NULL AND quantity > 0 LIMIT 1",
+                        (barcode,)
+                    ) as cursor:
+                        row = await cursor.fetchone()
+                elif update.location is None:
+                    async with db.execute(
+                        "SELECT id FROM batches WHERE barcode = ? AND location IS NULL AND expiry_date = ? AND quantity > 0 LIMIT 1",
+                        (barcode, update.expiry_date)
+                    ) as cursor:
+                        row = await cursor.fetchone()
+                elif update.expiry_date is None:
+                    async with db.execute(
+                        "SELECT id FROM batches WHERE barcode = ? AND location = ? AND expiry_date IS NULL AND quantity > 0 LIMIT 1",
+                        (barcode, update.location)
+                    ) as cursor:
+                        row = await cursor.fetchone()
+                else:
+                    async with db.execute(
+                        "SELECT id FROM batches WHERE barcode = ? AND location = ? AND expiry_date = ? AND quantity > 0 LIMIT 1",
+                        (barcode, update.location, update.expiry_date)
+                    ) as cursor:
+                        row = await cursor.fetchone()
+
+                if row:
+                    await db.execute(
+                        "UPDATE batches SET quantity = quantity + ? WHERE id = ?",
+                        (update.quantity, row['id'])
+                    )
+                else:
+                    await db.execute(
+                        "INSERT INTO batches (barcode, quantity, expiry_date, added_date, location) VALUES (?, ?, ?, ?, ?)",
+                        (barcode, update.quantity, update.expiry_date, date.today().isoformat(), update.location)
+                    )
             else:
-                # Removing stock: consume from oldest expiry first (FIFO)
+                # Removing stock: FIFO across batches.
+                # If update.location is specified, restrict to batches at that location.
                 remaining = abs(update.quantity)
-                batches = await self._get_batches(db, barcode)
+                if update.location:
+                    db.row_factory = aiosqlite.Row
+                    async with db.execute(
+                        """SELECT * FROM batches WHERE barcode = ? AND location = ? AND quantity > 0
+                           ORDER BY CASE WHEN expiry_date IS NULL THEN 1 ELSE 0 END, expiry_date ASC""",
+                        (barcode, update.location)
+                    ) as cursor:
+                        rows = await cursor.fetchall()
+                        batches = [Batch(**dict(r)) for r in rows]
+                else:
+                    batches = await self._get_batches(db, barcode)
                 for batch in batches:
                     if remaining <= 0:
                         break
@@ -357,7 +408,7 @@ class Database:
         return await self.get_product(barcode)
 
     async def update_batch(self, batch_id: int, update: BatchUpdate) -> Optional[Batch]:
-        """Update a batch's expiry date"""
+        """Update a batch's expiry date and/or location"""
         async with aiosqlite.connect(self.db_path) as db:
             # Get batch to find its barcode
             db.row_factory = aiosqlite.Row
@@ -367,10 +418,17 @@ class Database:
                     return None
                 barcode = row['barcode']
 
-            await db.execute(
-                "UPDATE batches SET expiry_date = ? WHERE id = ?",
-                (update.expiry_date, batch_id)
-            )
+            updates = {}
+            if update.expiry_date is not None:
+                updates['expiry_date'] = update.expiry_date
+            if update.location is not None:
+                updates['location'] = update.location
+
+            if updates:
+                set_clause = ', '.join(f"{k} = ?" for k in updates.keys())
+                values = list(updates.values()) + [batch_id]
+                await db.execute(f"UPDATE batches SET {set_clause} WHERE id = ?", values)
+
             await self._sync_product_stock(db, barcode)
             await db.commit()
 
