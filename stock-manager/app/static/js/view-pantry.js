@@ -69,9 +69,6 @@ window.renderPantry = function() {
         .filter(x => x.d <= 3)
         .sort((a, b) => a.d - b.d);
 
-    const low = products.filter(p => p.min_stock != null && (p.stock || 0) < p.min_stock);
-
-
     const alertsHTML = alerts.length === 0 ? '' : `
         <div class="alert">
             <span class="ico">${window.icon('alert')}</span>
@@ -82,18 +79,6 @@ window.renderPantry = function() {
                         const txt = a.d < 0 ? `caducó hace ${-a.d}d` : a.d === 0 ? 'hoy' : `en ${a.d}d`;
                         return `${i > 0 ? ' · ' : ''}<strong>${window.esc(a.p.name)}</strong> (${txt})`;
                     }).join('')}
-                </div>
-            </div>
-        </div>
-    `;
-
-    const lowHTML = low.length === 0 ? '' : `
-        <div class="alert" style="background:color-mix(in oklab, var(--carbs-soft) 60%, var(--bg) 40%); border-color:var(--carbs-soft)">
-            <span class="ico" style="color:var(--carbs)">${window.icon('alert')}</span>
-            <div>
-                <div class="title">${low.length} producto${low.length > 1 ? 's' : ''} con stock bajo</div>
-                <div class="sub">
-                    ${low.slice(0, 3).map((p, i) => `${i > 0 ? ' · ' : ''}<strong>${window.esc(p.name)}</strong> (${p.stock || 0} ${p.unit_type || 'ud'})`).join('')}
                 </div>
             </div>
         </div>
@@ -113,6 +98,7 @@ window.renderPantry = function() {
         const expCls = !exp ? '' : d < 0 ? 'bad' : d <= 3 ? 'warn' : '';
         const expTxt = !exp ? 'sin caducidad' : d < 0 ? `caducado hace ${-d}d` : d === 0 ? 'caduca hoy' : d === Infinity ? '' : `caduca en ${d}d`;
         const unit = p.unit_type === 'uds' ? 'ud' : (p.unit_type || 'g');
+        const isLow = p.min_stock != null && (p.stock || 0) < p.min_stock;
 
         // Stock quantity: show location-specific qty when on a specific tab
         const stockByLoc = _stockByLocation(p);
@@ -139,7 +125,7 @@ window.renderPantry = function() {
             <div class="stock-item">
                 <div class="stock-ico">${p.image_url ? `<img src="${window.esc(p.image_url)}" alt="">` : '📦'}</div>
                 <div>
-                    <div class="stock-name">${window.esc(p.name)}</div>
+                    <div class="stock-name">${window.esc(p.name)}${isLow ? `<span title="Stock bajo (mínimo: ${p.min_stock})" style="color:var(--carbs); display:inline-flex; vertical-align:middle; margin-left:6px; width:16px; height:16px">${window.icon('alert')}</span>` : ''}</div>
                     <div class="stock-sub">${locSubText} · ${macroSub}</div>
                 </div>
                 <div class="row" style="gap:10px">
@@ -169,11 +155,7 @@ window.renderPantry = function() {
             </div>
         </div>
 
-        ${(alerts.length > 0 || low.length > 0) ? `
-        <div class="grid cols-2" style="margin-bottom:22px">
-            ${alertsHTML}
-            ${lowHTML}
-        </div>` : ''}
+        ${alerts.length > 0 ? `<div style="margin-bottom:22px">${alertsHTML}</div>` : ''}
 
         <div class="row" style="gap:10px; margin-bottom:16px; flex-wrap:wrap">
             <div class="search" style="min-width:240px; flex:1; max-width:360px">
