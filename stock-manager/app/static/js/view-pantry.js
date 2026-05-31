@@ -94,7 +94,6 @@ window.renderPantry = function() {
                 <div class="title">${low.length} producto${low.length > 1 ? 's' : ''} con stock bajo</div>
                 <div class="sub">
                     ${low.slice(0, 3).map((p, i) => `${i > 0 ? ' · ' : ''}<strong>${window.esc(p.name)}</strong> (${p.stock || 0} ${p.unit_type || 'ud'})`).join('')}
-                    · <a data-action="low-to-shopping" style="color:var(--ink); cursor:pointer; text-decoration:underline; text-underline-offset:3px">añadir a la compra</a>
                 </div>
             </div>
         </div>
@@ -214,21 +213,6 @@ window.initPantry = function() {
             pantryCat = btn.dataset.cat;
             window.renderPage();
         });
-    });
-
-    root.querySelector('[data-action="low-to-shopping"]')?.addEventListener('click', () => {
-        const low = (window.AppState.products || []).filter(p => p.min_stock != null && (p.stock || 0) < p.min_stock);
-        const newItems = low.map(p => ({
-            id: 's' + Date.now() + '-' + p.barcode,
-            name: p.name,
-            qty: `${Math.max(1, (p.min_stock || 1) - (p.stock || 0))} ${p.unit_type === 'uds' ? 'ud' : (p.unit_type || 'g')}`,
-            cat: p.category || 'Otros',
-            auto: true,
-            done: false,
-        }));
-        window.saveShopping(newItems.concat(window.AppState.shopping || []));
-        window.showToast(`${newItems.length} productos añadidos a la lista`, 'success');
-        window.gotoPage('shopping');
     });
 
     root.querySelectorAll('[data-qty]').forEach(btn => {

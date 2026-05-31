@@ -239,7 +239,6 @@ function generateShoppingFromWeek() {
             name: p ? p.name : `Producto ${productId}`,
             qty: `${Math.round(qty)} ${p && p.unit_type === 'uds' ? 'ud' : (p && p.unit_type) || 'g'}`,
             cat: (p && p.category) || 'Otros',
-            auto: true,
             done: false,
         };
     });

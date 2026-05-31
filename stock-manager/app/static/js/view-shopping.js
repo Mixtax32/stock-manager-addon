@@ -1,14 +1,33 @@
 /*
-   View: Shopping — auto + manual list
-   v0.7.0
+   View: Shopping — auto (derived from low-stock) + manual list
+   v0.8.19
 */
 
 const CAT_ORDER = ['Carnicería', 'Pescadería', 'Lácteos', 'Verdulería', 'Frutería', 'Alimentos', 'Bebidas', 'Limpieza', 'Higiene', 'Otros'];
 
-window.renderShopping = function() {
-    const shopping = window.AppState.shopping || [];
+// Derive auto items from products where stock < min_stock (never stored)
+function _autoShoppingItems() {
+    const products = window.AppState.products || [];
+    return products
+        .filter(p => p.min_stock != null && (p.stock || 0) < p.min_stock)
+        .map(p => {
+            const needed = Math.max(1, (p.min_stock || 1) - (p.stock || 0));
+            const unit = p.unit_type === 'uds' ? 'ud' : (p.unit_type || 'g');
+            return {
+                id: `auto-${p.barcode}`,
+                barcode: p.barcode,
+                name: p.name,
+                qty: needed,
+                qtyText: `${needed % 1 === 0 ? needed : needed.toFixed(1)} ${unit}`,
+                cat: p.category || 'Otros',
+                auto: true,
+                done: false,
+            };
+        });
+}
 
-    const byCat = shopping.reduce((acc, item) => {
+function _groupByCat(items) {
+    const byCat = items.reduce((acc, item) => {
         const key = item.cat || 'Otros';
         (acc[key] = acc[key] || []).push(item);
         return acc;
@@ -17,33 +36,99 @@ window.renderShopping = function() {
         const ai = CAT_ORDER.indexOf(a), bi = CAT_ORDER.indexOf(b);
         return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
     });
+    return { byCat, cats };
+}
 
-    const totalItems = shopping.length;
-    const doneItems = shopping.filter(x => x.done).length;
-    const autoItems = shopping.filter(x => x.auto).length;
+function _renderAutoRow(item) {
+    return `
+        <div class="shop-row">
+            <div style="width:32px; display:flex; align-items:center; justify-content:center; color:var(--muted)">📦</div>
+            <div style="flex:1">
+                <div class="shop-name name">${window.esc(item.name)}</div>
+                <div class="shop-sub"><span class="chip" style="font-size:10px; padding:1px 6px; background:color-mix(in oklab, var(--carbs-soft) 60%, var(--bg) 40%); color:var(--carbs)">stock bajo</span></div>
+            </div>
+            <span class="chip" style="font-family:var(--mono)">${window.esc(item.qtyText)}</span>
+            <button class="btn sm accent" data-restock="${window.esc(item.id)}" data-barcode="${window.esc(item.barcode)}" data-needed="${item.qty}">Recibido</button>
+        </div>
+    `;
+}
 
-    const listHTML = cats.length === 0 ? `<div class="empty"><div class="t">Lista vacía</div><div>Añade productos manualmente o desde Despensa / Semana.</div></div>` : cats.map(c => `
+function _renderManualRow(item) {
+    return `
+        <div class="shop-row ${item.done ? 'done' : ''}">
+            <div class="chk" data-toggle="${window.esc(item.id)}">${item.done ? window.icon('check') : ''}</div>
+            <div style="flex:1">
+                <div class="shop-name name">${window.esc(item.name)}</div>
+                <div class="shop-sub">✋ Añadido a mano</div>
+            </div>
+            <span class="chip" style="font-family:var(--mono)">${window.esc(item.qty || '')}</span>
+            <button class="btn icon sm ghost" data-remove="${window.esc(item.id)}">${window.icon('trash')}</button>
+        </div>
+    `;
+}
+
+function _renderSection(items, renderRow) {
+    const { byCat, cats } = _groupByCat(items);
+    return cats.map(c => `
         <div style="margin-top:18px">
             <div class="row" style="margin-bottom:4px; gap:8px">
                 <div class="tiny">${window.esc(c)}</div>
                 <div style="flex:1; height:1px; background:var(--line)"></div>
                 <div class="tiny">${byCat[c].length}</div>
             </div>
-            ${byCat[c].map(item => `
-                <div class="shop-row ${item.done ? 'done' : ''}">
-                    <div class="chk" data-toggle="${window.esc(item.id)}">${item.done ? window.icon('check') : ''}</div>
-                    <div>
-                        <div class="shop-name name">${window.esc(item.name)}</div>
-                        <div class="shop-sub">${item.auto ? '🤖 Auto · stock bajo' : '✋ Añadido a mano'}</div>
-                    </div>
-                    <span class="chip" style="font-family:var(--mono)">${window.esc(item.qty || '')}</span>
-                    <button class="btn icon sm ghost" data-remove="${window.esc(item.id)}">${window.icon('trash')}</button>
-                </div>
-            `).join('')}
+            ${byCat[c].map(renderRow).join('')}
         </div>
     `).join('');
+}
 
-    const progressPct = totalItems > 0 ? (doneItems / totalItems) * 100 : 0;
+window.renderShopping = function() {
+    const manual = window.AppState.shopping || [];
+    const auto = _autoShoppingItems();
+
+    const totalAuto = auto.length;
+    const totalManual = manual.length;
+    const doneManual = manual.filter(x => x.done).length;
+
+    const autoSectionHTML = `
+        <div style="margin-bottom:10px">
+            <div class="row" style="gap:8px; align-items:center; margin-bottom:2px">
+                <div class="card-title" style="font-size:13px; text-transform:uppercase; letter-spacing:.05em">Faltan en despensa</div>
+                <span class="chip">${totalAuto}</span>
+            </div>
+            ${totalAuto === 0
+                ? `<div style="padding:14px 0; color:var(--muted); font-size:13px">✓ Todo en stock — no falta nada</div>`
+                : _renderSection(auto, _renderAutoRow)
+            }
+        </div>
+    `;
+
+    const manualAddBtn = `<button class="btn sm accent" data-action="add-manual">${window.icon('plus')} Añadir</button>`;
+
+    const manualSectionHTML = `
+        <div style="margin-top:28px; border-top:1px solid var(--line); padding-top:20px">
+            <div class="row" style="gap:8px; align-items:center; margin-bottom:2px">
+                ${totalManual > 0 ? `<div class="card-title" style="font-size:13px; text-transform:uppercase; letter-spacing:.05em">Otros</div><span class="chip">${totalManual}</span>` : ''}
+                <div style="flex:1"></div>
+                ${manualAddBtn}
+            </div>
+            ${totalManual === 0
+                ? `<div style="padding:10px 0; color:var(--muted); font-size:13px">Sin ítems extra. Usá el botón para añadir algo puntual.</div>`
+                : _renderSection(manual, _renderManualRow)
+            }
+        </div>
+    `;
+
+    // inline add form (hidden by default, shown on "+ Añadir" click)
+    const addFormHTML = `
+        <form id="shop-form" class="shop-add-form" style="display:none; padding:14px 0; border-bottom:1px solid var(--line); margin-top:12px">
+            <input id="shop-name" class="input" placeholder="Añadir manualmente…"/>
+            <div class="shop-add-row">
+                <input id="shop-qty" class="input num" placeholder="500 g" style="width:90px"/>
+                <button class="btn accent" type="submit" style="flex:1">${window.icon('plus')} Añadir</button>
+                <button class="btn ghost" type="button" data-action="cancel-add">Cancelar</button>
+            </div>
+        </form>
+    `;
 
     return `
         <div class="page-head">
@@ -53,21 +138,15 @@ window.renderShopping = function() {
             </div>
             <div class="btn-group row" style="gap:8px">
                 <button class="btn" data-action="share">Compartir</button>
-                <button class="btn primary" data-action="mark-all">Marcar todo</button>
                 <button class="btn ghost" data-action="clear-done">Limpiar hechos</button>
             </div>
         </div>
 
         <div class="grid cols-2 layout-shopping" style="gap:22px">
             <div class="card" style="padding:6px 22px 22px">
-                <form id="shop-form" class="shop-add-form" style="padding:14px 0; border-bottom:1px solid var(--line)">
-                    <input id="shop-name" class="input" placeholder="Añadir manualmente…"/>
-                    <div class="shop-add-row">
-                        <input id="shop-qty" class="input num" placeholder="500 g" style="width:90px"/>
-                        <button class="btn accent" type="submit" style="flex:1">${window.icon('plus')} Añadir</button>
-                    </div>
-                </form>
-                ${listHTML}
+                ${autoSectionHTML}
+                ${manualSectionHTML}
+                ${addFormHTML}
             </div>
 
             <div class="stack" style="gap:16px">
@@ -76,29 +155,29 @@ window.renderShopping = function() {
                         <div class="card-title">Resumen</div>
                     </div>
                     <div class="grid cols-3" style="gap:12px">
-                        <div class="kpi"><div class="l">Total</div><div class="v">${totalItems}</div></div>
-                        <div class="kpi"><div class="l">Auto</div><div class="v">${autoItems}</div></div>
-                        <div class="kpi"><div class="l">Completos</div><div class="v">${doneItems}<span class="delta">/${totalItems}</span></div></div>
-                    </div>
-                    <div style="height:10px"></div>
-                    <div class="track" style="height:6px; background:var(--bg-sunken); border-radius:999px; overflow:hidden">
-                        <div style="width:${progressPct}%; height:100%; background:var(--accent); border-radius:999px; transition:width 280ms"></div>
+                        <div class="kpi"><div class="l">Stock bajo</div><div class="v">${totalAuto}</div></div>
+                        <div class="kpi"><div class="l">Extra</div><div class="v">${totalManual}</div></div>
+                        <div class="kpi"><div class="l">Hechos</div><div class="v">${doneManual}<span class="delta">/${totalManual}</span></div></div>
                     </div>
                 </div>
 
                 <div class="card sunken">
-                    <div class="card-title" style="margin-bottom:4px">${window.icon('sparkle')} ¿Cómo se generan?</div>
+                    <div class="card-title" style="margin-bottom:4px">${window.icon('sparkle')} ¿Cómo se genera?</div>
                     <div class="muted" style="font-size:12px; line-height:1.5">
-                        La lista detecta los productos con <strong style="color:var(--ink)">stock bajo</strong> en tu inventario y los <strong style="color:var(--ink)">ingredientes que te faltan</strong> para tus recetas planificadas.
-                        Puedes añadir manualmente cualquier producto.
+                        <strong style="color:var(--ink)">Faltan en despensa</strong> se actualiza solo: cualquier producto con stock menor al mínimo aparece acá y desaparece cuando reponés.<br><br>
+                        <strong style="color:var(--ink)">Otros</strong> son ítems que agregás vos a mano o desde Semana.
                     </div>
                 </div>
 
-                ${cats.length > 0 ? `
+                ${(totalAuto > 0 || totalManual > 0) ? `
                 <div class="card">
                     <div class="card-title" style="margin-bottom:12px">Categorías</div>
                     <div class="stack" style="gap:8px">
-                        ${cats.map(c => `<div class="spread"><span style="font-size:13px">${window.esc(c)}</span><span class="num" style="font-size:12px; color:var(--ink-3)">${byCat[c].length}</span></div>`).join('')}
+                        ${(() => {
+                            const all = [...auto, ...manual];
+                            const { byCat, cats } = _groupByCat(all);
+                            return cats.map(c => `<div class="spread"><span style="font-size:13px">${window.esc(c)}</span><span class="num" style="font-size:12px; color:var(--ink-3)">${byCat[c].length}</span></div>`).join('');
+                        })()}
                     </div>
                 </div>` : ''}
             </div>
@@ -109,6 +188,17 @@ window.renderShopping = function() {
 window.initShopping = function() {
     const root = document.getElementById('page-root');
     if (!root) return;
+
+    // Show inline add form when user clicks "+ Añadir"
+    root.querySelector('[data-action="add-manual"]')?.addEventListener('click', () => {
+        const form = root.querySelector('#shop-form');
+        if (form) { form.style.display = ''; form.querySelector('#shop-name')?.focus(); }
+    });
+
+    root.querySelector('[data-action="cancel-add"]')?.addEventListener('click', () => {
+        const form = root.querySelector('#shop-form');
+        if (form) form.style.display = 'none';
+    });
 
     const form = root.querySelector('#shop-form');
     if (form) form.addEventListener('submit', e => {
@@ -121,7 +211,6 @@ window.initShopping = function() {
             name,
             qty: qty || '1 ud',
             cat: 'Otros',
-            auto: false,
             done: false,
         };
         window.saveShopping([item].concat(window.AppState.shopping || []));
@@ -145,10 +234,21 @@ window.initShopping = function() {
         });
     });
 
-    root.querySelector('[data-action="mark-all"]')?.addEventListener('click', () => {
-        const next = (window.AppState.shopping || []).map(x => Object.assign({}, x, { done: true }));
-        window.saveShopping(next);
-        window.renderPage();
+    // "Recibido" on auto items: prompt qty and POST to /stock
+    root.querySelectorAll('[data-restock]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const barcode = btn.dataset.barcode;
+            const needed = Number(btn.dataset.needed) || 1;
+            const qty = await window.promptQty(needed);
+            if (!qty || qty <= 0) return;
+            try {
+                await window.apiCall(`/products/${barcode}/stock`, 'POST', { quantity: qty, reason: 'restock' });
+                await window.reloadProducts();
+                window.renderPage();
+            } catch (e) {
+                window.showToast('Error: ' + e.message, 'error');
+            }
+        });
     });
 
     root.querySelector('[data-action="clear-done"]')?.addEventListener('click', () => {
@@ -158,11 +258,16 @@ window.initShopping = function() {
     });
 
     root.querySelector('[data-action="share"]')?.addEventListener('click', () => {
-        const list = (window.AppState.shopping || []).map(x => `${x.done ? '✓' : '•'} ${x.name} — ${x.qty || ''}`).join('\n');
+        const auto = _autoShoppingItems();
+        const manual = window.AppState.shopping || [];
+        const lines = [
+            ...auto.map(x => `• ${x.name} — ${x.qtyText} (stock bajo)`),
+            ...manual.map(x => `${x.done ? '✓' : '•'} ${x.name} — ${x.qty || ''}`),
+        ].join('\n');
         if (navigator.share) {
-            navigator.share({ title: 'Lista de la compra', text: list }).catch(() => {});
+            navigator.share({ title: 'Lista de la compra', text: lines }).catch(() => {});
         } else if (navigator.clipboard) {
-            navigator.clipboard.writeText(list).then(() => window.showToast('Lista copiada al portapapeles', 'success'));
+            navigator.clipboard.writeText(lines).then(() => window.showToast('Lista copiada al portapapeles', 'success'));
         } else {
             window.showToast('Compartir no disponible', 'info');
         }
