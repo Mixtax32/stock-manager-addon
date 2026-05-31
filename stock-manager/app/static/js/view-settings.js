@@ -4,8 +4,11 @@
 */
 
 let settingsDraft = null;
+let _advancedOpen = false;
+let _touched = false;
 
 function _initDraft() {
+    _touched = false;
     const g = window.AppState.goals;
     return {
         kcal: g.kcal || 2200,
@@ -83,7 +86,7 @@ window.renderSettings = function() {
                 </div>
             </div>
 
-            <details>
+            <details id="advanced-details" ${_advancedOpen ? 'open' : ''}>
                 <summary style="cursor:pointer; font-weight:600; font-size:14px; padding:10px 0; list-style:none; display:flex; align-items:center; gap:8px; color:var(--ink-2);">
                     <span style="font-size:16px">›</span> Ajustes avanzados
                 </summary>
@@ -153,17 +156,7 @@ window.renderSettings = function() {
 };
 
 function _isDirty() {
-    if (!settingsDraft) return false;
-    const d = settingsDraft;
-    const g = window.AppState.goals || {};
-    const f = g.factors || {};
-    return d.kcal !== g.kcal
-        || d.p !== g.p
-        || d.c !== g.c
-        || d.fat !== g.fat
-        || d.factors.p !== f.p
-        || d.factors.c !== f.c
-        || d.factors.fat !== f.fat;
+    return _touched;
 }
 
 window.initSettings = function() {
@@ -176,6 +169,11 @@ window.initSettings = function() {
         return await window.confirmDialog('Tenés cambios sin guardar. ¿Salir igual?');
     };
 
+    const advancedEl = root.querySelector('#advanced-details');
+    if (advancedEl) {
+        advancedEl.addEventListener('toggle', () => { _advancedOpen = advancedEl.open; });
+    }
+
     // `input` updates the draft silently while typing; `change` (fires on blur or
     // Enter) is what triggers the re-render. Re-rendering on every keystroke
     // destroys the DOM and rips focus out of the field on mobile.
@@ -185,6 +183,7 @@ window.initSettings = function() {
         el.addEventListener('input', e => {
             const v = parse(e.target.value);
             d[key] = Number.isFinite(v) ? v : 0;
+            _touched = true;
         });
         el.addEventListener('change', () => window.renderPage());
     }
@@ -204,6 +203,7 @@ window.initSettings = function() {
         if (!el) return;
         el.addEventListener('input', e => {
             d.factors[key] = Math.max(0, parseFloat(e.target.value) || 0);
+            _touched = true;
         });
         el.addEventListener('change', () => window.renderPage());
     });
@@ -213,6 +213,7 @@ window.initSettings = function() {
             const m = btn.dataset.mode;
             if (m === 'estandar') d.factors = { p: 4, c: 4, fat: 9 };
             else if (m === 'ue') d.factors = { p: 4, c: 3.75, fat: 9 };
+            _touched = true;
             window.renderPage();
         });
     });
@@ -224,6 +225,7 @@ window.initSettings = function() {
         d.c   = Math.round((kcal * d.cPct / 100)   / d.factors.c);
         d.fat = Math.round((kcal * d.fatPct / 100) / d.factors.fat);
         await window.saveBodyWeight(d.weight);
+        _touched = true;
         window.renderPage();
     });
 
@@ -237,6 +239,7 @@ window.initSettings = function() {
             kcal: d.kcal, p: d.p, c: d.c, fat: d.fat,
             factors: Object.assign({}, d.factors),
         });
+        _touched = false;
         window.showToast('Objetivos guardados', 'success');
         window.renderNav();
     });
