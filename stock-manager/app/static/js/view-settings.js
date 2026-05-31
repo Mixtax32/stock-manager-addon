@@ -188,7 +188,11 @@ window.initSettings = function() {
     window.navGuard = async () => {
         if (!_isDirty()) return true;
         const choice = await _showUnsavedDialog();
-        if (choice === 'discard') { _touched = false; return true; }
+        if (choice === 'discard') {
+            settingsDraft = null;
+            _touched = false;
+            return true;
+        }
         if (choice === 'save') {
             await window.saveGoals({
                 kcal: d.kcal, p: d.p, c: d.c, fat: d.fat,
