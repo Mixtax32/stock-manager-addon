@@ -70,7 +70,12 @@ window.renderNav = function() {
     }
 };
 
-window.gotoPage = function(page) {
+window.gotoPage = async function(page) {
+    if (typeof window.navGuard === 'function') {
+        const allowed = await window.navGuard();
+        if (!allowed) return;
+    }
+    window.navGuard = null;
     window.AppState.page = page;
     window.renderPage();
     window.renderNav();

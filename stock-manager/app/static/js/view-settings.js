@@ -152,10 +152,29 @@ window.renderSettings = function() {
     `;
 };
 
+function _isDirty() {
+    if (!settingsDraft) return false;
+    const d = settingsDraft;
+    const g = window.AppState.goals || {};
+    const f = g.factors || {};
+    return d.kcal !== g.kcal
+        || d.p !== g.p
+        || d.c !== g.c
+        || d.fat !== g.fat
+        || d.factors.p !== f.p
+        || d.factors.c !== f.c
+        || d.factors.fat !== f.fat;
+}
+
 window.initSettings = function() {
     const root = document.getElementById('page-root');
     if (!root) return;
     const d = settingsDraft;
+
+    window.navGuard = async () => {
+        if (!_isDirty()) return true;
+        return await window.confirmDialog('Tenés cambios sin guardar. ¿Salir igual?');
+    };
 
     // `input` updates the draft silently while typing; `change` (fires on blur or
     // Enter) is what triggers the re-render. Re-rendering on every keystroke
