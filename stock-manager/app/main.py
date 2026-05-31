@@ -239,6 +239,11 @@ async def get_daily_macros():
     """Get macros consumed today"""
     return await db.get_daily_macros()
 
+@app.get("/api/stats/daily-kcal")
+async def get_daily_kcal_series(days: int = 30):
+    """Daily kcal consumed for the last N days."""
+    return await db.get_daily_kcal_series(days)
+
 @app.get("/api/stats/macro-goals", response_model=MacroGoals)
 async def get_macro_goals():
     """Get daily macro goals"""

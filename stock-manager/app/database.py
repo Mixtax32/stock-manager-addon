@@ -589,6 +589,28 @@ class Database:
                     return dict(row)
                 return {"total_kcal": 0, "total_proteins": 0, "total_carbs": 0, "total_fat": 0}
 
+    async def get_daily_kcal_series(self, days: int = 30) -> List[dict]:
+        """Return daily kcal consumed for the last N days. Includes days with zero consumption."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(f"""
+                SELECT
+                    date(m.timestamp) as date,
+                    SUM(CASE
+                        WHEN p.unit_type = 'uds' THEN ABS(m.quantity_change) * (IFNULL(p.weight_g, 100) / 100.0) * IFNULL(p.kcal_100g, 0)
+                        ELSE ABS(m.quantity_change) / 100.0 * IFNULL(p.kcal_100g, 0)
+                    END) as kcal
+                FROM movements m
+                JOIN products p ON m.barcode = p.barcode
+                WHERE m.quantity_change < 0
+                  AND m.reason = 'consumed'
+                  AND date(m.timestamp) >= date('now', '-{int(days)} days')
+                GROUP BY date(m.timestamp)
+                ORDER BY date ASC
+            """) as cursor:
+                rows = await cursor.fetchall()
+                return [{"date": r["date"], "kcal": r["kcal"] or 0} for r in rows]
+
     async def get_export_data(self) -> List[dict]:
         """Get all inventory data in a flat format for export"""
         async with aiosqlite.connect(self.db_path) as db:

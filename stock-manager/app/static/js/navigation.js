@@ -10,6 +10,7 @@ window.NAV_ITEMS = [
     { id: 'pantry',   name: 'Despensa', ico: 'pantry' },
     { id: 'shopping', name: 'Compra',   ico: 'shop' },
     { id: 'scan',     name: 'Escanear', ico: 'scan' },
+    { id: 'charts',   name: 'Gráficos', ico: 'chart' },
     { id: 'settings', name: 'Ajustes',  ico: 'settings' },
 ];
 
@@ -94,6 +95,7 @@ window.renderPage = function() {
         shopping: window.renderShopping,
         settings: window.renderSettings,
         scan:     window.renderScan,
+        charts:   window.renderCharts,
     };
     const inits = {
         today:    window.initToday,
@@ -103,6 +105,7 @@ window.renderPage = function() {
         shopping: window.initShopping,
         settings: window.initSettings,
         scan:     window.initScan,
+        charts:   window.initCharts,
     };
     const fn = renderers[page];
     if (typeof fn === 'function') {
