@@ -79,6 +79,7 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <ArduinoOTA.h>
+#include <HTTPClient.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
@@ -105,10 +106,13 @@ constexpr int8_t   OLED_RESET   = -1;     // shared reset line, none
 
 constexpr uint8_t  BUTTON_PRESSED_STATE = LOW;  // KY-004 default; set HIGH for active-high modules
 
-constexpr uint32_t DEBOUNCE_MS        = 50;
-constexpr uint32_t WEIGHT_REFRESH_MS  = 100;
-constexpr uint32_t DISPLAY_REFRESH_MS = 100;
-constexpr float    INITIAL_CAL_FACTOR = 1.0f;  // uncalibrated — set via web UI
+constexpr uint32_t DEBOUNCE_MS             = 50;
+constexpr uint32_t WEIGHT_REFRESH_MS       = 100;
+constexpr uint32_t DISPLAY_REFRESH_MS      = 100;
+constexpr uint32_t WEIGHT_POST_INTERVAL_MS = 3000;   // min interval between addon weight POSTs
+constexpr float    WEIGHT_POST_DELTA_G     = 3.0f;   // only POST if change >= 3g vs last sent
+constexpr uint16_t ADDON_HTTP_TIMEOUT_MS   = 2000;
+constexpr float    INITIAL_CAL_FACTOR      = 1.0f;   // uncalibrated — set via web UI
 
 // ---------------------------------------------------------------------------
 // State
@@ -123,6 +127,9 @@ float calibrationFactor = INITIAL_CAL_FACTOR;
 bool    oledReady    = false;
 bool    otaActive    = false;
 uint8_t otaPercent   = 0;
+
+float    lastSentWeightG = 0.0f;
+uint32_t lastWeightPostMs = 0;
 
 struct Button {
   uint8_t  pin;
@@ -448,6 +455,48 @@ void setupOTA() {
 }
 
 // ---------------------------------------------------------------------------
+// Stock Manager addon integration — HTTP webhooks
+// ---------------------------------------------------------------------------
+// The addon's API listens on port 8099 directly (NOT through HA's ingress).
+// ADDON_BASE_URL + SCALE_ID come from secrets.h. Leave ADDON_BASE_URL empty
+// to run fully standalone (web UI only, no posts).
+
+bool addonEnabled() {
+  return WiFi.status() == WL_CONNECTED && strlen(ADDON_BASE_URL) > 0;
+}
+
+bool postJson(const String& url, const String& body) {
+  HTTPClient http;
+  http.setTimeout(ADDON_HTTP_TIMEOUT_MS);
+  http.setReuse(false);
+  if (!http.begin(url)) {
+    Serial.printf("HTTP begin failed: %s\n", url.c_str());
+    return false;
+  }
+  http.addHeader("Content-Type", "application/json");
+  int code = http.POST(body);
+  bool ok = (code >= 200 && code < 300);
+  if (!ok) Serial.printf("HTTP %d <- %s\n", code, url.c_str());
+  http.end();
+  return ok;
+}
+
+void postScaleEvent(const char* type, float weight_g) {
+  if (!addonEnabled()) return;
+  String url  = String(ADDON_BASE_URL) + "/api/scales/" + String(SCALE_ID) + "/event";
+  String body = "{\"type\":\"" + String(type) + "\",\"weight_g\":" + String(weight_g, 1) + "}";
+  bool ok = postJson(url, body);
+  Serial.printf("POST event %s (%.1fg) -> %s\n", type, weight_g, ok ? "ok" : "FAIL");
+}
+
+void postScaleWeight(float weight_g) {
+  if (!addonEnabled()) return;
+  String url  = String(ADDON_BASE_URL) + "/api/scales/" + String(SCALE_ID) + "/weight";
+  String body = "{\"weight_g\":" + String(weight_g, 1) + "}";
+  postJson(url, body);
+}
+
+// ---------------------------------------------------------------------------
 // Setup / Loop
 // ---------------------------------------------------------------------------
 void setup() {
@@ -499,9 +548,23 @@ void setup() {
 void loop() {
   ArduinoOTA.handle();
 
-  if (pollButton(btnTare))    { scale.tare(10); Serial.println("BTN: TARE"); }
-  if (pollButton(btnConsumo)) {                  Serial.println("BTN: CONSUMO"); }
-  if (pollButton(btnNuevo))   {                  Serial.println("BTN: NUEVO_LOTE"); }
+  if (pollButton(btnTare)) {
+    scale.tare(10);
+    if (scale.is_ready()) currentWeightG = scale.get_units(3);
+    postScaleEvent("tare", currentWeightG);
+    lastSentWeightG = currentWeightG;  // resync so the weight POST doesn't immediately fire
+    Serial.println("BTN: TARE");
+  }
+  if (pollButton(btnConsumo)) {
+    postScaleEvent("consumo", currentWeightG);
+    lastSentWeightG = currentWeightG;
+    Serial.println("BTN: CONSUMO");
+  }
+  if (pollButton(btnNuevo)) {
+    postScaleEvent("nuevo_lote", currentWeightG);
+    lastSentWeightG = currentWeightG;
+    Serial.println("BTN: NUEVO_LOTE");
+  }
 
   uint32_t now = millis();
 
@@ -509,6 +572,14 @@ void loop() {
   if (now - lastWeightMs > WEIGHT_REFRESH_MS && scale.is_ready()) {
     currentWeightG = scale.get_units(1);
     lastWeightMs = now;
+  }
+
+  if (addonEnabled() && now - lastWeightPostMs > WEIGHT_POST_INTERVAL_MS) {
+    if (abs(currentWeightG - lastSentWeightG) > WEIGHT_POST_DELTA_G) {
+      postScaleWeight(currentWeightG);
+      lastSentWeightG = currentWeightG;
+    }
+    lastWeightPostMs = now;
   }
 
   static uint32_t lastDisplayMs = 0;
