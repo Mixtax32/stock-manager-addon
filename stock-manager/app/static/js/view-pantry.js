@@ -105,28 +105,11 @@ window.renderPantry = function() {
         const stockNum = pantryCat === 'todas' ? (p.stock || 0) : (stockByLoc.get(pantryCat) || 0);
         const stockDisplay = stockNum % 1 === 0 ? stockNum : stockNum.toFixed(2).replace(/\.?0+$/, '');
 
-        // Location sub-line: compact breakdown when product spans multiple locations
-        let locSubText;
-        if (stockByLoc.size === 0) {
-            locSubText = 'SIN UBICACIÓN';
-        } else if (stockByLoc.size === 1) {
-            locSubText = [...stockByLoc.keys()][0].toUpperCase();
-        } else {
-            locSubText = [...stockByLoc.entries()]
-                .map(([loc, qty]) => {
-                    const qtyDisplay = qty % 1 === 0 ? qty : qty.toFixed(2).replace(/\.?0+$/, '');
-                    return `${loc.toUpperCase()}: ${qtyDisplay}`;
-                })
-                .join(' · ');
-        }
-        const macroSub = p.kcal_100g ? `${p.kcal_100g} kcal/100${unit}` : 'sin macros';
-
         return `
             <div class="stock-item">
                 <div class="stock-ico">${p.image_url ? `<img src="${window.esc(p.image_url)}" alt="">` : '📦'}</div>
                 <div>
                     <div class="stock-name">${window.esc(p.name)}${isLow ? `<span title="Stock bajo (mínimo: ${p.min_stock})" style="color:var(--carbs); display:inline-flex; vertical-align:middle; margin-left:6px; width:16px; height:16px">${window.icon('alert')}</span>` : ''}</div>
-                    <div class="stock-sub">${locSubText} · ${macroSub}</div>
                 </div>
                 <div class="row" style="gap:10px">
                     ${exp ? `<span class="exp-pill ${expCls}">${expTxt}</span>` : ''}
@@ -254,102 +237,106 @@ window.openEditProduct = function(barcode) {
                     <h3 style="margin:0; font-size:18px; font-weight:600">Editar producto</h3>
                     <button class="btn icon sm ghost" data-action="close" aria-label="Cerrar">${window.icon('close')}</button>
                 </div>
-                <div class="stack" style="gap:12px">
-                    <div class="field-label" style="font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted)">Básico</div>
+                <div class="stack" style="gap:14px">
                     <div class="field">
-                        <label class="field-label">Nombre</label>
-                        <input id="ep-name" class="input" value="${window.esc(p.name)}"/>
-                    </div>
-                    <div class="grid cols-2 keep" style="gap:10px">
-                        <div class="field">
-                            <label class="field-label">Ubicación</label>
-                            <input id="ep-loc" class="input" placeholder="Nevera, Despensa…" value="${window.esc(p.location || '')}"/>
-                        </div>
-                        <div class="field">
-                            <label class="field-label">Categoría</label>
-                            <select id="ep-cat" class="input">
-                                ${['Alimentos','Bebidas','Limpieza','Higiene','Otros'].map(c =>
-                                    `<option value="${c}" ${p.category === c ? 'selected' : ''}>${c}</option>`
-                                ).join('')}
-                            </select>
-                        </div>
-                        <div class="field">
-                            <label class="field-label">Stock mínimo</label>
-                            <input id="ep-min" class="input num" type="number" step="0.1" value="${p.min_stock ?? ''}"/>
-                        </div>
-                        <div class="field">
-                            <label class="field-label">Unidad</label>
-                            <select id="ep-unit" class="input">
-                                <option value="g" ${p.unit_type === 'g' ? 'selected' : ''}>Gramos (g)</option>
-                                <option value="ml" ${p.unit_type === 'ml' ? 'selected' : ''}>Mililitros (ml)</option>
-                                <option value="uds" ${p.unit_type === 'uds' ? 'selected' : ''}>Unidades</option>
-                            </select>
-                        </div>
+                        <label class="field-label">Ubicación por defecto</label>
+                        <input id="ep-loc" class="input" placeholder="Nevera, Despensa…" value="${window.esc(p.location || '')}"/>
+                        <div class="muted" style="font-size:11px; margin-top:4px">Se usa cuando un lote no tiene su propia ubicación.</div>
                     </div>
 
-                    <div class="field-label" style="font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin-top:8px">Empaque</div>
-                    <div class="grid cols-2 keep" style="gap:10px">
-                        <div class="field">
-                            <label class="field-label">Peso por unidad / paquete (g)</label>
-                            <input id="ep-weight" class="input num" type="number" step="0.1" placeholder="ej. 200" value="${p.weight_g ?? ''}"/>
-                        </div>
-                        <div class="field">
-                            <label class="field-label">Ración estándar</label>
-                            <input id="ep-serving" class="input num" type="number" step="0.1" placeholder="ej. 30" value="${p.serving_size ?? ''}"/>
-                        </div>
-                    </div>
-                    <div class="field">
-                        <label class="field-label">URL de imagen</label>
-                        <input id="ep-img" class="input" type="url" placeholder="https://…" value="${window.esc(p.image_url || '')}"/>
+                    <div>
+                        <div class="field-label" style="font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin-bottom:10px">Lotes</div>
+                        ${(p.batches && p.batches.length > 0) ? p.batches.map(b => {
+                            const bQtyDisplay = (b.quantity || 0) % 1 === 0 ? b.quantity : Number(b.quantity).toFixed(2).replace(/\.?0+$/, '');
+                            const bUnit = p.unit_type === 'uds' ? 'ud' : (p.unit_type || 'g');
+                            const bLoc = b.location || '';
+                            const bExp = b.expiry_date || '';
+                            return `
+                            <div class="batch-row" data-batch-id="${b.id}" style="display:flex; align-items:center; gap:8px; margin-bottom:8px; flex-wrap:wrap">
+                                <span class="muted" style="font-size:12px; min-width:60px">${bQtyDisplay} ${bUnit}</span>
+                                <div class="field" style="flex:1; min-width:120px; margin:0">
+                                    <label class="field-label">Caducidad</label>
+                                    <input type="date" class="input batch-exp" style="font-size:13px" value="${window.esc(bExp)}" data-batch-id="${b.id}"/>
+                                </div>
+                                <div class="field" style="flex:1; min-width:120px; margin:0">
+                                    <label class="field-label">Ubicación</label>
+                                    <select class="input batch-loc" style="font-size:13px" data-batch-id="${b.id}">
+                                        <option value="" ${!bLoc ? 'selected' : ''}>Sin ubicación</option>
+                                        <option value="Nevera" ${bLoc === 'Nevera' ? 'selected' : ''}>Nevera</option>
+                                        <option value="Congelador" ${bLoc === 'Congelador' ? 'selected' : ''}>Congelador</option>
+                                        <option value="Despensa" ${bLoc === 'Despensa' ? 'selected' : ''}>Despensa</option>
+                                        <option value="Otros" ${bLoc === 'Otros' ? 'selected' : ''}>Otros</option>
+                                    </select>
+                                </div>
+                            </div>`;
+                        }).join('') : `<div class="muted" style="font-size:13px">Sin lotes registrados</div>`}
                     </div>
 
-                    <div class="field-label" style="font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin-top:8px">Macros (por ${unitLabel})</div>
-                    <div class="grid cols-2 keep" style="gap:10px">
-                        <div class="field">
-                            <label class="field-label">Energía (kcal)</label>
-                            <input id="ep-kcal" class="input num" type="number" step="0.1" placeholder="ej. 350" value="${p.kcal_100g ?? ''}"/>
-                        </div>
-                        <div class="field">
-                            <label class="field-label">Proteína (g)</label>
-                            <input id="ep-prot" class="input num" type="number" step="0.1" placeholder="ej. 25" value="${p.proteins_100g ?? ''}"/>
-                        </div>
-                        <div class="field">
-                            <label class="field-label">Carbohidratos (g)</label>
-                            <input id="ep-carbs" class="input num" type="number" step="0.1" placeholder="ej. 40" value="${p.carbs_100g ?? ''}"/>
-                        </div>
-                        <div class="field">
-                            <label class="field-label">Grasas (g)</label>
-                            <input id="ep-fat" class="input num" type="number" step="0.1" placeholder="ej. 10" value="${p.fat_100g ?? ''}"/>
-                        </div>
-                    </div>
-                </div>
-
-                <div style="margin-top:16px; padding-top:14px; border-top:1px solid var(--border)">
-                    <div class="field-label" style="font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin-bottom:10px">Lotes</div>
-                    ${(p.batches && p.batches.length > 0) ? p.batches.map(b => {
-                        const bQtyDisplay = (b.quantity || 0) % 1 === 0 ? b.quantity : Number(b.quantity).toFixed(2).replace(/\.?0+$/, '');
-                        const bUnit = p.unit_type === 'uds' ? 'ud' : (p.unit_type || 'g');
-                        const bLoc = b.location || '';
-                        const bExp = b.expiry_date || '';
-                        return `
-                        <div class="batch-row" data-batch-id="${b.id}" style="display:flex; align-items:center; gap:8px; margin-bottom:8px; flex-wrap:wrap">
-                            <span class="muted" style="font-size:12px; min-width:60px">${bQtyDisplay} ${bUnit}</span>
-                            <div class="field" style="flex:1; min-width:120px; margin:0">
-                                <label class="field-label">Caducidad</label>
-                                <input type="date" class="input batch-exp" style="font-size:13px" value="${window.esc(bExp)}" data-batch-id="${b.id}"/>
+                    <details style="border-top:1px solid var(--border); padding-top:12px">
+                        <summary style="cursor:pointer; font-weight:600; font-size:13px; padding:4px 0">Macros (por ${unitLabel})</summary>
+                        <div class="grid cols-2 keep" style="gap:10px; margin-top:10px">
+                            <div class="field">
+                                <label class="field-label">Energía (kcal)</label>
+                                <input id="ep-kcal" class="input num" type="number" step="0.1" placeholder="ej. 350" value="${p.kcal_100g ?? ''}"/>
                             </div>
-                            <div class="field" style="flex:1; min-width:120px; margin:0">
-                                <label class="field-label">Ubicación</label>
-                                <select class="input batch-loc" style="font-size:13px" data-batch-id="${b.id}">
-                                    <option value="" ${!bLoc ? 'selected' : ''}>Sin ubicación</option>
-                                    <option value="Nevera" ${bLoc === 'Nevera' ? 'selected' : ''}>Nevera</option>
-                                    <option value="Congelador" ${bLoc === 'Congelador' ? 'selected' : ''}>Congelador</option>
-                                    <option value="Despensa" ${bLoc === 'Despensa' ? 'selected' : ''}>Despensa</option>
-                                    <option value="Otros" ${bLoc === 'Otros' ? 'selected' : ''}>Otros</option>
-                                </select>
+                            <div class="field">
+                                <label class="field-label">Proteína (g)</label>
+                                <input id="ep-prot" class="input num" type="number" step="0.1" placeholder="ej. 25" value="${p.proteins_100g ?? ''}"/>
                             </div>
-                        </div>`;
-                    }).join('') : `<div class="muted" style="font-size:13px">Sin lotes registrados</div>`}
+                            <div class="field">
+                                <label class="field-label">Carbohidratos (g)</label>
+                                <input id="ep-carbs" class="input num" type="number" step="0.1" placeholder="ej. 40" value="${p.carbs_100g ?? ''}"/>
+                            </div>
+                            <div class="field">
+                                <label class="field-label">Grasas (g)</label>
+                                <input id="ep-fat" class="input num" type="number" step="0.1" placeholder="ej. 10" value="${p.fat_100g ?? ''}"/>
+                            </div>
+                        </div>
+                    </details>
+
+                    <details style="border-top:1px solid var(--border); padding-top:12px">
+                        <summary style="cursor:pointer; font-weight:600; font-size:13px; padding:4px 0">Todo lo demás</summary>
+                        <div class="stack" style="gap:12px; margin-top:10px">
+                            <div class="field">
+                                <label class="field-label">Nombre</label>
+                                <input id="ep-name" class="input" value="${window.esc(p.name)}"/>
+                            </div>
+                            <div class="grid cols-2 keep" style="gap:10px">
+                                <div class="field">
+                                    <label class="field-label">Categoría</label>
+                                    <select id="ep-cat" class="input">
+                                        ${['Alimentos','Bebidas','Limpieza','Higiene','Otros'].map(c =>
+                                            `<option value="${c}" ${p.category === c ? 'selected' : ''}>${c}</option>`
+                                        ).join('')}
+                                    </select>
+                                </div>
+                                <div class="field">
+                                    <label class="field-label">Stock mínimo</label>
+                                    <input id="ep-min" class="input num" type="number" step="0.1" value="${p.min_stock ?? ''}"/>
+                                </div>
+                                <div class="field">
+                                    <label class="field-label">Unidad</label>
+                                    <select id="ep-unit" class="input">
+                                        <option value="g" ${p.unit_type === 'g' ? 'selected' : ''}>Gramos (g)</option>
+                                        <option value="ml" ${p.unit_type === 'ml' ? 'selected' : ''}>Mililitros (ml)</option>
+                                        <option value="uds" ${p.unit_type === 'uds' ? 'selected' : ''}>Unidades</option>
+                                    </select>
+                                </div>
+                                <div class="field">
+                                    <label class="field-label">Peso por unidad / paquete (g)</label>
+                                    <input id="ep-weight" class="input num" type="number" step="0.1" placeholder="ej. 200" value="${p.weight_g ?? ''}"/>
+                                </div>
+                                <div class="field">
+                                    <label class="field-label">Ración estándar</label>
+                                    <input id="ep-serving" class="input num" type="number" step="0.1" placeholder="ej. 30" value="${p.serving_size ?? ''}"/>
+                                </div>
+                            </div>
+                            <div class="field">
+                                <label class="field-label">URL de imagen</label>
+                                <input id="ep-img" class="input" type="url" placeholder="https://…" value="${window.esc(p.image_url || '')}"/>
+                            </div>
+                        </div>
+                    </details>
                 </div>
 
                 <div class="row" style="justify-content:flex-end; gap:8px; margin-top:20px">
