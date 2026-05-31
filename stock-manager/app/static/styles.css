@@ -1360,6 +1360,31 @@ input, select, textarea { font-family: inherit; }
     .scan-confirm-btn { min-height: 44px; }
 }
 
+/* ===== Ticket OCR review ===== */
+.ticket-list {
+    display: flex; flex-direction: column; gap: 8px;
+    max-height: 55vh; overflow-y: auto;
+    margin: 0 -4px; padding: 0 4px;
+}
+.ticket-row {
+    display: grid;
+    grid-template-columns: 20px 1fr auto auto;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 10px;
+    background: var(--bg-sunken);
+    border-radius: var(--r-md);
+    border: 1px solid var(--border);
+}
+.ticket-row-info { min-width: 0; }
+.ticket-row-match { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ticket-row-line { font-size: 11px; color: var(--ink-3); font-family: var(--mono); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 400px) {
+    .ticket-row { grid-template-columns: 20px 1fr; grid-template-rows: auto auto; }
+    .ticket-row-qty { grid-column: 1; }
+    .ticket-row-change { grid-column: 2; justify-self: end; }
+}
+
 /* ===== Sync ===== */
 .sync-badge {
     display: inline-flex; align-items: center; gap: 6px;

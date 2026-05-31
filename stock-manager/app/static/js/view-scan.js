@@ -1,10 +1,10 @@
 /*
-   View: Scan — barcode scanner using html5-qrcode file API + HA API integration
-   v0.8.0 — uses file/photo capture instead of live stream (no HTTPS required)
+   View: Scan — barcode scanner + ticket OCR
+   v0.8.25 — adds "Leer ticket de compra" path alongside barcode flow
 */
 
 let scanState = {
-    phase: 'idle',           // idle | scanning | review
+    phase: 'idle',           // idle | scanning | review | ticket-loading | ticket-review
     barcode: null,
     product: null,           // existing product if found
     barcodeData: null,       // from HA /barcode/{ean} lookup
@@ -26,7 +26,11 @@ let scanState = {
     },
     target: 'pantry',        // pantry | diary
     meal: 'comida',
+    ticketLines: [],         // raw OCR lines from server
+    ticketItems: [],         // [{ line, name, qty, match: product|null, score, checked }]
 };
+
+// ─── Barcode helpers ──────────────────────────────────────────────────────────
 
 async function _scanImageFile(file) {
     if (typeof Html5Qrcode === 'undefined') {
@@ -54,14 +58,12 @@ async function _onScanSuccess(decodedText) {
     scanState.barcode = decodedText;
     scanState.phase = 'review';
 
-    // Look up existing product in current inventory
     const existing = window.findProductById(decodedText);
     if (existing) {
         scanState.product = existing;
         scanState.qty = 1;
     } else {
         scanState.product = null;
-        // Fetch from Open Food Facts via the HA backend
         try {
             const data = await window.apiCall(`/barcode/${decodedText}`, 'GET');
             if (data && data.found) {
@@ -84,6 +86,92 @@ async function _onScanSuccess(decodedText) {
     window.renderPage();
 }
 
+// ─── Ticket OCR helpers ───────────────────────────────────────────────────────
+
+function _normalize(s) {
+    return (s || '').toLowerCase()
+        .normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .replace(/[^a-z0-9 ]/g, '').trim();
+}
+
+function _similarity(a, b) {
+    // Dice coefficient on bigrams
+    a = _normalize(a); b = _normalize(b);
+    if (!a.length || !b.length) return 0;
+    if (a === b) return 1;
+    const bigrams = s => {
+        const arr = [];
+        for (let i = 0; i < s.length - 1; i++) arr.push(s.slice(i, i + 2));
+        return arr;
+    };
+    const A = bigrams(a), B = bigrams(b);
+    const setB = new Map();
+    B.forEach(x => setB.set(x, (setB.get(x) || 0) + 1));
+    let hits = 0;
+    A.forEach(x => { const c = setB.get(x); if (c > 0) { hits++; setB.set(x, c - 1); } });
+    return (2 * hits) / (A.length + B.length);
+}
+
+function _parseLine(line) {
+    // Extract leading qty "2 x Algo" / "2x Algo"; strip prices, weights, codes
+    let qty = 1;
+    let name = line;
+    const qm = name.match(/^(\d+)\s*[xX×]\s+(.+)/);
+    if (qm) { qty = parseInt(qm[1], 10); name = qm[2]; }
+    name = name
+        .replace(/\d+[,.]\d{2}\s*€?/g, '')
+        .replace(/\d+[,.]\d{1,3}\s*(kg|g|l|ml|cl|ud|uds)\b/gi, '')
+        .replace(/^\d{3,}\s+/, '')
+        .replace(/^[-*.,\s]+/, '')
+        .replace(/[-*.,\s]+$/, '')
+        .trim();
+    return { qty, name };
+}
+
+function _matchProducts(lines) {
+    const products = window.AppState.products || [];
+    const items = [];
+    for (const rawLine of lines) {
+        const { qty, name } = _parseLine(rawLine);
+        if (!name || name.length < 2) continue;
+        let best = null, bestScore = 0;
+        for (const p of products) {
+            const s = _similarity(name, p.name);
+            if (s > bestScore && s >= 0.35) { bestScore = s; best = p; }
+        }
+        // De-dupe: if same product matched twice, sum qty
+        const existing = items.find(it => it.match && best && it.match.barcode === best.barcode);
+        if (existing) {
+            existing.qty += qty;
+        } else {
+            items.push({ line: rawLine, name, qty, match: best, score: bestScore, checked: !!best });
+        }
+    }
+    return items;
+}
+
+async function _processTicketFile(file) {
+    scanState.phase = 'ticket-loading';
+    window.renderPage();
+    try {
+        const form = new FormData();
+        form.append('file', file);
+        const base = window.API_BASE || '/api';
+        const resp = await fetch(`${base}/ocr/ticket`, { method: 'POST', body: form });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        scanState.ticketLines = data.lines || [];
+        scanState.ticketItems = _matchProducts(scanState.ticketLines);
+        scanState.phase = 'ticket-review';
+    } catch (e) {
+        window.showToast('Error leyendo ticket: ' + e.message, 'error');
+        scanState.phase = 'idle';
+    }
+    window.renderPage();
+}
+
+// ─── Render functions ─────────────────────────────────────────────────────────
+
 function _renderIdle() {
     return `
         <div class="scan-stage scan-stage-desktop">
@@ -103,8 +191,10 @@ function _renderIdle() {
             <p class="scan-hero-label">Tomá una foto del código de barras y lo detectamos automáticamente</p>
         </div>
         <input type="file" id="camera-input" accept="image/*" capture="environment" style="display:none">
+        <input type="file" id="ticket-input" accept="image/*" capture="environment" style="display:none">
         <div class="stack" style="gap:10px; margin-top:14px">
             <button class="btn accent scan-cta-btn" data-action="start" style="width:100%">${window.icon('scan')} Abrir cámara</button>
+            <button class="btn ghost scan-cta-btn" data-action="start-ticket" style="width:100%">${window.icon('scan')} Leer ticket de compra</button>
             <div class="row" style="gap:8px">
                 <input id="manual-barcode" class="input" placeholder="Introduce el código de barras…" style="flex:1; min-width:0"/>
                 <button class="btn" data-action="manual">Buscar</button>
@@ -118,6 +208,48 @@ function _renderScanning() {
         <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:60px 20px; text-align:center">
             <div class="loader-spin"></div>
             <p style="font-size:14px; color:var(--ink-2); margin:0">Procesando imagen…</p>
+        </div>
+    `;
+}
+
+function _renderTicketLoading() {
+    return `
+        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:60px 20px; text-align:center">
+            <div class="loader-spin"></div>
+            <p style="font-size:14px; color:var(--ink-2); margin:0">Leyendo ticket… esto puede tardar unos segundos</p>
+        </div>
+    `;
+}
+
+function _renderTicketReview() {
+    const items = scanState.ticketItems;
+    const matched = items.filter(it => it.match).length;
+    const checkedCount = items.filter(it => it.checked && it.match).length;
+
+    const rows = items.map((it, i) => `
+        <div class="ticket-row">
+            <input type="checkbox" class="ticket-check" data-idx="${i}" ${it.checked ? 'checked' : ''}>
+            <div class="ticket-row-info">
+                <div class="ticket-row-match">${it.match ? window.esc(it.match.name) : '<span class="muted">Sin coincidencia</span>'}</div>
+                <div class="ticket-row-line">${window.esc(it.line)}</div>
+            </div>
+            <input type="number" class="input num ticket-row-qty" data-idx="${i}" value="${it.qty}" min="1" step="1" style="width:60px; flex-shrink:0">
+            <button class="btn ghost sm ticket-row-change" data-idx="${i}">Cambiar</button>
+        </div>
+    `).join('');
+
+    return `
+        <div style="margin-bottom:12px">
+            <div style="font-size:13px; color:var(--ink-2)">Detecté <strong>${items.length}</strong> líneas, <strong>${matched}</strong> con coincidencia</div>
+        </div>
+        <div class="ticket-list">
+            ${rows || '<div class="empty">No se encontraron productos en el ticket.</div>'}
+        </div>
+        <div class="scan-actions-sticky row" style="justify-content:space-between; margin-top:12px">
+            <button class="btn ghost" data-action="ticket-cancel">Cancelar</button>
+            <button class="btn accent" data-action="ticket-confirm" ${checkedCount === 0 ? 'disabled' : ''}>
+                Añadir ${checkedCount} item${checkedCount !== 1 ? 's' : ''} al stock
+            </button>
         </div>
     `;
 }
@@ -221,10 +353,14 @@ function _renderReview() {
     `;
 }
 
+// ─── Public render entry point ────────────────────────────────────────────────
+
 window.renderScan = function() {
     let body = '';
     if (scanState.phase === 'idle') body = _renderIdle();
     else if (scanState.phase === 'scanning') body = _renderScanning();
+    else if (scanState.phase === 'ticket-loading') body = _renderTicketLoading();
+    else if (scanState.phase === 'ticket-review') body = _renderTicketReview();
     else body = _renderReview();
 
     return `
@@ -245,6 +381,8 @@ window.renderScan = function() {
     `;
 };
 
+// ─── Init / event wiring ──────────────────────────────────────────────────────
+
 window.initScan = function() {
     const root = document.getElementById('page-root');
     if (!root) return;
@@ -263,13 +401,73 @@ window.initScan = function() {
             });
         }
 
+        const ticketInput = root.querySelector('#ticket-input');
+        if (ticketInput) {
+            ticketInput.addEventListener('change', e => {
+                const file = e.target.files[0];
+                if (file) _processTicketFile(file);
+                ticketInput.value = '';
+            });
+        }
+
         root.querySelector('[data-action="start"]')?.addEventListener('click', _triggerFileInput);
+
+        root.querySelector('[data-action="start-ticket"]')?.addEventListener('click', () => {
+            const ti = document.getElementById('ticket-input');
+            if (ti) ti.click();
+        });
 
         root.querySelector('[data-action="manual"]')?.addEventListener('click', () => {
             const code = root.querySelector('#manual-barcode').value.trim();
             if (!code) return;
             _onScanSuccess(code);
         });
+
+    } else if (scanState.phase === 'ticket-review') {
+        // Checkbox toggles
+        root.querySelectorAll('.ticket-check').forEach(cb => {
+            cb.addEventListener('change', e => {
+                const i = Number(e.target.dataset.idx);
+                scanState.ticketItems[i].checked = e.target.checked;
+                window.renderPage();
+            });
+        });
+
+        // Qty inputs
+        root.querySelectorAll('.ticket-row-qty').forEach(input => {
+            input.addEventListener('input', e => {
+                const i = Number(e.target.dataset.idx);
+                scanState.ticketItems[i].qty = Math.max(1, parseInt(e.target.value, 10) || 1);
+            });
+        });
+
+        // "Cambiar" buttons — open food picker, on pick set match
+        root.querySelectorAll('.ticket-row-change').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const i = Number(btn.dataset.idx);
+                window.openFoodPicker({
+                    title: 'Seleccionar producto',
+                    onPick: ({ productId }) => {
+                        const product = window.findProductById(productId);
+                        if (product) {
+                            scanState.ticketItems[i].match = product;
+                            scanState.ticketItems[i].checked = true;
+                        }
+                        window.renderPage();
+                    },
+                });
+            });
+        });
+
+        root.querySelector('[data-action="ticket-cancel"]')?.addEventListener('click', () => {
+            _resetScan();
+            window.renderPage();
+        });
+
+        root.querySelector('[data-action="ticket-confirm"]')?.addEventListener('click', async () => {
+            await _confirmTicket();
+        });
+
     } else if (scanState.phase === 'review') {
         const np = scanState.newProduct;
         const fields = [
@@ -316,6 +514,8 @@ window.initScan = function() {
     }
 };
 
+// ─── Reset ────────────────────────────────────────────────────────────────────
+
 function _resetScan() {
     scanState = {
         phase: 'idle',
@@ -332,7 +532,36 @@ function _resetScan() {
         },
         target: 'pantry',
         meal: 'comida',
+        ticketLines: [],
+        ticketItems: [],
     };
+}
+
+// ─── Confirm actions ──────────────────────────────────────────────────────────
+
+async function _confirmTicket() {
+    const toAdd = scanState.ticketItems.filter(it => it.checked && it.match);
+    if (!toAdd.length) return;
+
+    let successCount = 0;
+    for (const item of toAdd) {
+        try {
+            await window.apiCall(`/products/${item.match.barcode}/stock`, 'POST', {
+                quantity: item.qty,
+                reason: 'restock',
+            });
+            successCount++;
+        } catch (e) {
+            window.showToast(`Error al actualizar ${item.match.name}: ${e.message}`, 'error');
+        }
+    }
+
+    if (successCount > 0) {
+        window.showToast(`${successCount} producto${successCount !== 1 ? 's' : ''} añadido${successCount !== 1 ? 's' : ''} al stock`, 'success');
+        await window.reloadProducts();
+    }
+    _resetScan();
+    window.renderPage();
 }
 
 async function _confirmScan() {

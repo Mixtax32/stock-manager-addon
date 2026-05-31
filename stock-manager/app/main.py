@@ -293,6 +293,19 @@ async def export_data():
         headers={"Content-Disposition": "attachment; filename=inventario_stock.csv"}
     )
 
+@app.post("/api/ocr/ticket")
+async def ocr_ticket(file: UploadFile = File(...)):
+    """Run OCR on a ticket image and return the parsed product lines."""
+    from . import ocr_service
+    try:
+        content = await file.read()
+        text = ocr_service.extract_text_from_image(content)
+        lines = ocr_service.parse_ticket_items(text)
+        return {"lines": lines, "raw": text}
+    except Exception as e:
+        logger.error(f"OCR ticket error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error procesando ticket: {str(e)}")
+
 @app.post("/api/import")
 async def import_data(file: UploadFile = File(...), clear: bool = False):
     """Import inventory data from CSV file"""
