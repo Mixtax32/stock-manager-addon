@@ -103,7 +103,8 @@ window.renderPantry = function() {
         // Stock quantity: show location-specific qty when on a specific tab
         const stockByLoc = _stockByLocation(p);
         const stockNum = pantryCat === 'todas' ? (p.stock || 0) : (stockByLoc.get(pantryCat) || 0);
-        const stockDisplay = stockNum % 1 === 0 ? stockNum : stockNum.toFixed(2).replace(/\.?0+$/, '');
+        const stockRounded = stockNum % 1 === 0 ? stockNum : Math.round(stockNum * 10) / 10;
+        const stockDisplay = stockRounded;
 
         return `
             <div class="stock-item">

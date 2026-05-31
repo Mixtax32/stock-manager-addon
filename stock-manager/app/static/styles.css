@@ -730,13 +730,14 @@ input, select, textarea { font-family: inherit; }
 }
 .qty-pill .qty-input {
     font-family: var(--mono); font-size: 12px;
-    width: 48px; text-align: right;
+    width: 54px; text-align: right;
     border: none; background: transparent;
     color: inherit;
     height: 30px;
     padding: 0 2px 0 6px;
     -moz-appearance: textfield;
     border-left: 1px solid var(--line);
+    box-sizing: border-box;
 }
 .qty-pill .qty-input:focus { outline: none; background: var(--bg); }
 .qty-pill .qty-input::-webkit-outer-spin-button,
@@ -744,10 +745,12 @@ input, select, textarea { font-family: inherit; }
 .qty-pill .qty-unit {
     font-family: var(--mono); font-size: 12px;
     color: var(--ink-2);
+    width: 30px;
     padding: 0 6px 0 2px;
     border-right: 1px solid var(--line);
     height: 30px;
     display: grid; place-items: center;
+    box-sizing: border-box;
 }
 
 .exp-pill {
