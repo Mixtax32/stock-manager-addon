@@ -107,12 +107,13 @@ constexpr int8_t   OLED_RESET   = -1;     // shared reset line, none
 constexpr uint8_t  BUTTON_PRESSED_STATE = LOW;  // KY-004 default; set HIGH for active-high modules
 
 constexpr uint32_t DEBOUNCE_MS             = 50;
-constexpr uint32_t WEIGHT_REFRESH_MS       = 100;
 constexpr uint32_t DISPLAY_REFRESH_MS      = 100;
 constexpr uint32_t WEIGHT_POST_INTERVAL_MS = 3000;   // min interval between addon weight POSTs
 constexpr float    WEIGHT_POST_DELTA_G     = 3.0f;   // only POST if change >= 3g vs last sent
 constexpr uint16_t ADDON_HTTP_TIMEOUT_MS   = 2000;
 constexpr float    INITIAL_CAL_FACTOR      = 1.0f;   // uncalibrated — set via web UI
+constexpr float    WEIGHT_EMA_ALPHA        = 0.1f;   // EMA weight: smaller = smoother but more lag (0.05 very smooth, 0.2 snappy)
+constexpr float    WEIGHT_JUMP_THRESHOLD_G = 10.0f;  // bypass filter on real load placement / removal
 
 // ---------------------------------------------------------------------------
 // State
@@ -130,6 +131,8 @@ uint8_t otaPercent   = 0;
 
 float    lastSentWeightG = 0.0f;
 uint32_t lastWeightPostMs = 0;
+
+bool     weightFilterInit = false;
 
 struct Button {
   uint8_t  pin;
@@ -161,6 +164,19 @@ bool pollButton(Button& b) {
     }
   }
   return false;
+}
+
+// ---------------------------------------------------------------------------
+// Weight sampling — non-blocking EMA filter with big-jump bypass
+// ---------------------------------------------------------------------------
+// Each fresh sample is blended into currentWeightG via an exponential moving
+// average. Tiny per-sample noise gets washed out. When the new reading
+// differs from the filtered value by more than WEIGHT_JUMP_THRESHOLD_G we
+// assume a real load was placed/removed and snap to the raw value so the
+// scale stays responsive.
+void resetWeightFilter(float seed) {
+  currentWeightG   = seed;
+  weightFilterInit = true;
 }
 
 // ---------------------------------------------------------------------------
@@ -386,6 +402,8 @@ void handleState() {
 
 void handleTare() {
   scale.tare(10);
+  resetWeightFilter(scale.is_ready() ? scale.get_units(3) : 0.0f);
+  lastSentWeightG = currentWeightG;
   Serial.println("Tare via web");
   server.send(200, "application/json", "{\"ok\":true}");
 }
@@ -550,7 +568,7 @@ void loop() {
 
   if (pollButton(btnTare)) {
     scale.tare(10);
-    if (scale.is_ready()) currentWeightG = scale.get_units(3);
+    resetWeightFilter(scale.is_ready() ? scale.get_units(3) : 0.0f);
     postScaleEvent("tare", currentWeightG);
     lastSentWeightG = currentWeightG;  // resync so the weight POST doesn't immediately fire
     Serial.println("BTN: TARE");
@@ -568,10 +586,17 @@ void loop() {
 
   uint32_t now = millis();
 
-  static uint32_t lastWeightMs = 0;
-  if (now - lastWeightMs > WEIGHT_REFRESH_MS && scale.is_ready()) {
-    currentWeightG = scale.get_units(1);
-    lastWeightMs = now;
+  // Consume every fresh HX711 sample (is_ready() throttles naturally at the
+  // chip's SPS rate). Big jumps bypass the EMA so real load changes show up
+  // immediately; small per-sample noise gets smoothed away.
+  if (scale.is_ready()) {
+    float raw = scale.get_units(1);
+    if (!weightFilterInit || fabsf(raw - currentWeightG) > WEIGHT_JUMP_THRESHOLD_G) {
+      currentWeightG    = raw;
+      weightFilterInit = true;
+    } else {
+      currentWeightG = WEIGHT_EMA_ALPHA * raw + (1.0f - WEIGHT_EMA_ALPHA) * currentWeightG;
+    }
   }
 
   if (addonEnabled() && now - lastWeightPostMs > WEIGHT_POST_INTERVAL_MS) {
