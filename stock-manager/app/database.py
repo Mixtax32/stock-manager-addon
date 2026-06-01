@@ -1200,12 +1200,26 @@ class Database:
             resolved_refill_id = None
             async with aiosqlite.connect(self.db_path) as db:
                 if scale.product_barcode:
+                    location_label = f"Báscula: {scale.name}"
                     if scale.batch_id:
+                        # Lot rotation: the previous scale-bound batch is gone — drop it.
                         await db.execute(
-                            "UPDATE batches SET quantity = 0 WHERE id = ?",
+                            "DELETE FROM batches WHERE id = ?",
                             (scale.batch_id,)
                         )
-                    location_label = f"Báscula: {scale.name}"
+                    else:
+                        # First NUEVO LOTE for this scale: any pre-existing batches of
+                        # the same product without an explicit location, or already
+                        # living at this scale's location label, are stale estimates
+                        # the live weight is now superseding. Batches in OTHER explicit
+                        # locations (Nevera, Despensa, Congelador, Otros, or a different
+                        # scale's label) are kept — those are stocks this scale doesn't
+                        # control.
+                        await db.execute(
+                            """DELETE FROM batches
+                               WHERE barcode = ? AND (location IS NULL OR location = ?)""",
+                            (scale.product_barcode, location_label)
+                        )
                     cursor = await db.execute(
                         """INSERT INTO batches (barcode, quantity, expiry_date, added_date, location)
                            VALUES (?, ?, ?, ?, ?)""",
