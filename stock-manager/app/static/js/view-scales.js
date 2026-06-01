@@ -57,13 +57,24 @@ function _formatRelativeTime(iso) {
     return `hace ${d} d`;
 }
 
+const SCALE_HOST_OVERRIDE_KEY = 'scaleAddonHost';
+
+function _webhookHost() {
+    // Manual override (per-device, in localStorage) wins. Useful when the
+    // browser is hitting the addon via Nabu Casa / a reverse proxy / a domain
+    // that doesn't resolve to the addon's LAN IP — the ESP needs the raw
+    // local IP, which the browser can't infer.
+    const manual = (localStorage.getItem(SCALE_HOST_OVERRIDE_KEY) || '').trim();
+    return manual || window.location.hostname;
+}
+
 function _webhookBase() {
     // The browser may be hitting the addon via HA ingress
     // (https://<ha>:8123/api/hassio_ingress/<token>/...), which uses a per-session
     // token the ESP32 can't replicate. The ESP needs the addon's direct LAN port
     // (8099 by default, exposed via `ports:` in config.yaml). Same hostname/IP,
     // but http and port 8099 and no ingress prefix.
-    return `http://${window.location.hostname}:8099`;
+    return `http://${_webhookHost()}:8099`;
 }
 
 function _scaleCard(scale) {
@@ -173,13 +184,21 @@ window.renderScales = function() {
     const scales = scalesData.scales || [];
     const refills = scalesData.refills || [];
 
+    const hostOverride = (localStorage.getItem(SCALE_HOST_OVERRIDE_KEY) || '').trim();
+    const hostLabel = hostOverride
+        ? `IP addon: ${window.esc(hostOverride)} (manual)`
+        : `IP addon: ${window.esc(window.location.hostname)} (auto)`;
+
     return `
         <div class="page-head">
             <div>
-                <div class="page-eyebrow">Hardware</div>
+                <div class="page-eyebrow">Hardware · ${hostLabel}</div>
                 <h1 class="page-title">Básculas</h1>
             </div>
-            <button id="open-add-scale" class="primary">+ Nueva</button>
+            <div class="row" style="gap:8px;">
+                <button id="edit-scale-host" class="secondary" title="Editar IP del addon usada en los webhook URLs">Editar IP</button>
+                <button id="open-add-scale" class="primary">+ Nueva</button>
+            </div>
         </div>
 
         ${_addScaleForm()}
@@ -213,6 +232,28 @@ window.initScales = function() {
     const form = root.querySelector('#add-scale-form');
     const cancelBtn = root.querySelector('#cancel-add-scale');
     const confirmBtn = root.querySelector('#confirm-add-scale');
+    const editHostBtn = root.querySelector('#edit-scale-host');
+
+    if (editHostBtn) {
+        editHostBtn.addEventListener('click', () => {
+            const current = (localStorage.getItem(SCALE_HOST_OVERRIDE_KEY) || '').trim();
+            const next = window.prompt(
+                'IP o hostname del addon (puerto 8099 fijo).\n' +
+                'Dejá vacío para volver al automático (' + window.location.hostname + ').',
+                current
+            );
+            if (next === null) return; // user cancelled
+            const cleaned = next.trim();
+            if (cleaned) {
+                localStorage.setItem(SCALE_HOST_OVERRIDE_KEY, cleaned);
+                window.showToast('IP guardada: ' + cleaned, 'success');
+            } else {
+                localStorage.removeItem(SCALE_HOST_OVERRIDE_KEY);
+                window.showToast('IP restablecida al automático', 'success');
+            }
+            window.renderPage();
+        });
+    }
 
     if (addBtn && form) {
         addBtn.addEventListener('click', () => {
