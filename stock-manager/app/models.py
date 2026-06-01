@@ -28,6 +28,7 @@ class Product(BaseModel):
     serving_size: Optional[float] = None # Cantidad usual/paquete
     package_quantity: Optional[str] = None # Cantidad descriptiva de OFF (ej: "6 x 125g")
     tracking_mode: str = "manual"  # "manual" or "scale" (auto-tracked by load cell)
+    scale_min_delta_g: float = 10.0  # min weight change (g) to sync stock from a scale reading
     batches: List[Batch] = []
     last_updated: Optional[datetime] = None
 
@@ -47,6 +48,7 @@ class ProductCreate(BaseModel):
     serving_size: Optional[float] = None
     package_quantity: Optional[str] = None
     tracking_mode: str = "manual"
+    scale_min_delta_g: float = 10.0
 
 class StockUpdate(BaseModel):
     quantity: float
@@ -70,6 +72,7 @@ class ProductUpdate(BaseModel):
     serving_size: Optional[float] = None
     package_quantity: Optional[str] = None
     tracking_mode: Optional[str] = None
+    scale_min_delta_g: Optional[float] = None
 
 class BatchUpdate(BaseModel):
     expiry_date: Optional[str] = None

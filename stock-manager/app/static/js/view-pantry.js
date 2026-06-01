@@ -5,6 +5,28 @@
 
 let pantryCat = 'todas';
 let pantryQuery = '';
+const pantryData = { pollTimer: null, visibilityHandler: null };
+const PANTRY_POLL_MS = 20000;
+
+function _pantryShouldSkipRefresh() {
+    // Don't disrupt: an open modal, or focused input/select/textarea on the page.
+    const modalMount = document.getElementById('modal-mount');
+    if (modalMount && modalMount.children.length > 0) return true;
+    const a = document.activeElement;
+    if (a && (a.tagName === 'INPUT' || a.tagName === 'SELECT' || a.tagName === 'TEXTAREA')) return true;
+    return false;
+}
+
+async function _pantryRefresh() {
+    if (window.AppState.page !== 'pantry') return;
+    if (_pantryShouldSkipRefresh()) return;
+    try {
+        await window.reloadProducts();
+        window.renderPage();
+    } catch (e) {
+        // Silent — next tick may succeed.
+    }
+}
 
 function _locForProduct(p) {
     return (p.location || 'otros').toLowerCase();
@@ -110,7 +132,7 @@ window.renderPantry = function() {
             <div class="stock-item">
                 <div class="stock-ico">${p.image_url ? `<img src="${window.esc(p.image_url)}" alt="">` : '📦'}</div>
                 <div>
-                    <div class="stock-name">${window.esc(p.name)}${isLow ? `<span title="Stock bajo (mínimo: ${p.min_stock})" style="color:var(--carbs); display:inline-flex; vertical-align:middle; margin-left:6px; width:16px; height:16px">${window.icon('alert')}</span>` : ''}</div>
+                    <div class="stock-name">${window.esc(p.name)}${p.tracking_mode === 'scale' ? `<span title="Controlado por báscula (umbral ${p.scale_min_delta_g ?? 10}g)" style="color:var(--primary); display:inline-flex; vertical-align:middle; margin-left:6px; width:16px; height:16px">${window.icon('scale')}</span>` : ''}${isLow ? `<span title="Stock bajo (mínimo: ${p.min_stock})" style="color:var(--carbs); display:inline-flex; vertical-align:middle; margin-left:6px; width:16px; height:16px">${window.icon('alert')}</span>` : ''}</div>
                 </div>
                 <div class="row" style="gap:10px">
                     ${exp ? `<span class="exp-pill ${expCls}">${expTxt}</span>` : ''}
@@ -254,6 +276,27 @@ window.initPantry = function() {
             }
         });
     });
+
+    // Live refresh: poll every 20s while on this page; also refresh immediately
+    // when the tab regains visibility. This is what surfaces scale-driven stock
+    // updates without forcing the user to navigate away and back.
+    if (pantryData.pollTimer) clearInterval(pantryData.pollTimer);
+    pantryData.pollTimer = setInterval(() => {
+        if (window.AppState.page !== 'pantry') {
+            clearInterval(pantryData.pollTimer);
+            pantryData.pollTimer = null;
+            return;
+        }
+        _pantryRefresh();
+    }, PANTRY_POLL_MS);
+
+    if (pantryData.visibilityHandler) {
+        document.removeEventListener('visibilitychange', pantryData.visibilityHandler);
+    }
+    pantryData.visibilityHandler = () => {
+        if (!document.hidden && window.AppState.page === 'pantry') _pantryRefresh();
+    };
+    document.addEventListener('visibilitychange', pantryData.visibilityHandler);
 };
 
 window.openEditProduct = function(barcode) {
@@ -367,6 +410,11 @@ window.openEditProduct = function(barcode) {
                                     <label class="field-label">Ración estándar</label>
                                     <input id="ep-serving" class="input num" type="number" step="0.1" placeholder="ej. 30" value="${p.serving_size ?? ''}"/>
                                 </div>
+                                ${p.tracking_mode === 'scale' ? `
+                                <div class="field">
+                                    <label class="field-label">Umbral báscula (g)</label>
+                                    <input id="ep-scale-delta" class="input num" type="number" step="0.1" min="0" placeholder="10" value="${p.scale_min_delta_g ?? 10}"/>
+                                </div>` : ''}
                             </div>
                             <div class="field">
                                 <label class="field-label">URL de imagen</label>
@@ -439,6 +487,8 @@ window.openEditProduct = function(barcode) {
         if (protVal    !== '') payload.proteins_100g = Number(protVal);
         if (carbsVal   !== '') payload.carbs_100g    = Number(carbsVal);
         if (fatVal     !== '') payload.fat_100g      = Number(fatVal);
+        const scaleDeltaEl = mount.querySelector('#ep-scale-delta');
+        if (scaleDeltaEl && scaleDeltaEl.value !== '') payload.scale_min_delta_g = Number(scaleDeltaEl.value);
 
         try {
             await window.apiCall(`/products/${barcode}`, 'PATCH', payload);

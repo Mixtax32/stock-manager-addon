@@ -39,6 +39,7 @@ class Database:
                     serving_size REAL DEFAULT NULL,
                     package_quantity TEXT DEFAULT NULL,
                     tracking_mode TEXT NOT NULL DEFAULT 'manual',
+                    scale_min_delta_g REAL NOT NULL DEFAULT 10.0,
                     last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
@@ -69,6 +70,8 @@ class Database:
                 await db.execute("ALTER TABLE products ADD COLUMN package_quantity TEXT DEFAULT NULL")
             if 'tracking_mode' not in columns:
                 await db.execute("ALTER TABLE products ADD COLUMN tracking_mode TEXT NOT NULL DEFAULT 'manual'")
+            if 'scale_min_delta_g' not in columns:
+                await db.execute("ALTER TABLE products ADD COLUMN scale_min_delta_g REAL NOT NULL DEFAULT 10.0")
 
             # Create batches table
             await db.execute("""
@@ -326,10 +329,10 @@ class Database:
         """Create new product"""
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(
-                """INSERT INTO products (barcode, name, category, stock, min_stock, unit_type, location, image_url, weight_g, kcal_100g, proteins_100g, carbs_100g, fat_100g, serving_size, package_quantity, tracking_mode, last_updated)
-                   VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                """INSERT INTO products (barcode, name, category, stock, min_stock, unit_type, location, image_url, weight_g, kcal_100g, proteins_100g, carbs_100g, fat_100g, serving_size, package_quantity, tracking_mode, scale_min_delta_g, last_updated)
+                   VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (product.barcode, product.name, product.category, product.min_stock, product.unit_type, product.location, product.image_url,
-                 product.weight_g, product.kcal_100g, product.proteins_100g, product.carbs_100g, product.fat_100g, product.serving_size, product.package_quantity, product.tracking_mode, datetime.now())
+                 product.weight_g, product.kcal_100g, product.proteins_100g, product.carbs_100g, product.fat_100g, product.serving_size, product.package_quantity, product.tracking_mode, product.scale_min_delta_g, datetime.now())
             )
             await db.commit()
         return await self.get_product(product.barcode)
@@ -451,6 +454,8 @@ class Database:
             updates['package_quantity'] = update.package_quantity
         if hasattr(update, 'tracking_mode') and update.tracking_mode is not None:
             updates['tracking_mode'] = update.tracking_mode
+        if hasattr(update, 'scale_min_delta_g') and update.scale_min_delta_g is not None:
+            updates['scale_min_delta_g'] = update.scale_min_delta_g
 
         if updates:
             updates['last_updated'] = datetime.now()
@@ -1109,16 +1114,37 @@ class Database:
             return cursor.rowcount > 0
 
     async def record_scale_weight(self, scale_id: int, weight_g: float) -> Optional[Scale]:
-        """Stable weight reading from the ESP32 — refreshes the live stock display,
-        does NOT create a movement entry."""
+        """Stable weight reading from the ESP32. Always refreshes the scale's
+        last_stable_weight_g. If the scale is bound to a product+batch and the
+        change vs. the previous stable reading exceeds the product's
+        scale_min_delta_g threshold, the batch quantity is synced to the new
+        weight so the pantry view tracks it live. Never creates a movement —
+        consumption events go through handle_scale_event('consumo')."""
+        scale = await self.get_scale(scale_id)
+        if not scale:
+            return None
+        prev_weight = scale.last_stable_weight_g
+        product = None
+        if scale.product_barcode:
+            product = await self.get_product(scale.product_barcode)
+        should_sync_stock = (
+            product is not None
+            and product.tracking_mode == "scale"
+            and scale.batch_id is not None
+            and (prev_weight is None or abs(weight_g - prev_weight) >= product.scale_min_delta_g)
+        )
         async with aiosqlite.connect(self.db_path) as db:
-            cursor = await db.execute(
+            await db.execute(
                 "UPDATE scales SET last_stable_weight_g = ? WHERE id = ?",
                 (weight_g, scale_id)
             )
+            if should_sync_stock:
+                await db.execute(
+                    "UPDATE batches SET quantity = ? WHERE id = ?",
+                    (max(0.0, weight_g), scale.batch_id)
+                )
+                await self._sync_product_stock(db, scale.product_barcode)
             await db.commit()
-            if cursor.rowcount == 0:
-                return None
         return await self.get_scale(scale_id)
 
     async def handle_scale_event(self, scale_id: int, event_type: str,
