@@ -1079,13 +1079,25 @@ class Database:
 
     async def create_scale(self, scale: ScaleCreate) -> Scale:
         async with aiosqlite.connect(self.db_path) as db:
-            cursor = await db.execute(
-                """INSERT INTO scales (name, ha_entity_id, product_barcode, tare_g, calibration_factor)
-                   VALUES (?, ?, ?, ?, ?)""",
-                (scale.name, scale.ha_entity_id, scale.product_barcode,
+            # Pick the lowest free id by walking existing ids in order. AUTOINCREMENT
+            # on the table doesn't help here — it never reuses, so deleting scale 1
+            # and re-creating jumps to 2, 3, … forever and the ESP firmware's
+            # hardcoded SCALE_ID drifts out of sync. With explicit ids we fill gaps
+            # left by deletions, keeping the firmware mapping stable.
+            async with db.execute("SELECT id FROM scales ORDER BY id") as cursor:
+                existing = [row[0] for row in await cursor.fetchall()]
+            scale_id = 1
+            for eid in existing:
+                if eid == scale_id:
+                    scale_id += 1
+                else:
+                    break
+            await db.execute(
+                """INSERT INTO scales (id, name, ha_entity_id, product_barcode, tare_g, calibration_factor)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (scale_id, scale.name, scale.ha_entity_id, scale.product_barcode,
                  scale.tare_g, scale.calibration_factor)
             )
-            scale_id = cursor.lastrowid
             await db.commit()
         return await self.get_scale(scale_id)
 
