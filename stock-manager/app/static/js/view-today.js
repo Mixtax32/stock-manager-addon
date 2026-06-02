@@ -187,19 +187,43 @@ window.initToday = function() {
                     await window.addToMeal(mealId, item);
                     window.renderPage();
                 },
-                onPickRecipe: async ({ recipe, qty: pickedQty }) => {
+                onPickRecipe: async ({ recipe, qty: pickedQty, action }) => {
                     const baseQty = Number(recipe.output_qty) > 0
                         ? Number(recipe.output_qty)
                         : Math.max(1, recipe.serves || 1);
                     const factor = (Number(pickedQty) || 0) / baseQty;
-                    if (factor <= 0) return;
+                    if (factor <= 0) {
+                        window.showToast('La cantidad debe ser mayor a 0', 'error');
+                        return;
+                    }
+
+                    if (action === 'spend') {
+                        let outputBarcode = recipe.output_product_id;
+                        if (!outputBarcode && window.ensureRecipeOutputProduct) {
+                            outputBarcode = await window.ensureRecipeOutputProduct(recipe);
+                        }
+                        if (!outputBarcode) {
+                            window.showToast('Esta receta no tiene producto cocinado vinculado', 'error');
+                            return;
+                        }
+                        if (window.reloadProducts) await window.reloadProducts();
+                        await window.addToMeal(mealId, {
+                            productId: outputBarcode,
+                            qty: Number(pickedQty) || 0,
+                        });
+                        window.showToast(`Gastado "${recipe.name}" en ${meal ? meal.name : 'comida'}`, 'success');
+                        window.renderPage();
+                        return;
+                    }
+
+                    // action === 'make' (default): consume raw ingredients into the meal
                     for (const ing of (recipe.ingredients || [])) {
                         await window.addToMeal(mealId, {
                             productId: ing.productId,
                             qty: (ing.qty || 0) * factor,
                         });
                     }
-                    window.showToast(`Receta "${recipe.name}" añadida a ${meal ? meal.name : 'comida'}`, 'success');
+                    window.showToast(`Hecha "${recipe.name}" en ${meal ? meal.name : 'comida'}`, 'success');
                     window.renderPage();
                 },
             });

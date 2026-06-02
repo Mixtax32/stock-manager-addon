@@ -435,7 +435,8 @@ window.openFoodPicker = function(options) {
 
             body.querySelectorAll('.fp-pick-recipe').forEach(btn => {
                 btn.addEventListener('click', () => {
-                    const r = (window.AppState.recipes || []).find(x => x.id === btn.dataset.rid);
+                    const rid = btn.dataset.rid;
+                    const r = (window.AppState.recipes || []).find(x => String(x.id) === String(rid));
                     if (!r) return;
                     selRecipe = r;
                     recipeQty = recipeBaseQty(r);
@@ -447,13 +448,17 @@ window.openFoodPicker = function(options) {
             if (tabsWrap) tabsWrap.style.display = 'none';
             const hasOutput = Number(selRecipe.output_qty) > 0;
             const qtyLabel = hasOutput ? 'Cantidad (uds)' : 'Raciones';
+            const outputProduct = selRecipe.output_product_id
+                ? window.findProductById(selRecipe.output_product_id)
+                : null;
+            const cookedStock = outputProduct ? (outputProduct.stock || 0) : 0;
             body.innerHTML = `
                 <div>
                     <div class="card sunken" style="margin-bottom:14px">
                         <div class="row" style="align-items:center;">
                             <div style="flex:1">
                                 <div style="font-size:15px; font-weight:600;">${window.esc(selRecipe.name)}</div>
-                                <div class="tiny">${hasOutput ? `Base: ${selRecipe.output_qty} uds` : `Base: ${Math.max(1, selRecipe.serves || 1)} raciones`} · ${(selRecipe.ingredients || []).length} ingredientes</div>
+                                <div class="tiny">${hasOutput ? `Base: ${selRecipe.output_qty} uds` : `Base: ${Math.max(1, selRecipe.serves || 1)} raciones`} · ${(selRecipe.ingredients || []).length} ingredientes${hasOutput ? ` · cocinado: ${cookedStock} uds` : ''}</div>
                             </div>
                             <button class="btn ghost sm" data-action="change-recipe">Cambiar</button>
                         </div>
@@ -470,9 +475,14 @@ window.openFoodPicker = function(options) {
                             </div>
                         </div>
                     </div>
-                    <div class="row" style="justify-content:flex-end; gap:8px">
+                    <div class="muted" style="font-size:11px; line-height:1.5; margin-bottom:12px">
+                        <strong>Hacer</strong>: descuenta ingredientes crudos y registra la comida.<br>
+                        ${hasOutput ? `<strong>Gastar</strong>: descuenta del stock cocinado (${cookedStock} uds disponibles) y registra la comida.` : '<em>Sin producto cocinado: solo "Hacer" disponible.</em>'}
+                    </div>
+                    <div class="row" style="justify-content:flex-end; gap:8px; flex-wrap:wrap">
                         <button class="btn ghost" data-action="close">Cancelar</button>
-                        <button class="btn accent" data-action="confirm-recipe">Añadir</button>
+                        <button class="btn" data-action="recipe-make">Hacer</button>
+                        ${hasOutput ? `<button class="btn accent" data-action="recipe-spend">Gastar</button>` : ''}
                     </div>
                 </div>
             `;
@@ -489,11 +499,19 @@ window.openFoodPicker = function(options) {
                     if (pv) pv.innerHTML = recipeMacroPreview();
                 });
             }
-            body.querySelector('[data-action="confirm-recipe"]').addEventListener('click', () => {
+            body.querySelector('[data-action="recipe-make"]').addEventListener('click', () => {
                 if (!selRecipe) return;
-                onPickRecipe({ recipe: selRecipe, qty: Number(recipeQty) || 0 });
+                onPickRecipe({ recipe: selRecipe, qty: Number(recipeQty) || 0, action: 'make' });
                 close();
             });
+            const spendBtn = body.querySelector('[data-action="recipe-spend"]');
+            if (spendBtn) {
+                spendBtn.addEventListener('click', () => {
+                    if (!selRecipe) return;
+                    onPickRecipe({ recipe: selRecipe, qty: Number(recipeQty) || 0, action: 'spend' });
+                    close();
+                });
+            }
             body.querySelectorAll('[data-action="close"]').forEach(b => b.addEventListener('click', close));
         }
     }

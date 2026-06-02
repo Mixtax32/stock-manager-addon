@@ -329,6 +329,10 @@ function _expiryFromDays(days) {
     return dt.toISOString().slice(0, 10);
 }
 
+window.ensureRecipeOutputProduct = async function(r) {
+    return _ensureOutputProduct(r);
+};
+
 async function _ensureOutputProduct(r) {
     const outputQty = Number(r.output_qty) || 0;
     if (outputQty <= 0) return null;
