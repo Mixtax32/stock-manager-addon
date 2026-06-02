@@ -146,10 +146,22 @@ window.openFoodPicker = function(options) {
 
     function results() {
         const products = window.AppState.products || [];
-        const needle = q.toLowerCase();
-        return products
-            .filter(p => !needle || (p.name || '').toLowerCase().includes(needle) || String(p.barcode).includes(needle))
-            .slice(0, 25);
+        const needle = q.toLowerCase().trim();
+        if (needle) {
+            return products
+                .filter(p => (p.name || '').toLowerCase().includes(needle) || String(p.barcode).includes(needle))
+                .slice(0, 25);
+        }
+        // No query: surface frequent items first
+        const frequent = window.AppState.frequentBarcodes || [];
+        const rank = new Map(frequent.map((b, i) => [String(b), i]));
+        const sorted = [...products].sort((a, b) => {
+            const ra = rank.has(String(a.barcode)) ? rank.get(String(a.barcode)) : Infinity;
+            const rb = rank.has(String(b.barcode)) ? rank.get(String(b.barcode)) : Infinity;
+            if (ra !== rb) return ra - rb;
+            return (a.name || '').localeCompare(b.name || '');
+        });
+        return sorted.slice(0, 25);
     }
 
     function getEmoji(p) {
@@ -180,7 +192,7 @@ window.openFoodPicker = function(options) {
 
                 <div class="search" id="fp-search-wrap" style="margin-bottom:12px">
                     ${window.icon('search')}
-                    <input id="fp-search" autofocus placeholder="Pollo, avena, plátano…"/>
+                    <input id="fp-search" placeholder="Pollo, avena, plátano…"/>
                 </div>
 
                 <div id="fp-body"></div>
@@ -200,12 +212,6 @@ window.openFoodPicker = function(options) {
             q = e.target.value;
             renderBody();
         });
-        // Focus + cursor at end on initial mount only
-        setTimeout(() => {
-            search.focus();
-            search.setSelectionRange(search.value.length, search.value.length);
-        }, 0);
-
         shellBuilt = true;
     }
 
@@ -219,7 +225,7 @@ window.openFoodPicker = function(options) {
             if (searchWrap) searchWrap.style.display = '';
             const list = results();
             body.innerHTML = `
-                <div style="max-height:260px; overflow:auto; margin:0 -4px">
+                <div style="max-height:55vh; overflow:auto; margin:0 -4px">
                     ${list.map(p => {
                         const m = window.macrosFor(p.barcode, 100);
                         return `

@@ -279,6 +279,11 @@ async def get_today_movements():
     """Get list of products consumed today"""
     return await db.get_today_movements()
 
+@app.get("/api/stats/frequent-products")
+async def get_frequent_products(days: int = 60, limit: int = 30):
+    """List of product barcodes most frequently consumed (desc)."""
+    return await db.get_frequent_products(days=days, limit=limit)
+
 @app.delete("/api/movements/{movement_id}")
 async def delete_movement(movement_id: int, restore_stock: bool = True):
     """Delete movement and optionally restore stock"""

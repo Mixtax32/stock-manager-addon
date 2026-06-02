@@ -123,6 +123,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.reloadTodayLog(),
         window.reloadWeek(),
         window.reloadBodyWeight(),
+        window.reloadFrequentProducts(),
     ]);
     window.renderPage();
 });

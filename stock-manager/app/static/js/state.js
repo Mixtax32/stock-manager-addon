@@ -86,6 +86,7 @@ window.AppState = {
 
     // HA API data — products and barcodes (loaded async)
     products: [],
+    frequentBarcodes: [], // loaded async by reloadFrequentProducts()
 
     bodyWeight: 75, // overwritten by reloadBodyWeight() on boot
 };
@@ -115,6 +116,15 @@ window.reloadBodyWeight = async function() {
         }
     } catch (e) {
         console.error('reloadBodyWeight failed', e);
+    }
+};
+
+window.reloadFrequentProducts = async function() {
+    try {
+        const data = await window.apiCall('/stats/frequent-products', 'GET');
+        window.AppState.frequentBarcodes = Array.isArray(data) ? data : [];
+    } catch (e) {
+        console.error('reloadFrequentProducts failed', e);
     }
 };
 

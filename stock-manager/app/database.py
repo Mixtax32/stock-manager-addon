@@ -607,6 +607,23 @@ class Database:
                 rows = await cursor.fetchall()
                 return [dict(row) for row in rows]
 
+    async def get_frequent_products(self, days: int = 60, limit: int = 30) -> List[str]:
+        """Return product barcodes most frequently consumed in the last N days, sorted by count desc."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("""
+                SELECT barcode, COUNT(*) as freq
+                FROM movements
+                WHERE quantity_change < 0
+                  AND timestamp >= date('now', ?)
+                  AND barcode IS NOT NULL
+                GROUP BY barcode
+                ORDER BY freq DESC, MAX(timestamp) DESC
+                LIMIT ?
+            """, (f'-{days} days', limit)) as cursor:
+                rows = await cursor.fetchall()
+                return [row["barcode"] for row in rows]
+
     async def get_daily_macros(self) -> dict:
         """Get summarized macros consumed today"""
         async with aiosqlite.connect(self.db_path) as db:
