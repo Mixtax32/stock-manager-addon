@@ -305,23 +305,30 @@ async def update_movement(movement_id: int, update: MovementUpdate):
 
 @app.get("/api/export")
 async def export_data():
-    """Export all inventory data as CSV. Column order matches what import_data
-    knows how to read, so an exported file round-trips cleanly."""
+    """Export all inventory data as CSV. Column order is derived from the rows
+    themselves so any new field added to db.get_export_data() flows into the
+    file automatically — nobody has to remember to extend a fieldnames list."""
     import csv
     import io
     from fastapi.responses import StreamingResponse
 
     data = await db.get_export_data()
 
-    fieldnames = [
-        "barcode", "name", "category", "unit_type", "location", "min_stock",
-        "image_url", "weight_g", "kcal_100g", "proteins_100g", "carbs_100g",
-        "fat_100g", "serving_size", "package_quantity", "quantity", "expiry_date",
-    ]
+    if data:
+        # All rows share keys (same SELECT) so the first row defines the schema.
+        fieldnames = list(data[0].keys())
+    else:
+        # Empty inventory: still emit a header so the file is a valid CSV the
+        # import endpoint can read back. This fallback only matters when the
+        # DB has no products — the live case never touches it.
+        fieldnames = [
+            "barcode", "name", "category", "unit_type", "location", "min_stock",
+            "image_url", "weight_g", "kcal_100g", "proteins_100g", "carbs_100g",
+            "fat_100g", "serving_size", "package_quantity", "quantity", "expiry_date",
+        ]
+
     output = io.StringIO()
-    # extrasaction='ignore' so future schema additions to get_export_data don't
-    # blow up this endpoint until the fieldnames list catches up.
-    writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
     writer.writeheader()
     writer.writerows(data)
 
