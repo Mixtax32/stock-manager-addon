@@ -420,6 +420,11 @@ class Database:
                         row = await cursor.fetchone()
 
                 if row:
+                    # New purchase merging into an existing batch — if that batch
+                    # already had a price, consolidate it now BEFORE overwriting,
+                    # otherwise the prior observation is lost forever.
+                    if update.unit_price is not None:
+                        await self._consolidate_batch_price(db, row['id'])
                     await db.execute(
                         "UPDATE batches SET quantity = quantity + ? WHERE id = ?",
                         (update.quantity, row['id'])
@@ -432,21 +437,12 @@ class Database:
                     )
                     affected_batch_id = cursor.lastrowid
 
-                # If the caller bundled price info, attach it to the resulting batch
-                # in the same transaction so stock + price stay consistent.
+                # Live price on the new/merged batch. Does NOT enter price_history
+                # until the batch is consolidated (consumed to zero, rotated out).
                 if update.unit_price is not None and affected_batch_id is not None:
-                    await self._record_price_inner(
-                        db, barcode,
-                        PriceRecord(
-                            unit_price=update.unit_price,
-                            qty=update.pack_count,
-                            total_price=update.total_price,
-                            source=update.price_source or "manual",
-                            source_ref=update.price_source_ref,
-                            observed_at=update.price_observed_at,
-                            batch_id=affected_batch_id,
-                        )
-                    )
+                    observed_at = update.price_observed_at or datetime.now().isoformat(timespec="seconds")
+                    await self._set_batch_price(db, affected_batch_id, barcode,
+                                                update.unit_price, observed_at)
             else:
                 # Removing stock: FIFO across batches.
                 # If update.location is specified, restrict to batches at that location.
@@ -468,6 +464,9 @@ class Database:
                     consume = min(batch.quantity, remaining)
                     new_qty = batch.quantity - consume
                     if new_qty == 0:
+                        # Batch exhausted — consolidate its live price as the
+                        # final observation before removing the row.
+                        await self._consolidate_batch_price(db, batch.id)
                         await db.execute("DELETE FROM batches WHERE id = ?", (batch.id,))
                     else:
                         await db.execute("UPDATE batches SET quantity = ? WHERE id = ?", (new_qty, batch.id))
@@ -578,6 +577,7 @@ class Database:
                 return None  # Can't go negative
 
             if new_qty == 0:
+                await self._consolidate_batch_price(db, batch_id)
                 await db.execute("DELETE FROM batches WHERE id = ?", (batch_id,))
             else:
                 await db.execute("UPDATE batches SET quantity = ? WHERE id = ?", (new_qty, batch_id))
@@ -930,6 +930,7 @@ class Database:
                     consume = min(batch.quantity, remaining)
                     new_qty = batch.quantity - consume
                     if new_qty == 0:
+                        await self._consolidate_batch_price(db, batch.id)
                         await db.execute("DELETE FROM batches WHERE id = ?", (batch.id,))
                     else:
                         await db.execute("UPDATE batches SET quantity = ? WHERE id = ?", (new_qty, batch.id))
@@ -1292,7 +1293,9 @@ class Database:
                 if scale.product_barcode:
                     location_label = f"Báscula: {scale.name}"
                     if scale.batch_id:
-                        # Lot rotation: the previous scale-bound batch is gone — drop it.
+                        # Lot rotation: the previous scale-bound batch is gone — drop it,
+                        # but first freeze its live price as a price_history observation.
+                        await self._consolidate_batch_price(db, scale.batch_id)
                         await db.execute(
                             "DELETE FROM batches WHERE id = ?",
                             (scale.batch_id,)
@@ -1305,6 +1308,15 @@ class Database:
                         # locations (Nevera, Despensa, Congelador, Otros, or a different
                         # scale's label) are kept — those are stocks this scale doesn't
                         # control.
+                        db.row_factory = aiosqlite.Row
+                        async with db.execute(
+                            """SELECT id FROM batches
+                               WHERE barcode = ? AND (location IS NULL OR location = ?)""",
+                            (scale.product_barcode, location_label)
+                        ) as cursor:
+                            stale_ids = [r["id"] for r in await cursor.fetchall()]
+                        for sid in stale_ids:
+                            await self._consolidate_batch_price(db, sid)
                         await db.execute(
                             """DELETE FROM batches
                                WHERE barcode = ? AND (location IS NULL OR location = ?)""",
@@ -1427,70 +1439,101 @@ class Database:
             await db.commit()
             return cursor.rowcount > 0
 
-    # --- Price history -----------------------------------------------------
+    # --- Price tracking ----------------------------------------------------
+    #
+    # Mental model (mind the difference from earlier versions):
+    #   batches.last_price       → the *live* price of a batch. Mutable while
+    #                              the batch has stock — corrections never
+    #                              pollute the time series.
+    #   products.last_price      → mirrors the most recent batch update so
+    #                              the shopping list keeps a fast lookup.
+    #   price_history            → *consolidated* observations only. A row
+    #                              lands here when a batch is deleted (FIFO
+    #                              consume to zero, manual drain, scale lot
+    #                              rotation). That snapshot is what feeds the
+    #                              chart.
 
-    async def _record_price_inner(self, db, barcode: str, record: PriceRecord) -> Optional[int]:
-        """Insert price_history + bump products.last_price + optionally bump
-        batches.last_price. Caller owns the connection and commit. Returns the
-        new price_history id (or None if the product doesn't exist)."""
-        observed_at = record.observed_at or datetime.now().isoformat(timespec="seconds")
+    async def _set_batch_price(self, db, batch_id: int, barcode: str,
+                                unit_price: float, observed_at: str):
+        """Write batch.last_price and bump product.last_price if newer.
+        Does NOT insert into price_history — this is the 'live' path."""
         db.row_factory = aiosqlite.Row
+        await db.execute(
+            "UPDATE batches SET last_price = ?, last_price_date = ? WHERE id = ?",
+            (unit_price, observed_at, batch_id)
+        )
         async with db.execute(
             "SELECT last_price_date FROM products WHERE barcode = ?", (barcode,)
         ) as cursor:
             prod = await cursor.fetchone()
         if not prod:
-            return None
-
-        cursor = await db.execute(
-            """INSERT INTO price_history
-               (barcode, batch_id, unit_price, qty, total_price, source, source_ref, observed_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (barcode, record.batch_id, record.unit_price, record.qty, record.total_price,
-             record.source, record.source_ref, observed_at)
-        )
-        new_id = cursor.lastrowid
-
-        # Bump product.last_price only if this observation is newer (or there is none yet).
+            return
         prev_date = prod["last_price_date"]
         if prev_date is None or observed_at >= prev_date:
             await db.execute(
                 "UPDATE products SET last_price = ?, last_price_date = ?, last_updated = ? "
                 "WHERE barcode = ?",
-                (record.unit_price, observed_at, datetime.now(), barcode)
+                (unit_price, observed_at, datetime.now(), barcode)
             )
 
-        # Bump batch.last_price using the same recency rule.
-        if record.batch_id is not None:
-            async with db.execute(
-                "SELECT last_price_date FROM batches WHERE id = ?", (record.batch_id,)
-            ) as cursor:
-                batch_row = await cursor.fetchone()
-            if batch_row is not None:
-                prev_batch_date = batch_row["last_price_date"]
-                if prev_batch_date is None or observed_at >= prev_batch_date:
-                    await db.execute(
-                        "UPDATE batches SET last_price = ?, last_price_date = ? WHERE id = ?",
-                        (record.unit_price, observed_at, record.batch_id)
-                    )
-
-        return new_id
+    async def _consolidate_batch_price(self, db, batch_id: int):
+        """Right before deleting a batch, freeze its current live price as a
+        price_history row. No-op if the batch has no last_price."""
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT barcode, last_price, last_price_date, quantity FROM batches WHERE id = ?",
+            (batch_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+        if not row or row["last_price"] is None:
+            return
+        observed_at = row["last_price_date"] or datetime.now().isoformat(timespec="seconds")
+        await db.execute(
+            """INSERT INTO price_history
+               (barcode, batch_id, unit_price, qty, total_price, source, source_ref, observed_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (row["barcode"], batch_id, row["last_price"], None, None,
+             "consolidated", None, observed_at)
+        )
 
     async def record_price(self, barcode: str, record: PriceRecord) -> Optional[PriceHistoryEntry]:
-        """Insert a price observation and bump products.last_price/date if newer.
-        Optionally ties it to a batch (and updates batches.last_price too)."""
+        """Manually insert a price observation (e.g. user typing a price they
+        remember). This is the ONLY public entry point that writes price_history
+        directly — the ticket flow and batch edits route through _set_batch_price."""
+        observed_at = record.observed_at or datetime.now().isoformat(timespec="seconds")
         async with aiosqlite.connect(self.db_path) as db:
-            new_id = await self._record_price_inner(db, barcode, record)
-            if new_id is None:
-                return None
-            await db.commit()
             db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT last_price_date FROM products WHERE barcode = ?", (barcode,)
+            ) as cursor:
+                prod = await cursor.fetchone()
+            if not prod:
+                return None
+            cursor = await db.execute(
+                """INSERT INTO price_history
+                   (barcode, batch_id, unit_price, qty, total_price, source, source_ref, observed_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (barcode, record.batch_id, record.unit_price, record.qty, record.total_price,
+                 record.source, record.source_ref, observed_at)
+            )
+            new_id = cursor.lastrowid
+            prev_date = prod["last_price_date"]
+            if prev_date is None or observed_at >= prev_date:
+                await db.execute(
+                    "UPDATE products SET last_price = ?, last_price_date = ?, last_updated = ? "
+                    "WHERE barcode = ?",
+                    (record.unit_price, observed_at, datetime.now(), barcode)
+                )
+            await db.commit()
             async with db.execute("SELECT * FROM price_history WHERE id = ?", (new_id,)) as cursor:
                 row = await cursor.fetchone()
             return PriceHistoryEntry(**dict(row)) if row else None
 
-    async def record_batch_price(self, batch_id: int, record: PriceRecord) -> Optional[PriceHistoryEntry]:
-        """Edit/add a price for a specific batch. Resolves the barcode from the batch."""
+    async def record_batch_price(self, batch_id: int, record: PriceRecord) -> Optional[Batch]:
+        """Edit the live price of a specific batch (manual correction in the
+        product card). Updates batch.last_price + product.last_price, but does
+        NOT touch price_history — the correction is not a new observation."""
+        observed_at = record.observed_at or datetime.now().isoformat(timespec="seconds")
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
             async with db.execute(
@@ -1500,14 +1543,20 @@ class Database:
             if not row:
                 return None
             barcode = row["barcode"]
-            record_with_batch = record.model_copy(update={"batch_id": batch_id})
-            new_id = await self._record_price_inner(db, barcode, record_with_batch)
-            if new_id is None:
-                return None
+            await self._set_batch_price(db, batch_id, barcode, record.unit_price, observed_at)
             await db.commit()
-            async with db.execute("SELECT * FROM price_history WHERE id = ?", (new_id,)) as cursor:
-                ph_row = await cursor.fetchone()
-            return PriceHistoryEntry(**dict(ph_row)) if ph_row else None
+            async with db.execute("SELECT * FROM batches WHERE id = ?", (batch_id,)) as cursor:
+                updated = await cursor.fetchone()
+            return Batch(**dict(updated)) if updated else None
+
+    async def clear_price_history(self, barcode: str) -> int:
+        """Wipe all price_history rows for a product. Returns the number deleted."""
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute(
+                "DELETE FROM price_history WHERE barcode = ?", (barcode,)
+            )
+            await db.commit()
+            return cursor.rowcount
 
     async def get_price_history(self, barcode: str, limit: int = 50) -> List[PriceHistoryEntry]:
         async with aiosqlite.connect(self.db_path) as db:

@@ -362,13 +362,22 @@ async def get_product_price_history(barcode: str, limit: int = 50):
     """Get price history for a product, newest first."""
     return await db.get_price_history(barcode, limit)
 
-@app.patch("/api/batches/{batch_id}/price", response_model=PriceHistoryEntry)
+@app.patch("/api/batches/{batch_id}/price", response_model=Batch)
 async def patch_batch_price(batch_id: int, record: PriceRecord):
-    """Record/edit the price for a specific batch (e.g. corrected after a wrong ticket import)."""
-    entry = await db.record_batch_price(batch_id, record)
-    if not entry:
+    """Edit the live price of a specific batch. This is a correction, NOT a new
+    observation — it does not pollute price_history. The frozen observation only
+    lands in price_history when the batch is consumed/rotated out."""
+    updated = await db.record_batch_price(batch_id, record)
+    if not updated:
         raise HTTPException(status_code=404, detail="Batch not found")
-    return entry
+    return updated
+
+@app.delete("/api/products/{barcode}/price-history")
+async def delete_product_price_history(barcode: str):
+    """Wipe all price_history rows for a product (e.g. after generating noisy
+    test data while playing with the price input)."""
+    deleted = await db.clear_price_history(barcode)
+    return {"deleted": deleted}
 
 @app.post("/api/import")
 async def import_data(file: UploadFile = File(...), clear: bool = False):

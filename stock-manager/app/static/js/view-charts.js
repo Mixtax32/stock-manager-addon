@@ -224,8 +224,9 @@ function _renderPriceSection() {
                 <div class="card-title">Evolución de precios</div>
                 ${summary}
             </div>
-            <div style="margin-bottom:12px">
-                <select id="price-product" class="input">${options}</select>
+            <div class="row" style="gap:8px; margin-bottom:12px; align-items:center">
+                <select id="price-product" class="input" style="flex:1">${options}</select>
+                ${series.length > 0 ? `<button class="btn ghost sm" data-action="clear-history" title="Borrar observaciones históricas (no afecta el precio actual del lote)">Vaciar histórico</button>` : ''}
             </div>
             ${priceState.loading ? '<div class="empty" style="padding:30px 0">Cargando…</div>' : _priceChartSVG(series)}
         </div>
@@ -317,4 +318,19 @@ window.initCharts = function() {
             window.renderPage();
         });
     }
+
+    root.querySelector('[data-action="clear-history"]')?.addEventListener('click', async () => {
+        if (!priceState.barcode) return;
+        const product = window.findProductById(priceState.barcode);
+        const name = product ? product.name : 'este producto';
+        if (!window.confirm(`¿Borrar TODAS las observaciones históricas de "${name}"?\n\nEl precio actual de los lotes vivos no se toca.`)) return;
+        try {
+            await window.apiCall(`/products/${priceState.barcode}/price-history`, 'DELETE');
+            priceState.series = [];
+            window.showToast('Histórico vaciado', 'success');
+            window.renderPage();
+        } catch (e) {
+            window.showToast('Error: ' + e.message, 'error');
+        }
+    });
 };

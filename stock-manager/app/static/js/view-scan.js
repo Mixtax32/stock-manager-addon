@@ -345,7 +345,7 @@ function _renderTicketReview() {
                 ${packHint}
             </div>
             <div style="display:flex; align-items:center; gap:4px; flex-shrink:0">
-                <input type="number" class="input num ticket-row-qty" data-idx="${i}" value="${it.qty}" min="0" step="any" style="width:70px">
+                <input type="number" class="input num ticket-row-qty" data-idx="${i}" value="${it.qty}" min="0" step="any" style="width:90px">
                 ${unit ? `<span class="muted" style="font-size:11px; min-width:24px">${unit}</span>` : ''}
             </div>
             <button class="btn ghost sm ticket-row-change" data-idx="${i}">Cambiar</button>
