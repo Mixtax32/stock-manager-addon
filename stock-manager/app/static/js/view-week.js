@@ -256,13 +256,12 @@ function _defaultMobileDay() {
     return idx >= 0 ? idx : 0;
 }
 
-function _renderWeekPickerMobile() {
+function _renderMobilePickerRecipeList() {
     const recipes = window.AppState.recipes || [];
     const fp = recipes.filter(r =>
         !weekMobilePickerSearch ||
         r.name.toLowerCase().includes(weekMobilePickerSearch.toLowerCase())
     );
-    const mealName = WEEK_MEALS.find(m => m.id === weekMobilePicker.mealId)?.name || '';
 
     const recipeListHTML = fp.map(r => {
         const m = window.recipeMacros(r);
@@ -276,6 +275,23 @@ function _renderWeekPickerMobile() {
             </div>
         `;
     }).join('');
+
+    return recipeListHTML || `<div class="card empty"><div class="t">Sin recetas</div><div>Crea una en Recetas primero.</div></div>`;
+}
+
+function _wireMobilePickerHandlers(container) {
+    container.querySelectorAll('[data-pick-recipe]').forEach(pill => {
+        pill.addEventListener('click', async () => {
+            if (!weekMobilePicker) return;
+            const { dayId, mealId } = weekMobilePicker;
+            weekMobilePicker = null;
+            await placeRecipe(dayId, mealId, pill.dataset.pickRecipe, null);
+        });
+    });
+}
+
+function _renderWeekPickerMobile() {
+    const mealName = WEEK_MEALS.find(m => m.id === weekMobilePicker.mealId)?.name || '';
 
     return `
         <div class="page-head">
@@ -291,8 +307,8 @@ function _renderWeekPickerMobile() {
             <input id="week-m-search" placeholder="Buscar receta…" value="${window.esc(weekMobilePickerSearch)}"/>
         </div>
 
-        <div class="stack" style="gap:8px">
-            ${recipeListHTML || `<div class="card empty"><div class="t">Sin recetas</div><div>Crea una en Recetas primero.</div></div>`}
+        <div class="stack" id="week-mpicker-list" style="gap:8px">
+            ${_renderMobilePickerRecipeList()}
         </div>
     `;
 }
@@ -386,14 +402,41 @@ function _renderWeekMobile() {
 
 /* ---- Desktop render ---- */
 
+function _renderDesktopRecipeList() {
+    const recipes = window.AppState.recipes || [];
+    const filtered = recipes.filter(r => !weekFilter || r.name.toLowerCase().includes(weekFilter.toLowerCase()));
+    const recipesHTML = filtered.map(r => {
+        const m = window.recipeMacros(r);
+        return `
+            <div class="recipe-pill" draggable="true" data-rid="${window.esc(r.id)}">
+                <span class="emoji">🍽️</span>
+                <div class="info">
+                    <div class="ttl">${window.esc(r.name)}</div>
+                    <div class="sub">${Math.round(m.kcal)} kcal · P${Math.round(m.p)} · ${r.time || '?'} min</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    return recipesHTML || `<div class="empty"><div class="t">Sin recetas</div><div>Crea una primero en Recetas.</div></div>`;
+}
+
+function _wireDesktopRecipePillHandlers(container) {
+    container.querySelectorAll('.recipe-pill[draggable="true"]').forEach(pill => {
+        pill.addEventListener('dragstart', (e) => {
+            weekDragState = { recipeId: pill.dataset.rid, source: null };
+            e.dataTransfer.effectAllowed = 'copy';
+            pill.classList.add('dragging');
+        });
+        pill.addEventListener('dragend', () => { weekDragState = null; pill.classList.remove('dragging'); });
+    });
+}
+
 window.renderWeek = function() {
     if (window.innerWidth < 1024) return _renderWeekMobile();
 
     const week = window.AppState.week || {};
     const goals = window.AppState.goals;
-    const recipes = window.AppState.recipes || [];
     const todayId = window.todayDowId();
-    const filtered = recipes.filter(r => !weekFilter || r.name.toLowerCase().includes(weekFilter.toLowerCase()));
     const wt = weekTotalsAll();
 
     const now = new Date();
@@ -444,19 +487,6 @@ window.renderWeek = function() {
         `;
     }).join('');
 
-    const recipesHTML = filtered.map(r => {
-        const m = window.recipeMacros(r);
-        return `
-            <div class="recipe-pill" draggable="true" data-rid="${window.esc(r.id)}">
-                <span class="emoji">🍽️</span>
-                <div class="info">
-                    <div class="ttl">${window.esc(r.name)}</div>
-                    <div class="sub">${Math.round(m.kcal)} kcal · P${Math.round(m.p)} · ${r.time || '?'} min</div>
-                </div>
-            </div>
-        `;
-    }).join('');
-
     return `
         <div class="page-head">
             <div>
@@ -502,8 +532,8 @@ window.renderWeek = function() {
                     ${window.icon('search')}
                     <input id="week-filter" placeholder="Buscar…" value="${window.esc(weekFilter)}"/>
                 </div>
-                <div class="stack" style="gap:8px">
-                    ${recipesHTML || `<div class="empty"><div class="t">Sin recetas</div><div>Crea una primero en Recetas.</div></div>`}
+                <div class="stack" id="week-recipes-list" style="gap:8px">
+                    ${_renderDesktopRecipeList()}
                 </div>
             </div>
         </div>
@@ -542,17 +572,15 @@ function _initWeekMobile(root) {
     const searchInput = root.querySelector('#week-m-search');
     if (searchInput) searchInput.addEventListener('input', e => {
         weekMobilePickerSearch = e.target.value;
-        window.renderPage();
+        const list = document.getElementById('week-mpicker-list');
+        if (list) {
+            list.innerHTML = _renderMobilePickerRecipeList();
+            _wireMobilePickerHandlers(list);
+        }
     });
 
-    root.querySelectorAll('[data-pick-recipe]').forEach(pill => {
-        pill.addEventListener('click', async () => {
-            if (!weekMobilePicker) return;
-            const { dayId, mealId } = weekMobilePicker;
-            weekMobilePicker = null;
-            await placeRecipe(dayId, mealId, pill.dataset.pickRecipe, null);
-        });
-    });
+    const initialPickerList = root.querySelector('#week-mpicker-list');
+    if (initialPickerList) _wireMobilePickerHandlers(initialPickerList);
 
     root.querySelector('[data-action="clear"]')?.addEventListener('click', async () => {
         if (await window.confirmDialog('¿Vaciar todo el plan semanal?')) await clearWeek();
@@ -575,7 +603,11 @@ window.initWeek = function() {
     const filterInput = root.querySelector('#week-filter');
     if (filterInput) filterInput.addEventListener('input', e => {
         weekFilter = e.target.value;
-        window.renderPage();
+        const list = document.getElementById('week-recipes-list');
+        if (list) {
+            list.innerHTML = _renderDesktopRecipeList();
+            _wireDesktopRecipePillHandlers(list);
+        }
     });
 
     root.querySelector('[data-action="clear"]').addEventListener('click', async () => {
@@ -584,14 +616,8 @@ window.initWeek = function() {
     root.querySelector('[data-action="auto"]').addEventListener('click', async () => generateAuto());
     root.querySelector('[data-action="shopping"]').addEventListener('click', generateShoppingFromWeek);
 
-    root.querySelectorAll('.recipe-pill[draggable="true"]').forEach(pill => {
-        pill.addEventListener('dragstart', (e) => {
-            weekDragState = { recipeId: pill.dataset.rid, source: null };
-            e.dataTransfer.effectAllowed = 'copy';
-            pill.classList.add('dragging');
-        });
-        pill.addEventListener('dragend', () => { weekDragState = null; pill.classList.remove('dragging'); });
-    });
+    const initialList = root.querySelector('#week-recipes-list');
+    if (initialList) _wireDesktopRecipePillHandlers(initialList);
 
     root.querySelectorAll('.week-slot[draggable="true"]').forEach(slot => {
         slot.addEventListener('dragstart', (e) => {

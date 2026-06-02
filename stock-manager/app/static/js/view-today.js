@@ -38,10 +38,11 @@ window.renderToday = function() {
             const name = p ? p.name : `Producto desconocido (${it.productId})`;
             const unit = p ? (p.unit_type === 'uds' ? 'ud' : (p.unit_type || 'g')) : 'g';
             const im = window.macrosFor(it.productId, it.qty);
+            const thumb = window.productThumbHTML(p, 36);
             return `
                 <div class="food-row">
-                    <div class="row">
-                        <span style="font-size:20px; margin-right:10px;">🍽️</span>
+                    <div class="row" style="align-items:center;">
+                        ${thumb}
                         <div>
                             <div class="ttl">${window.esc(name)}</div>
                             <div class="sub"><span class="num">${it.qty}</span> ${unit}<span class="muted"> · ${Math.round(im.kcal)} kcal</span></div>
@@ -181,8 +182,24 @@ window.initToday = function() {
             const meal = window.MEAL_ORDER.find(m => m.id === mealId);
             window.openFoodPicker({
                 title: meal ? `Añadir a ${meal.name}` : 'Añadir alimento',
+                showRecipes: true,
                 onPick: async (item) => {
                     await window.addToMeal(mealId, item);
+                    window.renderPage();
+                },
+                onPickRecipe: async ({ recipe, qty: pickedQty }) => {
+                    const baseQty = Number(recipe.output_qty) > 0
+                        ? Number(recipe.output_qty)
+                        : Math.max(1, recipe.serves || 1);
+                    const factor = (Number(pickedQty) || 0) / baseQty;
+                    if (factor <= 0) return;
+                    for (const ing of (recipe.ingredients || [])) {
+                        await window.addToMeal(mealId, {
+                            productId: ing.productId,
+                            qty: (ing.qty || 0) * factor,
+                        });
+                    }
+                    window.showToast(`Receta "${recipe.name}" añadida a ${meal ? meal.name : 'comida'}`, 'success');
                     window.renderPage();
                 },
             });

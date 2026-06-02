@@ -129,20 +129,36 @@ window.recipeThumbHTML = function(seed, label) {
     `;
 };
 
+// ===== Product thumb =====
+// Returns a small image element if the product has image_url, else empty string.
+window.productThumbHTML = function(p, size) {
+    if (!p || !p.image_url) return '';
+    const url = String(p.image_url).trim();
+    if (!url) return '';
+    const px = size || 32;
+    return `<img src="${window.esc(url)}" alt="" style="width:${px}px; height:${px}px; border-radius:8px; object-fit:cover; margin-right:10px; flex-shrink:0;" onerror="this.style.display='none'"/>`;
+};
+
 // ===== Food picker modal =====
 // Renders a modal that searches AppState.products and lets user pick qty.
 // onPick(item) where item = { productId, qty }
+// options.showRecipes: when true, adds a Recetas tab and exposes onPickRecipe({ recipe, qty }).
 window.openFoodPicker = function(options) {
     options = options || {};
     const title = options.title || 'Añadir alimento';
     const onPick = options.onPick || function() {};
+    const onPickRecipe = options.onPickRecipe || function() {};
+    const showRecipes = !!options.showRecipes;
 
     const mount = document.getElementById('modal-mount');
     if (!mount) return;
 
+    let tab = 'food';
     let q = '';
     let qty = 100;
     let sel = null;
+    let selRecipe = null;
+    let recipeQty = 1;
 
     function results() {
         const products = window.AppState.products || [];
@@ -164,12 +180,18 @@ window.openFoodPicker = function(options) {
         return sorted.slice(0, 25);
     }
 
-    function getEmoji(p) {
-        const cat = (p.category || '').toLowerCase();
-        if (cat.includes('bebida')) return '🥤';
-        if (cat.includes('limpieza')) return '🧴';
-        if (cat.includes('higiene')) return '🧼';
-        return '🍽️';
+    function recipeResults() {
+        const recipes = window.AppState.recipes || [];
+        const needle = q.toLowerCase().trim();
+        const filtered = needle
+            ? recipes.filter(r => (r.name || '').toLowerCase().includes(needle))
+            : [...recipes];
+        return filtered.sort((a, b) => (a.name || '').localeCompare(b.name || '')).slice(0, 25);
+    }
+
+    function recipeBaseQty(r) {
+        if (!r) return 1;
+        return Number(r.output_qty) > 0 ? Number(r.output_qty) : Math.max(1, r.serves || 1);
     }
 
     function macroPreview() {
@@ -178,9 +200,33 @@ window.openFoodPicker = function(options) {
         return window.macroChipsHTML(m, true);
     }
 
+    function recipeMacroPreview() {
+        if (!selRecipe) return '';
+        const perServing = window.recipeMacros(selRecipe);
+        const baseQty = recipeBaseQty(selRecipe);
+        // recipeMacros divides by serves to give per-serving macros; if output_qty drives baseQty,
+        // we still want total scaled by (recipeQty / baseQty). For serves-based recipes baseQty == serves,
+        // so total = perServing * recipeQty. For output_qty recipes we treat output unit similarly.
+        const factor = Number(recipeQty) || 0;
+        const m = {
+            kcal: perServing.kcal * factor * (Math.max(1, selRecipe.serves || 1) / baseQty),
+            p: perServing.p * factor * (Math.max(1, selRecipe.serves || 1) / baseQty),
+            c: perServing.c * factor * (Math.max(1, selRecipe.serves || 1) / baseQty),
+            fat: perServing.fat * factor * (Math.max(1, selRecipe.serves || 1) / baseQty),
+        };
+        return window.macroChipsHTML(m, true);
+    }
+
     let shellBuilt = false;
 
     function buildShell() {
+        const tabsHTML = showRecipes ? `
+            <div class="row" style="gap:6px; margin-bottom:12px">
+                <button class="btn sm ${tab === 'food' ? 'accent' : 'ghost'}" data-tab="food">Alimentos</button>
+                <button class="btn sm ${tab === 'recipe' ? 'accent' : 'ghost'}" data-tab="recipe">Recetas</button>
+            </div>
+        ` : '';
+
         mount.innerHTML = `
         <div class="modal-backdrop" data-close="1">
             <div class="modal" data-stop="1">
@@ -188,7 +234,9 @@ window.openFoodPicker = function(options) {
                     <h3>${window.esc(title)}</h3>
                     <button class="btn icon sm ghost" data-action="close" aria-label="Cerrar">${window.icon('close')}</button>
                 </div>
-                <div class="modal-sub">Busca un producto e indica la cantidad.</div>
+                <div class="modal-sub" id="fp-sub">Busca un producto e indica la cantidad.</div>
+
+                <div id="fp-tabs">${tabsHTML}</div>
 
                 <div class="search" id="fp-search-wrap" style="margin-bottom:12px">
                     ${window.icon('search')}
@@ -212,27 +260,75 @@ window.openFoodPicker = function(options) {
             q = e.target.value;
             renderBody();
         });
+
+        // Wire tab toggles (one-time — buttons stay in DOM, only class toggles)
+        mount.querySelectorAll('[data-tab]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (tab === btn.dataset.tab) return;
+                tab = btn.dataset.tab;
+                sel = null;
+                selRecipe = null;
+                q = '';
+                const input = mount.querySelector('#fp-search');
+                if (input) input.value = '';
+                updateTabButtons();
+                updatePlaceholder();
+                renderBody();
+            });
+        });
+        updatePlaceholder();
+
         shellBuilt = true;
+    }
+
+    function updateTabButtons() {
+        mount.querySelectorAll('[data-tab]').forEach(btn => {
+            const isActive = btn.dataset.tab === tab;
+            btn.classList.toggle('accent', isActive);
+            btn.classList.toggle('ghost', !isActive);
+        });
+    }
+
+    function updatePlaceholder() {
+        const input = mount.querySelector('#fp-search');
+        const sub = mount.querySelector('#fp-sub');
+        if (tab === 'recipe') {
+            if (input) input.placeholder = 'Buscar receta…';
+            if (sub) sub.textContent = 'Busca una receta e indica las raciones.';
+        } else {
+            if (input) input.placeholder = 'Pollo, avena, plátano…';
+            if (sub) sub.textContent = 'Busca un producto e indica la cantidad.';
+        }
     }
 
     function renderBody() {
         const body = mount.querySelector('#fp-body');
         const searchWrap = mount.querySelector('#fp-search-wrap');
+        const tabsWrap = mount.querySelector('#fp-tabs');
         if (!body) return;
 
+        if (tab === 'recipe') {
+            renderRecipeBody(body, searchWrap, tabsWrap);
+        } else {
+            renderFoodBody(body, searchWrap, tabsWrap);
+        }
+    }
+
+    function renderFoodBody(body, searchWrap, tabsWrap) {
         if (!sel) {
-            // Show search input, render results list
             if (searchWrap) searchWrap.style.display = '';
+            if (tabsWrap) tabsWrap.style.display = '';
             const list = results();
             body.innerHTML = `
                 <div style="max-height:55vh; overflow:auto; margin:0 -4px">
                     ${list.map(p => {
                         const m = window.macrosFor(p.barcode, 100);
+                        const thumb = window.productThumbHTML(p, 32);
                         return `
                         <button class="food-row fp-pick" data-id="${window.esc(p.barcode)}"
                             style="width:100%; background:transparent; border:none; text-align:left; cursor:pointer; padding:10px 4px;">
-                            <div class="row">
-                                <span style="font-size:18px; margin-right:8px;">${getEmoji(p)}</span>
+                            <div class="row" style="align-items:center;">
+                                ${thumb}
                                 <div>
                                     <div class="ttl">${window.esc(p.name)}</div>
                                     <div class="sub">${Math.round(m.kcal)} kcal · P${Math.round(m.p)} C${Math.round(m.c)} G${Math.round(m.fat)} <span class="muted">/ 100${(p.unit_type === 'uds' ? ' ud' : (p.unit_type || 'g'))}</span></div>
@@ -247,7 +343,6 @@ window.openFoodPicker = function(options) {
                 </div>
             `;
 
-            // Wire pick buttons (only inside #fp-body)
             body.querySelectorAll('.fp-pick').forEach(btn => {
                 btn.addEventListener('click', () => {
                     sel = window.findProductById(btn.dataset.id);
@@ -256,13 +351,14 @@ window.openFoodPicker = function(options) {
                 });
             });
         } else {
-            // Hide search input in selected-product mode
             if (searchWrap) searchWrap.style.display = 'none';
+            if (tabsWrap) tabsWrap.style.display = 'none';
+            const thumb = window.productThumbHTML(sel, 44);
             body.innerHTML = `
                 <div>
                     <div class="card sunken" style="margin-bottom:14px">
-                        <div class="row">
-                            <span style="font-size:28px; margin-right:8px;">${getEmoji(sel)}</span>
+                        <div class="row" style="align-items:center;">
+                            ${thumb}
                             <div style="flex:1">
                                 <div style="font-size:15px; font-weight:600;">${window.esc(sel.name)}</div>
                                 <div class="tiny">por 100${(sel.unit_type === 'uds' ? ' ud' : (sel.unit_type || 'g'))}: ${Math.round(sel.kcal_100g || 0)} kcal</div>
@@ -291,9 +387,6 @@ window.openFoodPicker = function(options) {
 
             body.querySelector('[data-action="change"]').addEventListener('click', () => {
                 sel = null;
-                // Restore search input visibility and re-show it with current query
-                const searchWrap = mount.querySelector('#fp-search-wrap');
-                if (searchWrap) searchWrap.style.display = '';
                 renderBody();
             });
             const qtyIn = body.querySelector('#fp-qty');
@@ -307,6 +400,98 @@ window.openFoodPicker = function(options) {
             body.querySelector('[data-action="confirm"]').addEventListener('click', () => {
                 if (!sel) return;
                 onPick({ productId: sel.barcode, qty: Number(qty) || 0 });
+                close();
+            });
+            body.querySelectorAll('[data-action="close"]').forEach(b => b.addEventListener('click', close));
+        }
+    }
+
+    function renderRecipeBody(body, searchWrap, tabsWrap) {
+        if (!selRecipe) {
+            if (searchWrap) searchWrap.style.display = '';
+            if (tabsWrap) tabsWrap.style.display = '';
+            const list = recipeResults();
+            body.innerHTML = `
+                <div style="max-height:55vh; overflow:auto; margin:0 -4px">
+                    ${list.map(r => {
+                        const m = window.recipeMacros(r);
+                        return `
+                        <button class="food-row fp-pick-recipe" data-rid="${window.esc(r.id)}"
+                            style="width:100%; background:transparent; border:none; text-align:left; cursor:pointer; padding:10px 4px;">
+                            <div class="row" style="align-items:center;">
+                                <div>
+                                    <div class="ttl">${window.esc(r.name)}</div>
+                                    <div class="sub">${Math.round(m.kcal)} kcal · P${Math.round(m.p)} C${Math.round(m.c)} G${Math.round(m.fat)} <span class="muted">/ ración</span></div>
+                                </div>
+                            </div>
+                            <div></div>
+                            <span style="width:16px; height:16px; color:var(--ink-3);">${window.icon('chevron')}</span>
+                        </button>
+                        `;
+                    }).join('')}
+                    ${list.length === 0 ? `<div class="empty">${q ? `Sin recetas para "${window.esc(q)}"` : 'Crea una receta primero.'}</div>` : ''}
+                </div>
+            `;
+
+            body.querySelectorAll('.fp-pick-recipe').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const r = (window.AppState.recipes || []).find(x => x.id === btn.dataset.rid);
+                    if (!r) return;
+                    selRecipe = r;
+                    recipeQty = recipeBaseQty(r);
+                    renderBody();
+                });
+            });
+        } else {
+            if (searchWrap) searchWrap.style.display = 'none';
+            if (tabsWrap) tabsWrap.style.display = 'none';
+            const hasOutput = Number(selRecipe.output_qty) > 0;
+            const qtyLabel = hasOutput ? 'Cantidad (uds)' : 'Raciones';
+            body.innerHTML = `
+                <div>
+                    <div class="card sunken" style="margin-bottom:14px">
+                        <div class="row" style="align-items:center;">
+                            <div style="flex:1">
+                                <div style="font-size:15px; font-weight:600;">${window.esc(selRecipe.name)}</div>
+                                <div class="tiny">${hasOutput ? `Base: ${selRecipe.output_qty} uds` : `Base: ${Math.max(1, selRecipe.serves || 1)} raciones`} · ${(selRecipe.ingredients || []).length} ingredientes</div>
+                            </div>
+                            <button class="btn ghost sm" data-action="change-recipe">Cambiar</button>
+                        </div>
+                    </div>
+                    <div class="grid cols-2 keep" style="gap:12px; margin-bottom:14px">
+                        <div class="field">
+                            <label class="field-label">${qtyLabel}</label>
+                            <input id="fp-recipe-qty" class="input lg num" type="number" step="any" value="${recipeQty}" min="0"/>
+                        </div>
+                        <div class="field">
+                            <label class="field-label">Aporta</label>
+                            <div class="card tight sunken" id="fp-recipe-preview" style="padding:12px; height:56px; display:flex; align-items:center;">
+                                ${recipeMacroPreview()}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row" style="justify-content:flex-end; gap:8px">
+                        <button class="btn ghost" data-action="close">Cancelar</button>
+                        <button class="btn accent" data-action="confirm-recipe">Añadir</button>
+                    </div>
+                </div>
+            `;
+
+            body.querySelector('[data-action="change-recipe"]').addEventListener('click', () => {
+                selRecipe = null;
+                renderBody();
+            });
+            const qtyIn = body.querySelector('#fp-recipe-qty');
+            if (qtyIn) {
+                qtyIn.addEventListener('input', (e) => {
+                    recipeQty = Number(e.target.value) || 0;
+                    const pv = body.querySelector('#fp-recipe-preview');
+                    if (pv) pv.innerHTML = recipeMacroPreview();
+                });
+            }
+            body.querySelector('[data-action="confirm-recipe"]').addEventListener('click', () => {
+                if (!selRecipe) return;
+                onPickRecipe({ recipe: selRecipe, qty: Number(recipeQty) || 0 });
                 close();
             });
             body.querySelectorAll('[data-action="close"]').forEach(b => b.addEventListener('click', close));
