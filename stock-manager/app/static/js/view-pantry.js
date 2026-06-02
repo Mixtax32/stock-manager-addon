@@ -332,11 +332,11 @@ window.openEditProduct = function(barcode) {
                                 <span class="muted" style="font-size:12px; min-width:60px">${bQtyDisplay} ${bUnit}</span>
                                 <div class="field" style="flex:1; min-width:120px; margin:0">
                                     <label class="field-label">Caducidad</label>
-                                    <input type="date" class="input batch-exp" style="font-size:13px" value="${window.esc(bExp)}" data-batch-id="${b.id}"/>
+                                    <input type="date" class="input batch-exp" style="font-size:13px" value="${window.esc(bExp)}" data-batch-id="${b.id}" data-original="${window.esc(bExp)}"/>
                                 </div>
                                 <div class="field" style="flex:1; min-width:120px; margin:0">
                                     <label class="field-label">Ubicación</label>
-                                    <select class="input batch-loc" style="font-size:13px" data-batch-id="${b.id}">
+                                    <select class="input batch-loc" style="font-size:13px" data-batch-id="${b.id}" data-original="${bLoc}">
                                         <option value="" ${!bLoc ? 'selected' : ''}>Sin ubicación</option>
                                         <option value="Nevera" ${bLoc === 'Nevera' ? 'selected' : ''}>Nevera</option>
                                         <option value="Congelador" ${bLoc === 'Congelador' ? 'selected' : ''}>Congelador</option>
@@ -442,30 +442,10 @@ window.openEditProduct = function(barcode) {
     });
     mount.querySelectorAll('[data-action="close"]').forEach(b => b.addEventListener('click', close));
 
-    // Batch fields: auto-save on blur
-    async function _saveBatchField(batchId, payload) {
-        try {
-            await window.apiCall(`/batches/${batchId}`, 'PATCH', payload);
-            await window.reloadProducts();
-        } catch (e) {
-            window.showToast('Error actualizando lote: ' + e.message, 'error');
-        }
-    }
-    mount.querySelectorAll('.batch-exp').forEach(el => {
-        el.addEventListener('change', async () => {
-            const batchId = el.dataset.batchId;
-            await _saveBatchField(batchId, { expiry_date: el.value || null });
-        });
-    });
-    mount.querySelectorAll('.batch-loc').forEach(el => {
-        el.addEventListener('change', async () => {
-            const batchId = el.dataset.batchId;
-            await _saveBatchField(batchId, { location: el.value || null });
-        });
-    });
-    // Batch price is NOT auto-saved — it's deferred to the "Guardar cambios"
-    // button so the user can nudge the value without each step polluting any
-    // state. The button compares against data-original to know what to send.
+    // Batch fields (caducidad / ubicación / precio) are NOT auto-saved — they
+    // all defer to "Guardar cambios" so a single click commits everything.
+    // The save handler diffs each input against its data-original to decide
+    // what to send.
 
     mount.querySelector('[data-action="save"]').addEventListener('click', async () => {
         const name = mount.querySelector('#ep-name').value.trim();
@@ -498,28 +478,52 @@ window.openEditProduct = function(barcode) {
         const scaleDeltaEl = mount.querySelector('#ep-scale-delta');
         if (scaleDeltaEl && scaleDeltaEl.value !== '') payload.scale_min_delta_g = Number(scaleDeltaEl.value);
 
-        // Collect dirty batch-price inputs (compared against data-original).
-        const priceUpdates = [];
+        // Collect per-batch diffs. Each batch can have up to three changed
+        // fields: expiry_date, location (one PATCH /batches/{id}) and unit_price
+        // (separate PATCH /batches/{id}/price). We group expiry+location into a
+        // single call per batch.
+        const batchUpdates = {}; // batch_id -> { expiry_date?, location? }
+        const priceUpdates = []; // { batchId, value }
+        let invalid = false;
+
+        mount.querySelectorAll('.batch-exp').forEach(el => {
+            const raw = el.value;
+            const original = el.dataset.original || '';
+            if (raw === original) return;
+            const id = el.dataset.batchId;
+            batchUpdates[id] = batchUpdates[id] || {};
+            batchUpdates[id].expiry_date = raw || null;
+        });
+
+        mount.querySelectorAll('.batch-loc').forEach(el => {
+            const raw = el.value;
+            const original = el.dataset.original || '';
+            if (raw === original) return;
+            const id = el.dataset.batchId;
+            batchUpdates[id] = batchUpdates[id] || {};
+            batchUpdates[id].location = raw || null;
+        });
+
         mount.querySelectorAll('.batch-price').forEach(el => {
             const raw = el.value.trim();
             const original = (el.dataset.original || '').trim();
-            if (raw === original) return; // unchanged
-            if (raw === '') return; // leaving empty = don't touch the batch
+            if (raw === original) return;
+            if (raw === '') return; // empty = leave untouched
             const val = parseFloat(raw);
-            if (!isFinite(val) || val < 0) {
-                priceUpdates.push({ batchId: el.dataset.batchId, invalid: true });
-                return;
-            }
+            if (!isFinite(val) || val < 0) { invalid = true; return; }
             priceUpdates.push({ batchId: el.dataset.batchId, value: val });
         });
 
-        if (priceUpdates.some(u => u.invalid)) {
+        if (invalid) {
             window.showToast('Algún precio es inválido', 'error');
             return;
         }
 
         try {
             await window.apiCall(`/products/${barcode}`, 'PATCH', payload);
+            for (const [id, patch] of Object.entries(batchUpdates)) {
+                await window.apiCall(`/batches/${id}`, 'PATCH', patch);
+            }
             for (const u of priceUpdates) {
                 await window.apiCall(`/batches/${u.batchId}/price`, 'PATCH', {
                     unit_price: u.value,
@@ -528,8 +532,12 @@ window.openEditProduct = function(barcode) {
             }
             await window.reloadProducts();
             close();
-            const priceNote = priceUpdates.length > 0 ? ` (${priceUpdates.length} precio${priceUpdates.length !== 1 ? 's' : ''})` : '';
-            window.showToast(`Producto actualizado${priceNote}`, 'success');
+            const parts = [];
+            const batchFieldCount = Object.keys(batchUpdates).length;
+            if (batchFieldCount > 0) parts.push(`${batchFieldCount} lote${batchFieldCount !== 1 ? 's' : ''}`);
+            if (priceUpdates.length > 0) parts.push(`${priceUpdates.length} precio${priceUpdates.length !== 1 ? 's' : ''}`);
+            const note = parts.length > 0 ? ` (${parts.join(', ')})` : '';
+            window.showToast(`Producto actualizado${note}`, 'success');
         } catch (e) {
             window.showToast('Error: ' + e.message, 'error');
         }

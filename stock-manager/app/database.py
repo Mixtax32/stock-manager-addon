@@ -532,7 +532,11 @@ class Database:
         return await self.get_product(barcode)
 
     async def update_batch(self, batch_id: int, update: BatchUpdate) -> Optional[Batch]:
-        """Update a batch's expiry date and/or location"""
+        """Update a batch's expiry date and/or location.
+
+        Uses model_fields_set so that a JSON `null` (user explicitly clearing a
+        value) is honored, while an absent field stays untouched. Treating
+        `is not None` as "field was sent" would silently swallow clears."""
         async with aiosqlite.connect(self.db_path) as db:
             # Get batch to find its barcode
             db.row_factory = aiosqlite.Row
@@ -542,10 +546,11 @@ class Database:
                     return None
                 barcode = row['barcode']
 
+            sent = update.model_fields_set
             updates = {}
-            if update.expiry_date is not None:
+            if 'expiry_date' in sent:
                 updates['expiry_date'] = update.expiry_date
-            if update.location is not None:
+            if 'location' in sent:
                 updates['location'] = update.location
 
             if updates:
