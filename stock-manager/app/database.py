@@ -750,13 +750,22 @@ class Database:
                 return [{"date": r["date"], "kcal": r["kcal"] or 0} for r in rows]
 
     async def get_export_data(self) -> List[dict]:
-        """Get all inventory data in a flat format for export"""
+        """Get all inventory data in a flat format for export. Product-level
+        fields repeat across each batch row (denormalized) so the CSV can be
+        edited in a spreadsheet. Price fields are aliased product_/batch_ to
+        avoid a name collision in the joined row dict."""
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
-            # Join products and batches to get a flat list. 
-            # We use LEFT JOIN to include products even if they have no batches (though in our sync system they shouldn't)
             async with db.execute("""
-                SELECT p.barcode, p.name, p.category, p.unit_type, p.location, p.min_stock, p.image_url, p.weight_g, p.kcal_100g, p.proteins_100g, p.carbs_100g, p.fat_100g, p.serving_size, p.package_quantity, b.quantity, b.expiry_date
+                SELECT p.barcode, p.name, p.category, p.unit_type, p.location,
+                       p.min_stock, p.image_url, p.weight_g,
+                       p.kcal_100g, p.proteins_100g, p.carbs_100g, p.fat_100g,
+                       p.serving_size, p.package_quantity,
+                       p.last_price       AS product_last_price,
+                       p.last_price_date  AS product_last_price_date,
+                       b.quantity, b.expiry_date, b.location AS batch_location,
+                       b.last_price       AS batch_last_price,
+                       b.last_price_date  AS batch_last_price_date
                 FROM products p
                 LEFT JOIN batches b ON p.barcode = b.barcode
                 ORDER BY p.name
@@ -776,10 +785,14 @@ class Database:
                 barcode = item.get('barcode')
                 if not barcode: continue
                 
-                # Insert or update product
+                # Insert or update product. Price fields use the product_*
+                # aliases from get_export_data; fall back to bare names so
+                # older CSVs (or hand-edited ones) still import.
+                p_last_price = item.get('product_last_price') if item.get('product_last_price') is not None else item.get('last_price')
+                p_last_price_date = item.get('product_last_price_date') if item.get('product_last_price_date') is not None else item.get('last_price_date')
                 await db.execute("""
-                    INSERT INTO products (barcode, name, category, unit_type, location, min_stock, image_url, weight_g, kcal_100g, proteins_100g, carbs_100g, fat_100g, serving_size, package_quantity, stock, last_updated)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+                    INSERT INTO products (barcode, name, category, unit_type, location, min_stock, image_url, weight_g, kcal_100g, proteins_100g, carbs_100g, fat_100g, serving_size, package_quantity, last_price, last_price_date, stock, last_updated)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
                     ON CONFLICT(barcode) DO UPDATE SET
                         name=excluded.name,
                         category=excluded.category,
@@ -794,25 +807,32 @@ class Database:
                         fat_100g=COALESCE(excluded.fat_100g, products.fat_100g),
                         serving_size=COALESCE(excluded.serving_size, products.serving_size),
                         package_quantity=COALESCE(excluded.package_quantity, products.package_quantity),
+                        last_price=COALESCE(excluded.last_price, products.last_price),
+                        last_price_date=COALESCE(excluded.last_price_date, products.last_price_date),
                         last_updated=excluded.last_updated
                 """, (
                     barcode, item.get('name', 'Huerfano'), item.get('category', 'Otros'), item.get('unit_type', 'uds'),
                     item.get('location'), item.get('min_stock', 2), item.get('image_url'),
                     item.get('weight_g'), item.get('kcal_100g'), item.get('proteins_100g'),
-                    item.get('carbs_100g'), item.get('fat_100g'), item.get('serving_size'), item.get('package_quantity'), datetime.now()
+                    item.get('carbs_100g'), item.get('fat_100g'), item.get('serving_size'), item.get('package_quantity'),
+                    p_last_price, p_last_price_date, datetime.now()
                 ))
 
-                # Insert batch if quantity > 0
+                # Insert batch if quantity > 0. Batch-level price/location use
+                # the batch_* aliases when present.
                 qty = item.get('quantity')
                 if qty and float(qty) > 0:
                     await db.execute("""
-                        INSERT INTO batches (barcode, quantity, expiry_date, added_date)
-                        VALUES (?, ?, ?, ?)
+                        INSERT INTO batches (barcode, quantity, expiry_date, added_date, location, last_price, last_price_date)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
                     """, (
                         barcode,
                         float(qty),
                         item.get('expiry_date'),
-                        date.today().isoformat()
+                        date.today().isoformat(),
+                        item.get('batch_location'),
+                        item.get('batch_last_price'),
+                        item.get('batch_last_price_date'),
                     ))
             
             # Final sync for all products to ensure totals are correct
