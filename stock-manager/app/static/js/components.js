@@ -322,7 +322,10 @@ window.openFoodPicker = function(options) {
             body.innerHTML = `
                 <div style="max-height:55vh; overflow:auto; margin:0 -4px">
                     ${list.map(p => {
-                        const m = window.macrosFor(p.barcode, 100);
+                        const isUds = p.unit_type === 'uds';
+                        const previewQty = isUds ? 1 : 100;
+                        const previewLabel = isUds ? '1 ud' : `100 ${p.unit_type || 'g'}`;
+                        const m = window.macrosFor(p.barcode, previewQty);
                         const thumb = window.productThumbHTML(p, 32);
                         return `
                         <button class="food-row fp-pick" data-id="${window.esc(p.barcode)}"
@@ -331,7 +334,7 @@ window.openFoodPicker = function(options) {
                                 ${thumb}
                                 <div>
                                     <div class="ttl">${window.esc(p.name)}</div>
-                                    <div class="sub">${Math.round(m.kcal)} kcal · P${Math.round(m.p)} C${Math.round(m.c)} G${Math.round(m.fat)} <span class="muted">/ 100${(p.unit_type === 'uds' ? ' ud' : (p.unit_type || 'g'))}</span></div>
+                                    <div class="sub">${Math.round(m.kcal)} kcal · P${Math.round(m.p)} C${Math.round(m.c)} G${Math.round(m.fat)} <span class="muted">/ ${previewLabel}</span></div>
                                 </div>
                             </div>
                             <div></div>
@@ -346,7 +349,7 @@ window.openFoodPicker = function(options) {
             body.querySelectorAll('.fp-pick').forEach(btn => {
                 btn.addEventListener('click', () => {
                     sel = window.findProductById(btn.dataset.id);
-                    qty = 100;
+                    qty = sel && sel.unit_type === 'uds' ? 1 : 100;
                     renderBody();
                 });
             });

@@ -372,12 +372,17 @@ window.findProductById = function(id) {
     return (window.AppState.products || []).find(p => String(p.barcode) === String(id));
 };
 
-// macrosFor: compute macros for an item { productId, qtyG }
-// qtyG = quantity in grams (or ml/units depending on product unit type)
-window.macrosFor = function(productId, qtyG) {
+// macrosFor: compute macros for an item { productId, qty }
+// qty is interpreted in the product's native unit:
+//   - 'g' / 'ml' (or anything not 'uds'): qty is grams/ml → ratio = qty / 100
+//   - 'uds': qty is number of units → convert to grams via weight_g, then divide by 100
+// Mirrors the backend formula in database.py:get_daily_macros.
+window.macrosFor = function(productId, qty) {
     const p = window.findProductById(productId);
     if (!p) return { kcal: 0, p: 0, c: 0, fat: 0 };
-    const ratio = (Number(qtyG) || 0) / 100;
+    const q = Number(qty) || 0;
+    const gramsEquivalent = p.unit_type === 'uds' ? q * (p.weight_g || 100) : q;
+    const ratio = gramsEquivalent / 100;
     return {
         kcal: (p.kcal_100g || 0) * ratio,
         p:    (p.proteins_100g || 0) * ratio,
