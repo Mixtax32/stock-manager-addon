@@ -1,3 +1,9 @@
 # Local credentials — never commit
 # Each ESP32 sketch / hardware project keeps its own secrets.h
 **/secrets.h
+
+# Claude/gentle-ai skill registry cache — generated locally, used by agents.
+.atl/
+
+# MSYS/Cygwin bash crash dumps on Windows — environment noise, not project state.
+*.stackdump
