@@ -736,33 +736,21 @@ async function _confirmTicket() {
         try {
             const gated = await _gateScaleProduct(item.match.barcode, item.qty, sourceLabel);
             if (!gated) {
-                await window.apiCall(`/products/${item.match.barcode}/stock`, 'POST', {
-                    quantity: item.qty,
-                    reason: 'restock',
-                });
+                // Bundle price with the stock add so the backend can tag the
+                // resulting batch with this purchase price atomically.
+                const payload = { quantity: item.qty, reason: 'restock' };
+                if (item.unit_price != null) {
+                    payload.unit_price = item.unit_price;
+                    payload.pack_count = item.packs;
+                    payload.total_price = item.total_price;
+                    payload.price_source = sourceLabel;
+                    payload.price_source_ref = meta.ticket_id || null;
+                    payload.price_observed_at = meta.date || null;
+                    priceCount++;
+                }
+                await window.apiCall(`/products/${item.match.barcode}/stock`, 'POST', payload);
             }
             successCount++;
-
-            // Record price separately so stock and price stay decoupled.
-            // unit_price/total_price are per-pack from the ticket; qty here is
-            // pack count (not stock units), so the history stays human-readable
-            // ("paid 1,35 €/pack × 2 packs = 2,70 €").
-            if (item.unit_price != null) {
-                try {
-                    await window.apiCall(`/products/${item.match.barcode}/price`, 'POST', {
-                        unit_price: item.unit_price,
-                        qty: item.packs,
-                        total_price: item.total_price,
-                        source: sourceLabel,
-                        source_ref: meta.ticket_id || null,
-                        observed_at: meta.date || null,
-                    });
-                    priceCount++;
-                } catch (e) {
-                    // Price tracking is non-critical — log but don't bother the user.
-                    console.warn(`Price record failed for ${item.match.barcode}:`, e.message);
-                }
-            }
         } catch (e) {
             window.showToast(`Error al actualizar ${item.match.name}: ${e.message}`, 'error');
         }

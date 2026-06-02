@@ -96,6 +96,10 @@ class Database:
                 batch_cols = [row[1] for row in await cursor.fetchall()]
             if 'location' not in batch_cols:
                 await db.execute("ALTER TABLE batches ADD COLUMN location TEXT DEFAULT NULL")
+            if 'last_price' not in batch_cols:
+                await db.execute("ALTER TABLE batches ADD COLUMN last_price REAL DEFAULT NULL")
+            if 'last_price_date' not in batch_cols:
+                await db.execute("ALTER TABLE batches ADD COLUMN last_price_date TEXT DEFAULT NULL")
 
             # Create macro_goals table
             await db.execute("""
@@ -248,11 +252,13 @@ class Database:
 
             # Create price_history table — every observed purchase price for a
             # product (sourced from ticket PDF / manual entry). We also keep
-            # last_price/last_price_date on the product itself for fast access.
+            # last_price/last_price_date on the product itself for fast access,
+            # plus optional batch_id to tie an observation to a specific batch.
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS price_history (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     barcode TEXT NOT NULL,
+                    batch_id INTEGER DEFAULT NULL,
                     unit_price REAL NOT NULL,
                     qty REAL DEFAULT NULL,
                     total_price REAL DEFAULT NULL,
@@ -260,12 +266,21 @@ class Database:
                     source_ref TEXT DEFAULT NULL,
                     observed_at TEXT NOT NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (barcode) REFERENCES products(barcode) ON DELETE CASCADE
+                    FOREIGN KEY (barcode) REFERENCES products(barcode) ON DELETE CASCADE,
+                    FOREIGN KEY (batch_id) REFERENCES batches(id) ON DELETE SET NULL
                 )
             """)
             await db.execute(
                 "CREATE INDEX IF NOT EXISTS idx_price_history_barcode_date "
                 "ON price_history(barcode, observed_at DESC)"
+            )
+            # Migration: add batch_id to pre-existing price_history rows.
+            async with db.execute("PRAGMA table_info(price_history)") as cursor:
+                ph_cols = [row[1] for row in await cursor.fetchall()]
+            if 'batch_id' not in ph_cols:
+                await db.execute("ALTER TABLE price_history ADD COLUMN batch_id INTEGER DEFAULT NULL")
+            await db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_price_history_batch ON price_history(batch_id)"
             )
 
             # Create pending_refills table (bridge between scanner/ticket detection
@@ -373,6 +388,7 @@ class Database:
 
     async def update_stock(self, barcode: str, update: StockUpdate) -> Optional[Product]:
         """Update product stock via batches"""
+        affected_batch_id: Optional[int] = None
         async with aiosqlite.connect(self.db_path) as db:
             if update.quantity > 0:
                 # Adding stock: find existing batch matching (barcode, location, expiry_date) or create new one.
@@ -408,10 +424,28 @@ class Database:
                         "UPDATE batches SET quantity = quantity + ? WHERE id = ?",
                         (update.quantity, row['id'])
                     )
+                    affected_batch_id = row['id']
                 else:
-                    await db.execute(
+                    cursor = await db.execute(
                         "INSERT INTO batches (barcode, quantity, expiry_date, added_date, location) VALUES (?, ?, ?, ?, ?)",
                         (barcode, update.quantity, update.expiry_date, date.today().isoformat(), update.location)
+                    )
+                    affected_batch_id = cursor.lastrowid
+
+                # If the caller bundled price info, attach it to the resulting batch
+                # in the same transaction so stock + price stay consistent.
+                if update.unit_price is not None and affected_batch_id is not None:
+                    await self._record_price_inner(
+                        db, barcode,
+                        PriceRecord(
+                            unit_price=update.unit_price,
+                            qty=update.pack_count,
+                            total_price=update.total_price,
+                            source=update.price_source or "manual",
+                            source_ref=update.price_source_ref,
+                            observed_at=update.price_observed_at,
+                            batch_id=affected_batch_id,
+                        )
                     )
             else:
                 # Removing stock: FIFO across batches.
@@ -1395,41 +1429,85 @@ class Database:
 
     # --- Price history -----------------------------------------------------
 
-    async def record_price(self, barcode: str, record: PriceRecord) -> Optional[PriceHistoryEntry]:
-        """Insert a price observation and bump products.last_price/date if newer."""
+    async def _record_price_inner(self, db, barcode: str, record: PriceRecord) -> Optional[int]:
+        """Insert price_history + bump products.last_price + optionally bump
+        batches.last_price. Caller owns the connection and commit. Returns the
+        new price_history id (or None if the product doesn't exist)."""
         observed_at = record.observed_at or datetime.now().isoformat(timespec="seconds")
-        async with aiosqlite.connect(self.db_path) as db:
-            db.row_factory = aiosqlite.Row
-            # Guard: product must exist (FK CASCADE would silently no-op otherwise).
-            async with db.execute(
-                "SELECT last_price_date FROM products WHERE barcode = ?", (barcode,)
-            ) as cursor:
-                prod = await cursor.fetchone()
-            if not prod:
-                return None
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT last_price_date FROM products WHERE barcode = ?", (barcode,)
+        ) as cursor:
+            prod = await cursor.fetchone()
+        if not prod:
+            return None
 
-            cursor = await db.execute(
-                """INSERT INTO price_history
-                   (barcode, unit_price, qty, total_price, source, source_ref, observed_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (barcode, record.unit_price, record.qty, record.total_price,
-                 record.source, record.source_ref, observed_at)
+        cursor = await db.execute(
+            """INSERT INTO price_history
+               (barcode, batch_id, unit_price, qty, total_price, source, source_ref, observed_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (barcode, record.batch_id, record.unit_price, record.qty, record.total_price,
+             record.source, record.source_ref, observed_at)
+        )
+        new_id = cursor.lastrowid
+
+        # Bump product.last_price only if this observation is newer (or there is none yet).
+        prev_date = prod["last_price_date"]
+        if prev_date is None or observed_at >= prev_date:
+            await db.execute(
+                "UPDATE products SET last_price = ?, last_price_date = ?, last_updated = ? "
+                "WHERE barcode = ?",
+                (record.unit_price, observed_at, datetime.now(), barcode)
             )
-            new_id = cursor.lastrowid
 
-            # Only overwrite last_price if this observation is newer (or there is none yet).
-            prev_date = prod["last_price_date"]
-            if prev_date is None or observed_at >= prev_date:
-                await db.execute(
-                    "UPDATE products SET last_price = ?, last_price_date = ?, last_updated = ? "
-                    "WHERE barcode = ?",
-                    (record.unit_price, observed_at, datetime.now(), barcode)
-                )
+        # Bump batch.last_price using the same recency rule.
+        if record.batch_id is not None:
+            async with db.execute(
+                "SELECT last_price_date FROM batches WHERE id = ?", (record.batch_id,)
+            ) as cursor:
+                batch_row = await cursor.fetchone()
+            if batch_row is not None:
+                prev_batch_date = batch_row["last_price_date"]
+                if prev_batch_date is None or observed_at >= prev_batch_date:
+                    await db.execute(
+                        "UPDATE batches SET last_price = ?, last_price_date = ? WHERE id = ?",
+                        (record.unit_price, observed_at, record.batch_id)
+                    )
+
+        return new_id
+
+    async def record_price(self, barcode: str, record: PriceRecord) -> Optional[PriceHistoryEntry]:
+        """Insert a price observation and bump products.last_price/date if newer.
+        Optionally ties it to a batch (and updates batches.last_price too)."""
+        async with aiosqlite.connect(self.db_path) as db:
+            new_id = await self._record_price_inner(db, barcode, record)
+            if new_id is None:
+                return None
             await db.commit()
-
+            db.row_factory = aiosqlite.Row
             async with db.execute("SELECT * FROM price_history WHERE id = ?", (new_id,)) as cursor:
                 row = await cursor.fetchone()
             return PriceHistoryEntry(**dict(row)) if row else None
+
+    async def record_batch_price(self, batch_id: int, record: PriceRecord) -> Optional[PriceHistoryEntry]:
+        """Edit/add a price for a specific batch. Resolves the barcode from the batch."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT barcode FROM batches WHERE id = ?", (batch_id,)
+            ) as cursor:
+                row = await cursor.fetchone()
+            if not row:
+                return None
+            barcode = row["barcode"]
+            record_with_batch = record.model_copy(update={"batch_id": batch_id})
+            new_id = await self._record_price_inner(db, barcode, record_with_batch)
+            if new_id is None:
+                return None
+            await db.commit()
+            async with db.execute("SELECT * FROM price_history WHERE id = ?", (new_id,)) as cursor:
+                ph_row = await cursor.fetchone()
+            return PriceHistoryEntry(**dict(ph_row)) if ph_row else None
 
     async def get_price_history(self, barcode: str, limit: int = 50) -> List[PriceHistoryEntry]:
         async with aiosqlite.connect(self.db_path) as db:

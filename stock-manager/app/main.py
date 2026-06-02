@@ -362,6 +362,14 @@ async def get_product_price_history(barcode: str, limit: int = 50):
     """Get price history for a product, newest first."""
     return await db.get_price_history(barcode, limit)
 
+@app.patch("/api/batches/{batch_id}/price", response_model=PriceHistoryEntry)
+async def patch_batch_price(batch_id: int, record: PriceRecord):
+    """Record/edit the price for a specific batch (e.g. corrected after a wrong ticket import)."""
+    entry = await db.record_batch_price(batch_id, record)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Batch not found")
+    return entry
+
 @app.post("/api/import")
 async def import_data(file: UploadFile = File(...), clear: bool = False):
     """Import inventory data from CSV file"""

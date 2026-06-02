@@ -9,6 +9,8 @@ class Batch(BaseModel):
     expiry_date: Optional[str] = None
     added_date: Optional[str] = None
     location: Optional[str] = None
+    last_price: Optional[float] = None      # last observed €/pack for this batch
+    last_price_date: Optional[str] = None   # ISO date of last_price observation
 
 class Product(BaseModel):
     barcode: str
@@ -58,6 +60,14 @@ class StockUpdate(BaseModel):
     reason: Optional[str] = None  # "consumed", "lost", etc.
     meal_type: Optional[str] = None
     location: Optional[str] = None
+    # Optional price tracking — when provided alongside a positive quantity,
+    # the resulting batch is tagged with this price (€/pack from the ticket).
+    unit_price: Optional[float] = None
+    pack_count: Optional[float] = None       # how many packs the price covers
+    total_price: Optional[float] = None
+    price_source: Optional[str] = None       # "ticket_pdf" | "ticket_ocr" | "manual"
+    price_source_ref: Optional[str] = None   # e.g. ticket id
+    price_observed_at: Optional[str] = None  # ISO datetime
 
 class ProductUpdate(BaseModel):
     name: Optional[str] = None
@@ -241,17 +251,19 @@ class PendingRefillResolve(BaseModel):
 # --- Price tracking ---------------------------------------------------------
 
 class PriceRecord(BaseModel):
-    """A single observed purchase price for a product."""
+    """A single observed purchase price for a product, optionally tied to a batch."""
     unit_price: float
     qty: Optional[float] = None
     total_price: Optional[float] = None
     source: str = "manual"  # "ticket_pdf" | "manual" | "ticket_ocr"
     source_ref: Optional[str] = None  # e.g. ticket id
     observed_at: Optional[str] = None  # ISO datetime; defaults to server now
+    batch_id: Optional[int] = None  # when set, batch.last_price is also updated
 
 class PriceHistoryEntry(BaseModel):
     id: int
     barcode: str
+    batch_id: Optional[int] = None
     unit_price: float
     qty: Optional[float] = None
     total_price: Optional[float] = None

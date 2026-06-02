@@ -5,6 +5,21 @@
 
 const CAT_ORDER = ['Carnicería', 'Pescadería', 'Lácteos', 'Verdulería', 'Frutería', 'Alimentos', 'Bebidas', 'Limpieza', 'Higiene', 'Otros'];
 
+// Stock units per pack — mirrors view-scan._packSize. Returns null when
+// unknown (g/ml product with no weight_g) so the caller can fall back.
+function _packSize(product) {
+    if (!product) return null;
+    if (product.unit_type === 'uds') {
+        return product.serving_size && product.serving_size > 0 ? product.serving_size : 1;
+    }
+    return product.weight_g && product.weight_g > 0 ? product.weight_g : null;
+}
+
+function _fmtEur(n) {
+    if (n == null || isNaN(n)) return '';
+    return Number(n).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+}
+
 // Derive auto items from products where stock < min_stock (never stored)
 function _autoShoppingItems() {
     const products = window.AppState.products || [];
@@ -13,12 +28,19 @@ function _autoShoppingItems() {
         .map(p => {
             const needed = Math.max(1, (p.min_stock || 1) - (p.stock || 0));
             const unit = p.unit_type === 'uds' ? 'ud' : (p.unit_type || 'g');
+            const packSize = _packSize(p);
+            // Round packs up — if you need 1.2 packs of leche, you buy 2 in real life.
+            const packsNeeded = packSize ? Math.max(1, Math.ceil(needed / packSize)) : null;
+            const estCost = (p.last_price != null && packsNeeded != null) ? packsNeeded * p.last_price : null;
             return {
                 id: `auto-${p.barcode}`,
                 barcode: p.barcode,
                 name: p.name,
                 qty: needed,
                 qtyText: `${needed % 1 === 0 ? needed : needed.toFixed(1)} ${unit}`,
+                packsNeeded,
+                lastPrice: p.last_price ?? null,
+                estCost,
                 cat: p.category || 'Otros',
                 auto: true,
                 done: false,
@@ -40,6 +62,9 @@ function _groupByCat(items) {
 }
 
 function _renderAutoRow(item) {
+    const costChip = item.estCost != null
+        ? `<span class="chip" style="font-family:var(--mono); background:color-mix(in oklab, var(--accent-soft, #e8f5e9) 60%, var(--bg) 40%); color:var(--accent, #2e7d32)" title="${item.packsNeeded} pack${item.packsNeeded !== 1 ? 's' : ''} × ${_fmtEur(item.lastPrice)}">≈ ${_fmtEur(item.estCost)}</span>`
+        : (item.lastPrice == null ? `<span class="chip muted" style="font-size:10px" title="Sin precio registrado">sin precio</span>` : '');
     return `
         <div class="shop-row">
             <div style="width:32px; display:flex; align-items:center; justify-content:center; color:var(--muted)">📦</div>
@@ -47,6 +72,7 @@ function _renderAutoRow(item) {
                 <div class="shop-name name">${window.esc(item.name)}</div>
                 <div class="shop-sub"><span class="chip" style="font-size:10px; padding:1px 6px; background:color-mix(in oklab, var(--carbs-soft) 60%, var(--bg) 40%); color:var(--carbs)">stock bajo</span></div>
             </div>
+            ${costChip}
             <span class="chip" style="font-family:var(--mono)">${window.esc(item.qtyText)}</span>
             <button class="btn sm accent" data-restock="${window.esc(item.id)}" data-barcode="${window.esc(item.barcode)}" data-needed="${item.qty}">Recibido</button>
         </div>
@@ -88,6 +114,10 @@ window.renderShopping = function() {
     const totalAuto = auto.length;
     const totalManual = manual.length;
     const doneManual = manual.filter(x => x.done).length;
+    // Sum estimated cost across auto items that have a known last_price.
+    const estTotal = auto.reduce((sum, x) => sum + (x.estCost || 0), 0);
+    const itemsWithCost = auto.filter(x => x.estCost != null).length;
+    const itemsWithoutCost = auto.filter(x => x.lastPrice == null).length;
 
     const autoSectionHTML = `
         <div style="margin-bottom:10px">
@@ -159,6 +189,14 @@ window.renderShopping = function() {
                         <div class="kpi"><div class="l">Extra</div><div class="v">${totalManual}</div></div>
                         <div class="kpi"><div class="l">Hechos</div><div class="v">${doneManual}<span class="delta">/${totalManual}</span></div></div>
                     </div>
+                    ${itemsWithCost > 0 ? `
+                    <div class="row" style="margin-top:12px; padding-top:12px; border-top:1px solid var(--line); justify-content:space-between; align-items:baseline">
+                        <div>
+                            <div class="muted" style="font-size:11px; text-transform:uppercase; letter-spacing:.05em">Coste estimado</div>
+                            <div class="muted" style="font-size:11px">${itemsWithCost}/${totalAuto} ítem${totalAuto !== 1 ? 's' : ''} con precio${itemsWithoutCost > 0 ? ` · ${itemsWithoutCost} sin precio` : ''}</div>
+                        </div>
+                        <div style="font-size:22px; font-weight:600; font-family:var(--mono)">${_fmtEur(estTotal)}</div>
+                    </div>` : ''}
                 </div>
 
                 <div class="card sunken">
@@ -260,14 +298,17 @@ window.initShopping = function() {
     root.querySelector('[data-action="share"]')?.addEventListener('click', () => {
         const auto = _autoShoppingItems();
         const manual = window.AppState.shopping || [];
+        const total = auto.reduce((s, x) => s + (x.estCost || 0), 0);
         const lines = [
-            ...auto.map(x => `• ${x.name} — ${x.qtyText} (stock bajo)`),
+            ...auto.map(x => `• ${x.name} — ${x.qtyText}${x.estCost != null ? ` (≈ ${_fmtEur(x.estCost)})` : ''}`),
             ...manual.map(x => `${x.done ? '✓' : '•'} ${x.name} — ${x.qty || ''}`),
-        ].join('\n');
+        ];
+        if (total > 0) lines.push('', `Total estimado: ${_fmtEur(total)}`);
+        const text = lines.join('\n');
         if (navigator.share) {
-            navigator.share({ title: 'Lista de la compra', text: lines }).catch(() => {});
+            navigator.share({ title: 'Lista de la compra', text }).catch(() => {});
         } else if (navigator.clipboard) {
-            navigator.clipboard.writeText(lines).then(() => window.showToast('Lista copiada al portapapeles', 'success'));
+            navigator.clipboard.writeText(text).then(() => window.showToast('Lista copiada al portapapeles', 'success'));
         } else {
             window.showToast('Compartir no disponible', 'info');
         }

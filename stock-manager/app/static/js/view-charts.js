@@ -5,6 +5,7 @@
 
 let chartsRange = 30; // days; 7 | 30 | 90 | 0 (=todo)
 let chartsData = { weights: null, kcal: null, loading: false };
+let priceState = { barcode: '', series: null, loading: false };
 
 async function _loadChartData() {
     chartsData.loading = true;
@@ -21,6 +22,21 @@ async function _loadChartData() {
         chartsData.kcal = [];
     } finally {
         chartsData.loading = false;
+    }
+}
+
+async function _loadPriceSeries(barcode) {
+    if (!barcode) { priceState.series = []; return; }
+    priceState.loading = true;
+    try {
+        const data = await window.apiCall(`/products/${barcode}/price-history?limit=200`, 'GET');
+        // Backend returns newest first; chart expects oldest first.
+        priceState.series = (data || []).slice().reverse();
+    } catch (e) {
+        console.error('price-history load failed', e);
+        priceState.series = [];
+    } finally {
+        priceState.loading = false;
     }
 }
 
@@ -102,6 +118,120 @@ function _lineChartSVG(data, valueKey, opts) {
     `;
 }
 
+function _priceChartSVG(series) {
+    const W = 600, H = 220;
+    const PAD_L = 56, PAD_R = 14, PAD_T = 14, PAD_B = 30;
+    const plotW = W - PAD_L - PAD_R;
+    const plotH = H - PAD_T - PAD_B;
+
+    if (!series || series.length === 0) {
+        return `<div class="empty" style="padding:30px 0"><div class="t">Sin observaciones</div><div>Subí tickets PDF para registrar precios.</div></div>`;
+    }
+
+    const pts = series.map(d => ({ t: new Date(d.observed_at).getTime(), v: Number(d.unit_price) || 0, raw: d }));
+    const minT = pts[0].t, maxT = pts[pts.length - 1].t;
+    const spanT = Math.max(1, maxT - minT);
+    const values = pts.map(p => p.v);
+    let minV = Math.min(...values), maxV = Math.max(...values);
+    const spanV = Math.max(0.01, maxV - minV);
+    maxV += spanV * 0.12;
+    minV = Math.max(0, minV - spanV * 0.12);
+    const range = maxV - minV || 1;
+
+    const projected = pts.map(p => ({
+        x: PAD_L + (spanT === 0 ? plotW / 2 : ((p.t - minT) / spanT) * plotW),
+        y: PAD_T + plotH - ((p.v - minV) / range) * plotH,
+        raw: p.raw,
+        v: p.v,
+    }));
+
+    const pathD = projected.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+    const dots = projected.map(p =>
+        `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="2.8" fill="var(--carbs, #c47b00)"><title>${p.raw.observed_at} — ${p.v.toFixed(2)} €/pack</title></circle>`
+    ).join('');
+
+    const yTicks = [0, 0.25, 0.5, 0.75, 1].map(t => {
+        const v = minV + range * t;
+        const y = PAD_T + plotH - t * plotH;
+        return `<line x1="${PAD_L}" y1="${y}" x2="${W - PAD_R}" y2="${y}" stroke="var(--line)" stroke-width="0.5"/>
+                <text x="${PAD_L - 6}" y="${(y + 3).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--ink-3)" font-family="var(--mono)">${v.toFixed(2)} €</text>`;
+    }).join('');
+
+    const isoToShort = iso => {
+        const d = new Date(iso);
+        const months = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+        return `${d.getDate()} ${months[d.getMonth()]}`;
+    };
+    const labelIdx = projected.length >= 3
+        ? [0, Math.floor(projected.length / 2), projected.length - 1]
+        : projected.map((_, i) => i);
+    const xLabels = labelIdx.map(i =>
+        `<text x="${projected[i].x.toFixed(1)}" y="${H - 10}" text-anchor="middle" font-size="10" fill="var(--ink-3)" font-family="var(--mono)">${isoToShort(projected[i].raw.observed_at)}</text>`
+    ).join('');
+
+    return `
+        <svg viewBox="0 0 ${W} ${H}" style="width:100%; height:auto; display:block">
+            ${yTicks}
+            <path d="${pathD}" fill="none" stroke="var(--carbs, #c47b00)" stroke-width="2"/>
+            ${dots}
+            ${xLabels}
+        </svg>
+    `;
+}
+
+function _renderPriceSection() {
+    const products = (window.AppState.products || []).filter(p => p.last_price != null);
+    products.sort((a, b) => a.name.localeCompare(b.name, 'es'));
+    if (products.length === 0) {
+        return `
+            <div class="card">
+                <div class="card-head">
+                    <div class="card-title">Evolución de precios</div>
+                </div>
+                <div class="empty" style="padding:30px 0">
+                    <div class="t">Sin precios registrados</div>
+                    <div>Subí un ticket PDF desde Escanear para empezar a registrar precios.</div>
+                </div>
+            </div>
+        `;
+    }
+    // Auto-pick the first product on first render so the user sees something.
+    if (!priceState.barcode) priceState.barcode = products[0].barcode;
+    const selectedProduct = products.find(p => p.barcode === priceState.barcode) || products[0];
+
+    // Lazily load series when selection changes.
+    if (priceState.series === null && !priceState.loading) {
+        _loadPriceSeries(priceState.barcode).then(() => window.renderPage());
+    }
+
+    const options = products.map(p => {
+        const last = p.last_price != null ? `${Number(p.last_price).toFixed(2)} €` : '—';
+        return `<option value="${window.esc(p.barcode)}" ${p.barcode === priceState.barcode ? 'selected' : ''}>${window.esc(p.name)} (${last})</option>`;
+    }).join('');
+
+    const series = priceState.series || [];
+    const minV = series.length ? Math.min(...series.map(d => d.unit_price)) : null;
+    const maxV = series.length ? Math.max(...series.map(d => d.unit_price)) : null;
+    const lastV = series.length ? series[series.length - 1].unit_price : null;
+
+    const summary = series.length
+        ? `<span class="card-sub">${series.length} observaciones · min ${minV.toFixed(2)} € · max ${maxV.toFixed(2)} € · último ${lastV.toFixed(2)} €</span>`
+        : '<span class="card-sub">sin observaciones</span>';
+
+    return `
+        <div class="card">
+            <div class="card-head" style="flex-wrap:wrap; gap:8px">
+                <div class="card-title">Evolución de precios</div>
+                ${summary}
+            </div>
+            <div style="margin-bottom:12px">
+                <select id="price-product" class="input">${options}</select>
+            </div>
+            ${priceState.loading ? '<div class="empty" style="padding:30px 0">Cargando…</div>' : _priceChartSVG(series)}
+        </div>
+    `;
+}
+
 window.renderCharts = function() {
     // First render: kick off data load
     if (chartsData.weights === null && !chartsData.loading) {
@@ -149,6 +279,8 @@ window.renderCharts = function() {
                 </div>
                 ${chartsData.loading ? `<div class="empty" style="padding:30px 0">Cargando…</div>` : _lineChartSVG(kData, 'kcal', { color: 'var(--protein)', goal, zeroBased: true })}
             </div>
+
+            ${_renderPriceSection()}
         </div>
     `;
 };
@@ -173,4 +305,16 @@ window.initCharts = function() {
             window.renderPage();
         });
     });
+
+    const priceSelect = root.querySelector('#price-product');
+    if (priceSelect) {
+        priceSelect.addEventListener('change', async () => {
+            priceState.barcode = priceSelect.value;
+            priceState.series = null;
+            priceState.loading = true;
+            window.renderPage();
+            await _loadPriceSeries(priceState.barcode);
+            window.renderPage();
+        });
+    }
 };

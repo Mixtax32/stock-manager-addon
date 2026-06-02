@@ -326,6 +326,7 @@ window.openEditProduct = function(barcode) {
                             const bUnit = p.unit_type === 'uds' ? 'ud' : (p.unit_type || 'g');
                             const bLoc = b.location || '';
                             const bExp = b.expiry_date || '';
+                            const bPrice = b.last_price != null ? Number(b.last_price).toFixed(2) : '';
                             return `
                             <div class="batch-row" data-batch-id="${b.id}" style="display:flex; align-items:center; gap:8px; margin-bottom:8px; flex-wrap:wrap">
                                 <span class="muted" style="font-size:12px; min-width:60px">${bQtyDisplay} ${bUnit}</span>
@@ -342,6 +343,10 @@ window.openEditProduct = function(barcode) {
                                         <option value="Despensa" ${bLoc === 'Despensa' ? 'selected' : ''}>Despensa</option>
                                         <option value="Otros" ${bLoc === 'Otros' ? 'selected' : ''}>Otros</option>
                                     </select>
+                                </div>
+                                <div class="field" style="flex:0 1 110px; min-width:90px; margin:0">
+                                    <label class="field-label">Precio (€/pack)</label>
+                                    <input type="number" inputmode="decimal" step="0.01" min="0" class="input num batch-price" style="font-size:13px" placeholder="—" value="${bPrice}" data-batch-id="${b.id}"/>
                                 </div>
                             </div>`;
                         }).join('') : `<div class="muted" style="font-size:13px">Sin lotes registrados</div>`}
@@ -456,6 +461,28 @@ window.openEditProduct = function(barcode) {
         el.addEventListener('change', async () => {
             const batchId = el.dataset.batchId;
             await _saveBatchField(batchId, { location: el.value || null });
+        });
+    });
+    mount.querySelectorAll('.batch-price').forEach(el => {
+        el.addEventListener('change', async () => {
+            const batchId = el.dataset.batchId;
+            const raw = el.value.trim();
+            if (raw === '') return; // empty = leave untouched
+            const val = parseFloat(raw);
+            if (!isFinite(val) || val < 0) {
+                window.showToast('Precio inválido', 'error');
+                return;
+            }
+            try {
+                await window.apiCall(`/batches/${batchId}/price`, 'PATCH', {
+                    unit_price: val,
+                    source: 'manual',
+                });
+                await window.reloadProducts();
+                window.showToast('Precio actualizado', 'success');
+            } catch (e) {
+                window.showToast('Error actualizando precio: ' + e.message, 'error');
+            }
         });
     });
 
