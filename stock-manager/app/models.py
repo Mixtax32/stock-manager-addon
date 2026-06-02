@@ -29,6 +29,8 @@ class Product(BaseModel):
     package_quantity: Optional[str] = None # Cantidad descriptiva de OFF (ej: "6 x 125g")
     tracking_mode: str = "manual"  # "manual" or "scale" (auto-tracked by load cell)
     scale_min_delta_g: float = 10.0  # min weight change (g) to sync stock from a scale reading
+    last_price: Optional[float] = None  # last observed unit price (€)
+    last_price_date: Optional[str] = None  # ISO date of last_price observation
     batches: List[Batch] = []
     last_updated: Optional[datetime] = None
 
@@ -234,4 +236,27 @@ class PendingRefillResolve(BaseModel):
     """Manually resolve a pending refill with a concrete weight (when the user
     chose 'add now' instead of waiting for the NUEVO LOTE button)."""
     actual_qty: float
+
+
+# --- Price tracking ---------------------------------------------------------
+
+class PriceRecord(BaseModel):
+    """A single observed purchase price for a product."""
+    unit_price: float
+    qty: Optional[float] = None
+    total_price: Optional[float] = None
+    source: str = "manual"  # "ticket_pdf" | "manual" | "ticket_ocr"
+    source_ref: Optional[str] = None  # e.g. ticket id
+    observed_at: Optional[str] = None  # ISO datetime; defaults to server now
+
+class PriceHistoryEntry(BaseModel):
+    id: int
+    barcode: str
+    unit_price: float
+    qty: Optional[float] = None
+    total_price: Optional[float] = None
+    source: str
+    source_ref: Optional[str] = None
+    observed_at: str
+    created_at: Optional[datetime] = None
 

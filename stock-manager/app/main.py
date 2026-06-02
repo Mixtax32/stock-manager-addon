@@ -14,6 +14,7 @@ from .models import (
     MovementUpdate, BodyWeight, BodyWeightCreate,
     Scale, ScaleCreate, ScaleUpdate, ScaleWeight, ScaleEvent,
     PendingRefill, PendingRefillCreate, PendingRefillResolve,
+    PriceRecord, PriceHistoryEntry,
 )
 from .barcode_service import get_product_from_barcode
 from .telegram_service import telegram_bot
@@ -335,6 +336,31 @@ async def ocr_ticket(file: UploadFile = File(...)):
     except Exception as e:
         logger.error(f"OCR ticket error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error procesando ticket: {str(e)}")
+
+@app.post("/api/ocr/ticket-pdf")
+async def ocr_ticket_pdf(file: UploadFile = File(...)):
+    """Parse a Mercadona ticket PDF and return structured items with prices."""
+    from . import ticket_pdf_service
+    try:
+        content = await file.read()
+        result = ticket_pdf_service.parse_ticket_pdf(content)
+        return result
+    except Exception as e:
+        logger.error(f"PDF ticket error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error procesando PDF: {str(e)}")
+
+@app.post("/api/products/{barcode}/price", response_model=PriceHistoryEntry)
+async def record_product_price(barcode: str, record: PriceRecord):
+    """Record an observed purchase price for a product."""
+    entry = await db.record_price(barcode, record)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return entry
+
+@app.get("/api/products/{barcode}/price-history", response_model=List[PriceHistoryEntry])
+async def get_product_price_history(barcode: str, limit: int = 50):
+    """Get price history for a product, newest first."""
+    return await db.get_price_history(barcode, limit)
 
 @app.post("/api/import")
 async def import_data(file: UploadFile = File(...), clear: bool = False):

@@ -27,7 +27,9 @@ let scanState = {
     target: 'pantry',        // pantry | diary
     meal: 'comida',
     ticketLines: [],         // raw OCR lines from server
-    ticketItems: [],         // [{ line, name, qty, match: product|null, score, checked }]
+    ticketItems: [],         // [{ line, name, qty, unit_price?, total_price?, match: product|null, score, checked }]
+    ticketSource: 'image',   // 'image' (OCR) or 'pdf' (Mercadona PDF parser)
+    ticketMeta: null,        // { date, ticket_id, total } for PDF tickets
 };
 
 // ─── Barcode helpers ──────────────────────────────────────────────────────────
@@ -152,6 +154,8 @@ function _matchProducts(lines) {
 
 async function _processTicketFile(file) {
     scanState.phase = 'ticket-loading';
+    scanState.ticketSource = 'image';
+    scanState.ticketMeta = null;
     window.renderPage();
     try {
         const form = new FormData();
@@ -165,6 +169,68 @@ async function _processTicketFile(file) {
         scanState.phase = 'ticket-review';
     } catch (e) {
         window.showToast('Error leyendo ticket: ' + e.message, 'error');
+        scanState.phase = 'idle';
+    }
+    window.renderPage();
+}
+
+function _matchProductsFromStructured(structuredItems) {
+    // PDF flow: items arrive already split — name is clean, qty + prices come
+    // from the parser. Skip _parseLine and match name directly.
+    const products = window.AppState.products || [];
+    const items = [];
+    for (const it of structuredItems) {
+        const cleanName = (it.name || '').trim();
+        if (!cleanName || cleanName.length < 2) continue;
+        let best = null, bestScore = 0;
+        for (const p of products) {
+            const s = _similarity(cleanName, p.name);
+            if (s > bestScore && s >= 0.35) { bestScore = s; best = p; }
+        }
+        const existing = items.find(x => x.match && best && x.match.barcode === best.barcode);
+        if (existing) {
+            existing.qty += it.qty || 1;
+            if (it.total_price != null) {
+                existing.total_price = (existing.total_price || 0) + it.total_price;
+            }
+        } else {
+            items.push({
+                line: it.line || cleanName,
+                name: cleanName,
+                qty: it.qty || 1,
+                unit_price: it.unit_price ?? null,
+                total_price: it.total_price ?? null,
+                match: best,
+                score: bestScore,
+                checked: !!best,
+            });
+        }
+    }
+    return items;
+}
+
+async function _processTicketPdf(file) {
+    scanState.phase = 'ticket-loading';
+    scanState.ticketSource = 'pdf';
+    window.renderPage();
+    try {
+        const form = new FormData();
+        form.append('file', file);
+        const base = window.API_BASE || '/api';
+        const resp = await fetch(`${base}/ocr/ticket-pdf`, { method: 'POST', body: form });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        const structured = data.items || [];
+        scanState.ticketLines = structured.map(it => it.line || it.name);
+        scanState.ticketItems = _matchProductsFromStructured(structured);
+        scanState.ticketMeta = {
+            date: data.date || null,
+            ticket_id: data.ticket_id || null,
+            total: data.total ?? null,
+        };
+        scanState.phase = 'ticket-review';
+    } catch (e) {
+        window.showToast('Error leyendo PDF: ' + e.message, 'error');
         scanState.phase = 'idle';
     }
     window.renderPage();
@@ -192,9 +258,11 @@ function _renderIdle() {
         </div>
         <input type="file" id="camera-input" accept="image/*" capture="environment" style="display:none">
         <input type="file" id="ticket-input" accept="image/*" capture="environment" style="display:none">
+        <input type="file" id="ticket-pdf-input" accept="application/pdf,.pdf" style="display:none">
         <div class="stack" style="gap:10px; margin-top:14px">
             <button class="btn accent scan-cta-btn" data-action="start" style="width:100%">${window.icon('scan')} Abrir cámara</button>
-            <button class="btn ghost scan-cta-btn" data-action="start-ticket" style="width:100%">${window.icon('scan')} Leer ticket de compra</button>
+            <button class="btn ghost scan-cta-btn" data-action="start-ticket" style="width:100%">${window.icon('scan')} Leer ticket (foto)</button>
+            <button class="btn ghost scan-cta-btn" data-action="start-ticket-pdf" style="width:100%">${window.icon('scan')} Leer ticket PDF (Mercadona)</button>
             <div class="row" style="gap:8px">
                 <input id="manual-barcode" class="input" placeholder="Introduce el código de barras…" style="flex:1; min-width:0"/>
                 <button class="btn" data-action="manual">Buscar</button>
@@ -221,26 +289,48 @@ function _renderTicketLoading() {
     `;
 }
 
+function _fmtPrice(n) {
+    if (n == null || isNaN(n)) return '';
+    return Number(n).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 function _renderTicketReview() {
     const items = scanState.ticketItems;
     const matched = items.filter(it => it.match).length;
     const checkedCount = items.filter(it => it.checked && it.match).length;
+    const meta = scanState.ticketMeta;
 
-    const rows = items.map((it, i) => `
+    const metaBar = meta ? `
+        <div class="row" style="gap:12px; flex-wrap:wrap; font-size:12px; color:var(--ink-2); margin-bottom:8px">
+            ${meta.date ? `<span>📅 ${window.esc(meta.date)}</span>` : ''}
+            ${meta.ticket_id ? `<span>🧾 ${window.esc(meta.ticket_id)}</span>` : ''}
+            ${meta.total != null ? `<span>💶 Total ${_fmtPrice(meta.total)} €</span>` : ''}
+        </div>
+    ` : '';
+
+    const rows = items.map((it, i) => {
+        const priceLine = (it.total_price != null || it.unit_price != null) ? `
+            <div class="ticket-row-price" style="font-size:12px; color:var(--ink-2); font-family:var(--mono)">
+                ${it.unit_price != null ? `${_fmtPrice(it.unit_price)} €/u` : ''}${(it.unit_price != null && it.total_price != null) ? ' · ' : ''}${it.total_price != null ? `${_fmtPrice(it.total_price)} € total` : ''}
+            </div>` : '';
+        return `
         <div class="ticket-row">
             <input type="checkbox" class="ticket-check" data-idx="${i}" ${it.checked ? 'checked' : ''}>
             <div class="ticket-row-info">
                 <div class="ticket-row-match">${it.match ? window.esc(it.match.name) : '<span class="muted">Sin coincidencia</span>'}</div>
                 <div class="ticket-row-line">${window.esc(it.line)}</div>
+                ${priceLine}
             </div>
             <input type="number" class="input num ticket-row-qty" data-idx="${i}" value="${it.qty}" min="1" step="1" style="width:60px; flex-shrink:0">
             <button class="btn ghost sm ticket-row-change" data-idx="${i}">Cambiar</button>
         </div>
-    `).join('');
+        `;
+    }).join('');
 
     return `
         <div style="margin-bottom:12px">
             <div style="font-size:13px; color:var(--ink-2)">Detecté <strong>${items.length}</strong> líneas, <strong>${matched}</strong> con coincidencia</div>
+            ${metaBar}
         </div>
         <div class="ticket-list">
             ${rows || '<div class="empty">No se encontraron productos en el ticket.</div>'}
@@ -410,10 +500,24 @@ window.initScan = function() {
             });
         }
 
+        const ticketPdfInput = root.querySelector('#ticket-pdf-input');
+        if (ticketPdfInput) {
+            ticketPdfInput.addEventListener('change', e => {
+                const file = e.target.files[0];
+                if (file) _processTicketPdf(file);
+                ticketPdfInput.value = '';
+            });
+        }
+
         root.querySelector('[data-action="start"]')?.addEventListener('click', _triggerFileInput);
 
         root.querySelector('[data-action="start-ticket"]')?.addEventListener('click', () => {
             const ti = document.getElementById('ticket-input');
+            if (ti) ti.click();
+        });
+
+        root.querySelector('[data-action="start-ticket-pdf"]')?.addEventListener('click', () => {
+            const ti = document.getElementById('ticket-pdf-input');
             if (ti) ti.click();
         });
 
@@ -534,6 +638,8 @@ function _resetScan() {
         meal: 'comida',
         ticketLines: [],
         ticketItems: [],
+        ticketSource: 'image',
+        ticketMeta: null,
     };
 }
 
@@ -576,23 +682,47 @@ async function _confirmTicket() {
     const toAdd = scanState.ticketItems.filter(it => it.checked && it.match);
     if (!toAdd.length) return;
 
+    const sourceLabel = scanState.ticketSource === 'pdf' ? 'ticket_pdf' : 'ticket_ocr';
+    const meta = scanState.ticketMeta || {};
     let successCount = 0;
+    let priceCount = 0;
+
     for (const item of toAdd) {
         try {
-            const gated = await _gateScaleProduct(item.match.barcode, item.qty, 'ticket_ocr');
-            if (gated) { successCount++; continue; }
-            await window.apiCall(`/products/${item.match.barcode}/stock`, 'POST', {
-                quantity: item.qty,
-                reason: 'restock',
-            });
+            const gated = await _gateScaleProduct(item.match.barcode, item.qty, sourceLabel);
+            if (!gated) {
+                await window.apiCall(`/products/${item.match.barcode}/stock`, 'POST', {
+                    quantity: item.qty,
+                    reason: 'restock',
+                });
+            }
             successCount++;
+
+            // Record price separately so stock and price stay decoupled.
+            if (item.unit_price != null) {
+                try {
+                    await window.apiCall(`/products/${item.match.barcode}/price`, 'POST', {
+                        unit_price: item.unit_price,
+                        qty: item.qty,
+                        total_price: item.total_price,
+                        source: sourceLabel,
+                        source_ref: meta.ticket_id || null,
+                        observed_at: meta.date || null,
+                    });
+                    priceCount++;
+                } catch (e) {
+                    // Price tracking is non-critical — log but don't bother the user.
+                    console.warn(`Price record failed for ${item.match.barcode}:`, e.message);
+                }
+            }
         } catch (e) {
             window.showToast(`Error al actualizar ${item.match.name}: ${e.message}`, 'error');
         }
     }
 
     if (successCount > 0) {
-        window.showToast(`${successCount} producto${successCount !== 1 ? 's' : ''} añadido${successCount !== 1 ? 's' : ''} al stock`, 'success');
+        const priceNote = priceCount > 0 ? ` (${priceCount} con precio)` : '';
+        window.showToast(`${successCount} producto${successCount !== 1 ? 's' : ''} añadido${successCount !== 1 ? 's' : ''} al stock${priceNote}`, 'success');
         await window.reloadProducts();
     }
     _resetScan();

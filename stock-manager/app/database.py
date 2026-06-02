@@ -9,6 +9,7 @@ from .models import (
     BodyWeight, BodyWeightCreate,
     Scale, ScaleCreate, ScaleUpdate, ScaleWeight, ScaleEvent,
     PendingRefill, PendingRefillCreate, PendingRefillResolve,
+    PriceRecord, PriceHistoryEntry,
 )
 
 DATABASE_PATH = os.getenv('DATABASE_PATH', '/data/stock_manager/stock.db')
@@ -72,6 +73,10 @@ class Database:
                 await db.execute("ALTER TABLE products ADD COLUMN tracking_mode TEXT NOT NULL DEFAULT 'manual'")
             if 'scale_min_delta_g' not in columns:
                 await db.execute("ALTER TABLE products ADD COLUMN scale_min_delta_g REAL NOT NULL DEFAULT 10.0")
+            if 'last_price' not in columns:
+                await db.execute("ALTER TABLE products ADD COLUMN last_price REAL DEFAULT NULL")
+            if 'last_price_date' not in columns:
+                await db.execute("ALTER TABLE products ADD COLUMN last_price_date TEXT DEFAULT NULL")
 
             # Create batches table
             await db.execute("""
@@ -240,6 +245,28 @@ class Database:
                     FOREIGN KEY (batch_id) REFERENCES batches(id) ON DELETE SET NULL
                 )
             """)
+
+            # Create price_history table — every observed purchase price for a
+            # product (sourced from ticket PDF / manual entry). We also keep
+            # last_price/last_price_date on the product itself for fast access.
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS price_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    barcode TEXT NOT NULL,
+                    unit_price REAL NOT NULL,
+                    qty REAL DEFAULT NULL,
+                    total_price REAL DEFAULT NULL,
+                    source TEXT NOT NULL DEFAULT 'manual',
+                    source_ref TEXT DEFAULT NULL,
+                    observed_at TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (barcode) REFERENCES products(barcode) ON DELETE CASCADE
+                )
+            """)
+            await db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_price_history_barcode_date "
+                "ON price_history(barcode, observed_at DESC)"
+            )
 
             # Create pending_refills table (bridge between scanner/ticket detection
             # and physical NUEVO LOTE button press on the scale)
@@ -1365,5 +1392,54 @@ class Database:
             cursor = await db.execute("DELETE FROM pending_refills WHERE id = ?", (refill_id,))
             await db.commit()
             return cursor.rowcount > 0
+
+    # --- Price history -----------------------------------------------------
+
+    async def record_price(self, barcode: str, record: PriceRecord) -> Optional[PriceHistoryEntry]:
+        """Insert a price observation and bump products.last_price/date if newer."""
+        observed_at = record.observed_at or datetime.now().isoformat(timespec="seconds")
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            # Guard: product must exist (FK CASCADE would silently no-op otherwise).
+            async with db.execute(
+                "SELECT last_price_date FROM products WHERE barcode = ?", (barcode,)
+            ) as cursor:
+                prod = await cursor.fetchone()
+            if not prod:
+                return None
+
+            cursor = await db.execute(
+                """INSERT INTO price_history
+                   (barcode, unit_price, qty, total_price, source, source_ref, observed_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (barcode, record.unit_price, record.qty, record.total_price,
+                 record.source, record.source_ref, observed_at)
+            )
+            new_id = cursor.lastrowid
+
+            # Only overwrite last_price if this observation is newer (or there is none yet).
+            prev_date = prod["last_price_date"]
+            if prev_date is None or observed_at >= prev_date:
+                await db.execute(
+                    "UPDATE products SET last_price = ?, last_price_date = ?, last_updated = ? "
+                    "WHERE barcode = ?",
+                    (record.unit_price, observed_at, datetime.now(), barcode)
+                )
+            await db.commit()
+
+            async with db.execute("SELECT * FROM price_history WHERE id = ?", (new_id,)) as cursor:
+                row = await cursor.fetchone()
+            return PriceHistoryEntry(**dict(row)) if row else None
+
+    async def get_price_history(self, barcode: str, limit: int = 50) -> List[PriceHistoryEntry]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT * FROM price_history WHERE barcode = ? "
+                "ORDER BY observed_at DESC, id DESC LIMIT ?",
+                (barcode, limit)
+            ) as cursor:
+                rows = await cursor.fetchall()
+            return [PriceHistoryEntry(**dict(r)) for r in rows]
 
 db = Database()
