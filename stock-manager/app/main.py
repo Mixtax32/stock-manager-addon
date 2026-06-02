@@ -305,18 +305,26 @@ async def update_movement(movement_id: int, update: MovementUpdate):
 
 @app.get("/api/export")
 async def export_data():
-    """Export all inventory data as CSV"""
+    """Export all inventory data as CSV. Column order matches what import_data
+    knows how to read, so an exported file round-trips cleanly."""
     import csv
     import io
     from fastapi.responses import StreamingResponse
-    
+
     data = await db.get_export_data()
-    
+
+    fieldnames = [
+        "barcode", "name", "category", "unit_type", "location", "min_stock",
+        "image_url", "weight_g", "kcal_100g", "proteins_100g", "carbs_100g",
+        "fat_100g", "serving_size", "package_quantity", "quantity", "expiry_date",
+    ]
     output = io.StringIO()
-    writer = csv.DictWriter(output, fieldnames=["barcode", "name", "category", "location", "min_stock", "image_url", "weight_g", "kcal_100g", "proteins_100g", "carbs_100g", "fat_100g", "quantity", "expiry_date"])
+    # extrasaction='ignore' so future schema additions to get_export_data don't
+    # blow up this endpoint until the fieldnames list catches up.
+    writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
     writer.writeheader()
     writer.writerows(data)
-    
+
     output.seek(0)
     return StreamingResponse(
         iter([output.getvalue()]),
