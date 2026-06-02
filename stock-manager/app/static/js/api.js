@@ -1,21 +1,23 @@
-/* 
-   API Wrapper & Data Fetching
-   v0.6.0
+/*
+   API wrapper.
+   Single export: window.apiCall(endpoint, method = 'GET', body = null, retries = 3)
+   - JSON in / JSON out (DELETE returns true on 2xx)
+   - Cache-busts GETs to dodge the HA Ingress proxy serving stale 200s
+   - Retries 502/503/504 and network errors with a 2s backoff
 */
 
 async function apiCall(endpoint, method = 'GET', body = null, retries = 3) {
-    const options = { 
-        method, 
-        headers: { 
+    const options = {
+        method,
+        headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json'
-        } 
+        }
     };
     if (body) options.body = JSON.stringify(body);
-    
-    // Cache busting for GET requests to prevent HA Proxy from serving empty/stale data
+
     const url = `${window.API_BASE}${endpoint}${method === 'GET' ? (endpoint.includes('?') ? '&' : '?') + 't=' + Date.now() : ''}`;
-    
+
     try {
         const response = await fetch(url, options);
         if (!response.ok) {
@@ -43,54 +45,3 @@ async function apiCall(endpoint, method = 'GET', body = null, retries = 3) {
     }
 }
 window.apiCall = apiCall;
-
-async function loadProducts() {
-    try {
-        window.products = await apiCall('/products');
-        await window.updateUI();
-        await window.updateCharts();
-        await window.updateMacros();
-    } catch (error) { console.error('Error loading products:', error); }
-}
-window.loadProducts = loadProducts;
-
-async function exportInventory() {
-    try {
-        const response = await fetch(`${window.API_BASE}/export`);
-        if (!response.ok) throw new Error('Error al exportar');
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `inventario_${new Date().toISOString().split('T')[0]}.csv`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        window.showToast('Inventario exportado correctamente', 'success');
-    } catch (error) {
-        window.showToast('Error exportando: ' + error.message, 'error');
-    }
-}
-window.exportInventory = exportInventory;
-
-async function importInventory() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.csv';
-    input.onchange = async e => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const formData = new FormData();
-        formData.append('file', file);
-        try {
-            const response = await fetch(`${window.API_BASE}/import`, { method: 'POST', body: formData });
-            const result = await response.json();
-            if (response.ok) {
-                window.showToast(`Importación completada: ${result.count} productos`, 'success');
-                await loadProducts();
-            } else throw new Error(result.detail || 'Error en la importación');
-        } catch (error) { window.showToast('Error importando: ' + error.message, 'error'); }
-    };
-    input.click();
-}
-window.importInventory = importInventory;

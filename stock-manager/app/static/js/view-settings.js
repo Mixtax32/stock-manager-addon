@@ -86,6 +86,17 @@ window.renderSettings = function() {
                 </div>
             </div>
 
+            <div class="card">
+                <div class="card-title" style="margin-bottom:12px">Datos</div>
+                <div class="row" style="gap:10px; flex-wrap:wrap">
+                    <button class="btn" data-action="export-csv" style="flex:1; min-width:140px">Exportar inventario (CSV)</button>
+                    <button class="btn ghost" data-action="import-csv" style="flex:1; min-width:140px">Importar CSV…</button>
+                </div>
+                <div class="muted" style="font-size:12px; margin-top:10px; line-height:1.5">
+                    Exportar descarga un CSV con productos, lotes y macros. Importar lee un CSV con esas mismas columnas y mergea (no borra lo existente).
+                </div>
+            </div>
+
             <details id="advanced-details" ${_advancedOpen ? 'open' : ''}>
                 <summary style="cursor:pointer; font-weight:600; font-size:14px; padding:10px 0; list-style:none; display:flex; align-items:center; gap:8px; color:var(--ink-2);">
                     <span style="font-size:16px">›</span> Ajustes avanzados
@@ -285,5 +296,47 @@ window.initSettings = function() {
             window.saveTheme(btn.dataset.theme);
             window.renderPage();
         });
+    });
+
+    root.querySelector('[data-action="export-csv"]')?.addEventListener('click', async () => {
+        try {
+            // /export streams CSV — fetch raw, don't try to JSON-parse it via apiCall.
+            const resp = await fetch(`${window.API_BASE}/export`);
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const blob = await resp.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `inventario_${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+            window.showToast('Inventario exportado', 'success');
+        } catch (e) {
+            window.showToast('Error exportando: ' + e.message, 'error');
+        }
+    });
+
+    root.querySelector('[data-action="import-csv"]')?.addEventListener('click', () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.csv,text/csv';
+        input.onchange = async e => {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+            const fd = new FormData();
+            fd.append('file', file);
+            try {
+                const resp = await fetch(`${window.API_BASE}/import`, { method: 'POST', body: fd });
+                const result = await resp.json().catch(() => ({}));
+                if (!resp.ok) throw new Error(result.detail || `HTTP ${resp.status}`);
+                window.showToast(`Importados ${result.count} productos`, 'success');
+                await window.reloadProducts();
+            } catch (err) {
+                window.showToast('Error importando: ' + err.message, 'error');
+            }
+        };
+        input.click();
     });
 };
