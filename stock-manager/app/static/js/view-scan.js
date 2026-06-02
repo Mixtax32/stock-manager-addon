@@ -174,6 +174,20 @@ async function _processTicketFile(file) {
     window.renderPage();
 }
 
+function _packSize(product) {
+    // How many stock-units one ticket pack represents.
+    //   g/ml products: weight_g doubles as "grams per package" in this app.
+    //   uds products: serving_size is the number of units per package
+    //                 (e.g. 4 lonchas/pack, 4 panes/pack). Defaults to 1.
+    // Returns null when the product has no known pack size — caller must
+    // fall back to raw qty and warn the user to fill the macro fields.
+    if (!product) return null;
+    if (product.unit_type === 'uds') {
+        return product.serving_size && product.serving_size > 0 ? product.serving_size : 1;
+    }
+    return product.weight_g && product.weight_g > 0 ? product.weight_g : null;
+}
+
 function _matchProductsFromStructured(structuredItems) {
     // PDF flow: items arrive already split — name is clean, qty + prices come
     // from the parser. Skip _parseLine and match name directly.
@@ -187,9 +201,14 @@ function _matchProductsFromStructured(structuredItems) {
             const s = _similarity(cleanName, p.name);
             if (s > bestScore && s >= 0.35) { bestScore = s; best = p; }
         }
+        const packs = it.qty || 1;
+        const packSize = _packSize(best);
+        const qty = (best && packSize != null) ? packs * packSize : packs;
+
         const existing = items.find(x => x.match && best && x.match.barcode === best.barcode);
         if (existing) {
-            existing.qty += it.qty || 1;
+            existing.packs += packs;
+            existing.qty = (best && packSize != null) ? existing.packs * packSize : existing.packs;
             if (it.total_price != null) {
                 existing.total_price = (existing.total_price || 0) + it.total_price;
             }
@@ -197,7 +216,9 @@ function _matchProductsFromStructured(structuredItems) {
             items.push({
                 line: it.line || cleanName,
                 name: cleanName,
-                qty: it.qty || 1,
+                packs: packs,
+                qty: qty,
+                packSize: packSize,
                 unit_price: it.unit_price ?? null,
                 total_price: it.total_price ?? null,
                 match: best,
@@ -313,6 +334,21 @@ function _renderTicketReview() {
             <div class="ticket-row-price" style="font-size:12px; color:var(--ink-2); font-family:var(--mono)">
                 ${it.unit_price != null ? `${_fmtPrice(it.unit_price)} €/u` : ''}${(it.unit_price != null && it.total_price != null) ? ' · ' : ''}${it.total_price != null ? `${_fmtPrice(it.total_price)} € total` : ''}
             </div>` : '';
+        const unit = it.match ? (it.match.unit_type === 'uds' ? 'uds' : it.match.unit_type) : '';
+        // Show "packs × packSize = total" so the user can verify the multiplier.
+        // When pack size is unknown (g/ml product missing weight_g), warn explicitly.
+        let packHint = '';
+        if (it.match) {
+            if (it.packSize != null) {
+                packHint = `<div class="ticket-row-packs" style="font-size:11px; color:var(--ink-2)">
+                    ${it.packs} pack${it.packs !== 1 ? 's' : ''} × ${it.packSize} ${unit}/pack = <strong>${it.qty} ${unit}</strong>
+                </div>`;
+            } else {
+                packHint = `<div class="ticket-row-packs" style="font-size:11px; color:var(--warn, #c47b00)">
+                    ⚠ ${it.packs} pack${it.packs !== 1 ? 's' : ''} — falta <em>weight_g</em> en este producto, se añadirá tal cual
+                </div>`;
+            }
+        }
         return `
         <div class="ticket-row">
             <input type="checkbox" class="ticket-check" data-idx="${i}" ${it.checked ? 'checked' : ''}>
@@ -320,8 +356,12 @@ function _renderTicketReview() {
                 <div class="ticket-row-match">${it.match ? window.esc(it.match.name) : '<span class="muted">Sin coincidencia</span>'}</div>
                 <div class="ticket-row-line">${window.esc(it.line)}</div>
                 ${priceLine}
+                ${packHint}
             </div>
-            <input type="number" class="input num ticket-row-qty" data-idx="${i}" value="${it.qty}" min="1" step="1" style="width:60px; flex-shrink:0">
+            <div style="display:flex; align-items:center; gap:4px; flex-shrink:0">
+                <input type="number" class="input num ticket-row-qty" data-idx="${i}" value="${it.qty}" min="0" step="any" style="width:70px">
+                ${unit ? `<span class="muted" style="font-size:11px; min-width:24px">${unit}</span>` : ''}
+            </div>
             <button class="btn ghost sm ticket-row-change" data-idx="${i}">Cambiar</button>
         </div>
         `;
@@ -537,15 +577,16 @@ window.initScan = function() {
             });
         });
 
-        // Qty inputs
+        // Qty inputs — accept decimals so the user can fine-tune grams/ml.
         root.querySelectorAll('.ticket-row-qty').forEach(input => {
             input.addEventListener('input', e => {
                 const i = Number(e.target.dataset.idx);
-                scanState.ticketItems[i].qty = Math.max(1, parseInt(e.target.value, 10) || 1);
+                scanState.ticketItems[i].qty = Math.max(0, parseFloat(e.target.value) || 0);
             });
         });
 
-        // "Cambiar" buttons — open food picker, on pick set match
+        // "Cambiar" buttons — open food picker; when the match changes we
+        // recompute packSize and qty so the multiplier reflects the new product.
         root.querySelectorAll('.ticket-row-change').forEach(btn => {
             btn.addEventListener('click', () => {
                 const i = Number(btn.dataset.idx);
@@ -554,8 +595,12 @@ window.initScan = function() {
                     onPick: ({ productId }) => {
                         const product = window.findProductById(productId);
                         if (product) {
-                            scanState.ticketItems[i].match = product;
-                            scanState.ticketItems[i].checked = true;
+                            const item = scanState.ticketItems[i];
+                            const packSize = _packSize(product);
+                            item.match = product;
+                            item.packSize = packSize;
+                            item.qty = packSize != null ? item.packs * packSize : item.packs;
+                            item.checked = true;
                         }
                         window.renderPage();
                     },
@@ -699,11 +744,14 @@ async function _confirmTicket() {
             successCount++;
 
             // Record price separately so stock and price stay decoupled.
+            // unit_price/total_price are per-pack from the ticket; qty here is
+            // pack count (not stock units), so the history stays human-readable
+            // ("paid 1,35 €/pack × 2 packs = 2,70 €").
             if (item.unit_price != null) {
                 try {
                     await window.apiCall(`/products/${item.match.barcode}/price`, 'POST', {
                         unit_price: item.unit_price,
-                        qty: item.qty,
+                        qty: item.packs,
                         total_price: item.total_price,
                         source: sourceLabel,
                         source_ref: meta.ticket_id || null,
