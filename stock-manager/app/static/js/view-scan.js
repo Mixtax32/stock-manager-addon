@@ -174,20 +174,6 @@ async function _processTicketFile(file) {
     window.renderPage();
 }
 
-function _packSize(product) {
-    // How many stock-units one ticket pack represents.
-    //   g/ml products: weight_g doubles as "grams per package" in this app.
-    //   uds products: serving_size is the number of units per package
-    //                 (e.g. 4 lonchas/pack, 4 panes/pack). Defaults to 1.
-    // Returns null when the product has no known pack size — caller must
-    // fall back to raw qty and warn the user to fill the macro fields.
-    if (!product) return null;
-    if (product.unit_type === 'uds') {
-        return product.serving_size && product.serving_size > 0 ? product.serving_size : 1;
-    }
-    return product.weight_g && product.weight_g > 0 ? product.weight_g : null;
-}
-
 function _matchProductsFromStructured(structuredItems) {
     // PDF flow: items arrive already split — name is clean, qty + prices come
     // from the parser. Skip _parseLine and match name directly.
@@ -202,7 +188,7 @@ function _matchProductsFromStructured(structuredItems) {
             if (s > bestScore && s >= 0.35) { bestScore = s; best = p; }
         }
         const packs = it.qty || 1;
-        const packSize = _packSize(best);
+        const packSize = window.packSize(best);
         const qty = (best && packSize != null) ? packs * packSize : packs;
 
         const existing = items.find(x => x.match && best && x.match.barcode === best.barcode);
@@ -596,7 +582,7 @@ window.initScan = function() {
                         const product = window.findProductById(productId);
                         if (product) {
                             const item = scanState.ticketItems[i];
-                            const packSize = _packSize(product);
+                            const packSize = window.packSize(product);
                             item.match = product;
                             item.packSize = packSize;
                             item.qty = packSize != null ? item.packs * packSize : item.packs;

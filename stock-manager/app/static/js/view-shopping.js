@@ -5,16 +5,6 @@
 
 const CAT_ORDER = ['Carnicería', 'Pescadería', 'Lácteos', 'Verdulería', 'Frutería', 'Alimentos', 'Bebidas', 'Limpieza', 'Higiene', 'Otros'];
 
-// Stock units per pack — mirrors view-scan._packSize. Returns null when
-// unknown (g/ml product with no weight_g) so the caller can fall back.
-function _packSize(product) {
-    if (!product) return null;
-    if (product.unit_type === 'uds') {
-        return product.serving_size && product.serving_size > 0 ? product.serving_size : 1;
-    }
-    return product.weight_g && product.weight_g > 0 ? product.weight_g : null;
-}
-
 function _fmtEur(n) {
     if (n == null || isNaN(n)) return '';
     return Number(n).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
@@ -28,7 +18,7 @@ function _autoShoppingItems() {
         .map(p => {
             const needed = Math.max(1, (p.min_stock || 1) - (p.stock || 0));
             const unit = p.unit_type === 'uds' ? 'ud' : (p.unit_type || 'g');
-            const packSize = _packSize(p);
+            const packSize = window.packSize(p);
             // Round packs up — if you need 1.2 packs of leche, you buy 2 in real life.
             const packsNeeded = packSize ? Math.max(1, Math.ceil(needed / packSize)) : null;
             const estCost = (p.last_price != null && packsNeeded != null) ? packsNeeded * p.last_price : null;

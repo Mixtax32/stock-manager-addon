@@ -52,6 +52,20 @@ function isJunkLine(line) {
 }
 window.isJunkLine = isJunkLine;
 
+// Stock units one ticket pack represents for a product:
+//   g/ml: weight_g doubles as "amount per package" in this app
+//   uds : serving_size = units per package (e.g. 4 lonchas), defaults to 1
+// Returns null when the product has no known pack size (g/ml without weight_g)
+// so callers can fall back to raw qty and warn the user.
+function packSize(product) {
+    if (!product) return null;
+    if (product.unit_type === 'uds') {
+        return product.serving_size && product.serving_size > 0 ? product.serving_size : 1;
+    }
+    return product.weight_g && product.weight_g > 0 ? product.weight_g : null;
+}
+window.packSize = packSize;
+
 function similarityScore(a, b) {
     if (!a || !b) return 0; if (a.includes(b) || b.includes(a)) return 0.95;
     const d = (s1, s2) => {
