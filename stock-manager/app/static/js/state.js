@@ -372,6 +372,19 @@ window.findProductById = function(id) {
     return (window.AppState.products || []).find(p => String(p.barcode) === String(id));
 };
 
+// Stock units one ticket pack represents for a product:
+//   g/ml: weight_g doubles as "amount per package" in this app
+//   uds : serving_size = units per package (e.g. 4 lonchas), defaults to 1
+// Returns null when the product has no known pack size (g/ml without weight_g)
+// so callers can fall back to raw qty and warn the user.
+window.packSize = function(product) {
+    if (!product) return null;
+    if (product.unit_type === 'uds') {
+        return product.serving_size && product.serving_size > 0 ? product.serving_size : 1;
+    }
+    return product.weight_g && product.weight_g > 0 ? product.weight_g : null;
+};
+
 // macrosFor: compute macros for an item { productId, qty }
 // qty is interpreted in the product's native unit:
 //   - 'g' / 'ml' (or anything not 'uds'): qty is grams/ml → ratio = qty / 100
