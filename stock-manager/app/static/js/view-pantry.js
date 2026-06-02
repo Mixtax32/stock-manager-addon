@@ -346,7 +346,7 @@ window.openEditProduct = function(barcode) {
                                 </div>
                                 <div class="field" style="flex:0 1 110px; min-width:90px; margin:0">
                                     <label class="field-label">Precio (€/pack)</label>
-                                    <input type="number" inputmode="decimal" step="0.01" min="0" class="input num batch-price" style="font-size:13px" placeholder="—" value="${bPrice}" data-batch-id="${b.id}"/>
+                                    <input type="number" inputmode="decimal" step="0.01" min="0" class="input num batch-price" style="font-size:13px" placeholder="—" value="${bPrice}" data-batch-id="${b.id}" data-original="${bPrice}"/>
                                 </div>
                             </div>`;
                         }).join('') : `<div class="muted" style="font-size:13px">Sin lotes registrados</div>`}
@@ -463,28 +463,9 @@ window.openEditProduct = function(barcode) {
             await _saveBatchField(batchId, { location: el.value || null });
         });
     });
-    mount.querySelectorAll('.batch-price').forEach(el => {
-        el.addEventListener('change', async () => {
-            const batchId = el.dataset.batchId;
-            const raw = el.value.trim();
-            if (raw === '') return; // empty = leave untouched
-            const val = parseFloat(raw);
-            if (!isFinite(val) || val < 0) {
-                window.showToast('Precio inválido', 'error');
-                return;
-            }
-            try {
-                await window.apiCall(`/batches/${batchId}/price`, 'PATCH', {
-                    unit_price: val,
-                    source: 'manual',
-                });
-                await window.reloadProducts();
-                window.showToast('Precio actualizado', 'success');
-            } catch (e) {
-                window.showToast('Error actualizando precio: ' + e.message, 'error');
-            }
-        });
-    });
+    // Batch price is NOT auto-saved — it's deferred to the "Guardar cambios"
+    // button so the user can nudge the value without each step polluting any
+    // state. The button compares against data-original to know what to send.
 
     mount.querySelector('[data-action="save"]').addEventListener('click', async () => {
         const name = mount.querySelector('#ep-name').value.trim();
@@ -517,11 +498,38 @@ window.openEditProduct = function(barcode) {
         const scaleDeltaEl = mount.querySelector('#ep-scale-delta');
         if (scaleDeltaEl && scaleDeltaEl.value !== '') payload.scale_min_delta_g = Number(scaleDeltaEl.value);
 
+        // Collect dirty batch-price inputs (compared against data-original).
+        const priceUpdates = [];
+        mount.querySelectorAll('.batch-price').forEach(el => {
+            const raw = el.value.trim();
+            const original = (el.dataset.original || '').trim();
+            if (raw === original) return; // unchanged
+            if (raw === '') return; // leaving empty = don't touch the batch
+            const val = parseFloat(raw);
+            if (!isFinite(val) || val < 0) {
+                priceUpdates.push({ batchId: el.dataset.batchId, invalid: true });
+                return;
+            }
+            priceUpdates.push({ batchId: el.dataset.batchId, value: val });
+        });
+
+        if (priceUpdates.some(u => u.invalid)) {
+            window.showToast('Algún precio es inválido', 'error');
+            return;
+        }
+
         try {
             await window.apiCall(`/products/${barcode}`, 'PATCH', payload);
+            for (const u of priceUpdates) {
+                await window.apiCall(`/batches/${u.batchId}/price`, 'PATCH', {
+                    unit_price: u.value,
+                    source: 'manual',
+                });
+            }
             await window.reloadProducts();
             close();
-            window.showToast('Producto actualizado', 'success');
+            const priceNote = priceUpdates.length > 0 ? ` (${priceUpdates.length} precio${priceUpdates.length !== 1 ? 's' : ''})` : '';
+            window.showToast(`Producto actualizado${priceNote}`, 'success');
         } catch (e) {
             window.showToast('Error: ' + e.message, 'error');
         }
