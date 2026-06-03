@@ -57,6 +57,7 @@ window.renderRecipes = function() {
                     </div>
                     <div class="row" style="margin-top:12px; justify-content:flex-end; gap:6px">
                         <button class="btn sm accent" data-make="${window.esc(r.id)}">🍳 Hacer</button>
+                        <button class="btn sm" data-cook-scale="${window.esc(r.id)}" title="Cocinar paso a paso con la báscula">⚖️ Báscula</button>
                         <button class="btn sm ghost" data-edit="${window.esc(r.id)}">${window.icon('edit')}</button>
                         <button class="btn sm ghost" data-delete-recipe="${window.esc(r.id)}">${window.icon('trash')}</button>
                     </div>
@@ -537,6 +538,19 @@ window.initRecipes = function() {
             const r = (window.AppState.recipes || []).find(x => String(x.id) === String(id));
             if (!r) return;
             await _makeRecipe(r);
+        });
+    });
+
+    root.querySelectorAll('[data-cook-scale]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const id = btn.dataset.cookScale;
+            const r = (window.AppState.recipes || []).find(x => String(x.id) === String(id));
+            if (!r) return;
+            if (!window.openCookSession) {
+                window.showToast('Módulo de cocción con báscula no disponible', 'error');
+                return;
+            }
+            await window.openCookSession({ recipe: r });
         });
     });
 };

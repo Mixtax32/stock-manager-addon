@@ -10,6 +10,7 @@ from .models import (
     Scale, ScaleCreate, ScaleUpdate, ScaleWeight, ScaleEvent,
     PendingRefill, PendingRefillCreate, PendingRefillResolve,
     PriceRecord, PriceHistoryEntry,
+    CookSession, CookSessionStep, CookSessionCreate, CookStepView,
 )
 
 DATABASE_PATH = os.getenv('DATABASE_PATH', '/data/stock_manager/stock.db')
@@ -232,10 +233,13 @@ class Database:
             """)
 
             # Create scales table (smart scale integration — ESP32 + HX711)
+            # scale_type: 'fixed' = constant weighing of one product (cupboard);
+            # 'kitchen' = portable, used for guided cook sessions and ad-hoc weighing
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS scales (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT NOT NULL,
+                    scale_type TEXT NOT NULL DEFAULT 'fixed',
                     ha_entity_id TEXT DEFAULT NULL,
                     product_barcode TEXT DEFAULT NULL,
                     batch_id INTEGER DEFAULT NULL,
@@ -249,6 +253,11 @@ class Database:
                     FOREIGN KEY (batch_id) REFERENCES batches(id) ON DELETE SET NULL
                 )
             """)
+            # Migration: add scale_type to pre-existing scales rows.
+            async with db.execute("PRAGMA table_info(scales)") as cursor:
+                scale_cols = [row[1] for row in await cursor.fetchall()]
+            if 'scale_type' not in scale_cols:
+                await db.execute("ALTER TABLE scales ADD COLUMN scale_type TEXT NOT NULL DEFAULT 'fixed'")
 
             # Create price_history table — every observed purchase price for a
             # product (sourced from ticket PDF / manual entry). We also keep
@@ -300,6 +309,54 @@ class Database:
                     FOREIGN KEY (resolved_batch_id) REFERENCES batches(id) ON DELETE SET NULL
                 )
             """)
+
+            # Create cook_sessions table (guided cook flow — kitchen scale walks
+            # the user through a recipe ingredient by ingredient)
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS cook_sessions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    scale_id INTEGER NOT NULL,
+                    recipe_id INTEGER NOT NULL,
+                    diet_plan_id INTEGER DEFAULT NULL,
+                    servings REAL NOT NULL DEFAULT 1,
+                    status TEXT NOT NULL DEFAULT 'active',
+                    current_step INTEGER NOT NULL DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    completed_at TIMESTAMP DEFAULT NULL,
+                    FOREIGN KEY (scale_id) REFERENCES scales(id) ON DELETE CASCADE,
+                    FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE CASCADE,
+                    FOREIGN KEY (diet_plan_id) REFERENCES diet_plans(id) ON DELETE SET NULL
+                )
+            """)
+            await db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_cook_sessions_active "
+                "ON cook_sessions(scale_id, status)"
+            )
+
+            # Create cook_session_steps table — one row per ingredient in the
+            # session. weighable = the ingredient is measured on the scale (unit
+            # in grams); non-weighable steps are manually confirmed.
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS cook_session_steps (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id INTEGER NOT NULL,
+                    step_order INTEGER NOT NULL,
+                    product_barcode TEXT DEFAULT NULL,
+                    custom_name TEXT DEFAULT NULL,
+                    target_qty REAL NOT NULL,
+                    unit TEXT NOT NULL,
+                    weighable INTEGER NOT NULL DEFAULT 0,
+                    actual_qty REAL DEFAULT NULL,
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    confirmed_at TIMESTAMP DEFAULT NULL,
+                    FOREIGN KEY (session_id) REFERENCES cook_sessions(id) ON DELETE CASCADE,
+                    FOREIGN KEY (product_barcode) REFERENCES products(barcode) ON DELETE SET NULL
+                )
+            """)
+            await db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_cook_session_steps_session "
+                "ON cook_session_steps(session_id, step_order)"
+            )
 
             await db.commit()
 
@@ -1197,9 +1254,9 @@ class Database:
                 else:
                     break
             await db.execute(
-                """INSERT INTO scales (id, name, ha_entity_id, product_barcode, tare_g, calibration_factor)
-                   VALUES (?, ?, ?, ?, ?, ?)""",
-                (scale_id, scale.name, scale.ha_entity_id, scale.product_barcode,
+                """INSERT INTO scales (id, name, scale_type, ha_entity_id, product_barcode, tare_g, calibration_factor)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (scale_id, scale.name, scale.scale_type, scale.ha_entity_id, scale.product_barcode,
                  scale.tare_g, scale.calibration_factor)
             )
             await db.commit()
@@ -1210,7 +1267,7 @@ class Database:
         if not existing:
             return None
         updates = {}
-        for field in ('name', 'ha_entity_id', 'product_barcode', 'batch_id',
+        for field in ('name', 'scale_type', 'ha_entity_id', 'product_barcode', 'batch_id',
                       'tare_g', 'calibration_factor'):
             val = getattr(update, field, None)
             if val is not None:
@@ -1593,5 +1650,184 @@ class Database:
             ) as cursor:
                 rows = await cursor.fetchall()
             return [PriceHistoryEntry(**dict(r)) for r in rows]
+
+    # =======================================================================
+    # Cook Sessions — guided cook on a kitchen scale
+    # =======================================================================
+
+    async def _hydrate_cook_session(self, db, session_id: int) -> Optional[CookSession]:
+        """Build a CookSession with its steps eagerly loaded."""
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM cook_sessions WHERE id = ?", (session_id,)) as c:
+            row = await c.fetchone()
+        if not row:
+            return None
+        session = CookSession(**dict(row))
+        async with db.execute(
+            "SELECT * FROM cook_session_steps WHERE session_id = ? ORDER BY step_order",
+            (session_id,)
+        ) as c:
+            srows = await c.fetchall()
+        session.steps = [CookSessionStep(**dict(r)) for r in srows]
+        return session
+
+    async def create_cook_session(self, payload: CookSessionCreate) -> CookSession:
+        """Start a cook session for a recipe on a kitchen scale. Builds one step
+        per recipe ingredient, scaled by `servings`. Refuses if the scale already
+        has an active session (one active session per scale at a time)."""
+        scale = await self.get_scale(payload.scale_id)
+        if not scale:
+            raise ValueError(f"Scale {payload.scale_id} not found")
+        if scale.scale_type != 'kitchen':
+            raise ValueError(f"Scale {payload.scale_id} is not a kitchen scale")
+        recipe = await self.get_recipe(payload.recipe_id)
+        if not recipe:
+            raise ValueError(f"Recipe {payload.recipe_id} not found")
+        if not recipe.ingredients:
+            raise ValueError("Recipe has no ingredients")
+
+        async with aiosqlite.connect(self.db_path) as db:
+            # Block if there's already an active session on this scale
+            async with db.execute(
+                "SELECT id FROM cook_sessions WHERE scale_id = ? AND status = 'active' LIMIT 1",
+                (payload.scale_id,)
+            ) as c:
+                existing = await c.fetchone()
+            if existing:
+                raise ValueError("This scale already has an active cook session")
+
+            cursor = await db.execute(
+                """INSERT INTO cook_sessions (scale_id, recipe_id, diet_plan_id, servings, status, current_step)
+                   VALUES (?, ?, ?, ?, 'active', 0)""",
+                (payload.scale_id, payload.recipe_id, payload.diet_plan_id, payload.servings)
+            )
+            session_id = cursor.lastrowid
+
+            for idx, ing in enumerate(recipe.ingredients):
+                unit = (ing.unit or '').strip().lower()
+                weighable = 1 if unit == 'g' else 0
+                target = float(ing.quantity) * float(payload.servings)
+                await db.execute(
+                    """INSERT INTO cook_session_steps
+                       (session_id, step_order, product_barcode, custom_name, target_qty, unit, weighable, status)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')""",
+                    (session_id, idx, ing.product_barcode, ing.custom_name,
+                     target, ing.unit, weighable)
+                )
+            await db.commit()
+            return await self._hydrate_cook_session(db, session_id)
+
+    async def get_cook_session(self, session_id: int) -> Optional[CookSession]:
+        async with aiosqlite.connect(self.db_path) as db:
+            return await self._hydrate_cook_session(db, session_id)
+
+    async def get_active_cook_session_for_scale(self, scale_id: int) -> Optional[CookSession]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT id FROM cook_sessions WHERE scale_id = ? AND status = 'active' "
+                "ORDER BY id DESC LIMIT 1",
+                (scale_id,)
+            ) as c:
+                row = await c.fetchone()
+            if not row:
+                return None
+            return await self._hydrate_cook_session(db, row['id'])
+
+    async def confirm_cook_step(self, session_id: int, actual_qty: float,
+                                skip: bool = False) -> Optional[CookSession]:
+        """Mark the current step confirmed (or skipped) with the measured qty,
+        and advance current_step. No stock changes here — they happen on
+        complete_cook_session."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT * FROM cook_sessions WHERE id = ?", (session_id,)
+            ) as c:
+                srow = await c.fetchone()
+            if not srow:
+                return None
+            if srow['status'] != 'active':
+                raise ValueError("Cook session is not active")
+
+            current_order = srow['current_step']
+            async with db.execute(
+                "SELECT * FROM cook_session_steps WHERE session_id = ? AND step_order = ?",
+                (session_id, current_order)
+            ) as c:
+                step = await c.fetchone()
+            if not step:
+                raise ValueError("No step at current_step position")
+            if step['status'] != 'pending':
+                raise ValueError("Current step is not pending")
+
+            new_status = 'skipped' if skip else 'confirmed'
+            stored_actual = None if skip else actual_qty
+            await db.execute(
+                "UPDATE cook_session_steps SET actual_qty = ?, status = ?, confirmed_at = ? "
+                "WHERE id = ?",
+                (stored_actual, new_status, datetime.now(), step['id'])
+            )
+            await db.execute(
+                "UPDATE cook_sessions SET current_step = current_step + 1 WHERE id = ?",
+                (session_id,)
+            )
+            await db.commit()
+            return await self._hydrate_cook_session(db, session_id)
+
+    async def cancel_cook_session(self, session_id: int) -> bool:
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute(
+                "UPDATE cook_sessions SET status = 'cancelled', completed_at = ? "
+                "WHERE id = ? AND status = 'active'",
+                (datetime.now(), session_id)
+            )
+            await db.commit()
+            return cursor.rowcount > 0
+
+    async def complete_cook_session(self, session_id: int) -> dict:
+        """Close the session: deduct stock for every confirmed step that maps
+        to a product, log movements as 'consumed_in_recipe', mark linked diet
+        plan as consumed if any. Skipped steps and steps without a product
+        barcode are ignored for stock purposes."""
+        session = await self.get_cook_session(session_id)
+        if not session:
+            raise ValueError(f"Cook session {session_id} not found")
+        if session.status != 'active':
+            raise ValueError(f"Cook session {session_id} is not active")
+
+        consumed = []
+        skipped_no_product = []
+        for step in session.steps:
+            if step.status != 'confirmed':
+                continue
+            if not step.product_barcode:
+                skipped_no_product.append(step.custom_name or '(sin nombre)')
+                continue
+            qty = step.actual_qty if step.actual_qty is not None else step.target_qty
+            await self.update_stock(step.product_barcode, StockUpdate(
+                quantity=-float(qty),
+                reason='consumed_in_recipe'
+            ))
+            consumed.append({'barcode': step.product_barcode, 'qty': qty})
+
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                "UPDATE cook_sessions SET status = 'completed', completed_at = ? "
+                "WHERE id = ?",
+                (datetime.now(), session_id)
+            )
+            if session.diet_plan_id is not None:
+                await db.execute(
+                    "UPDATE diet_plans SET is_consumed = 1 WHERE id = ?",
+                    (session.diet_plan_id,)
+                )
+            await db.commit()
+
+        return {
+            'session_id': session_id,
+            'consumed': consumed,
+            'skipped_no_product': skipped_no_product,
+        }
 
 db = Database()

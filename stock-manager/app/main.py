@@ -15,6 +15,7 @@ from .models import (
     Scale, ScaleCreate, ScaleUpdate, ScaleWeight, ScaleEvent,
     PendingRefill, PendingRefillCreate, PendingRefillResolve,
     PriceRecord, PriceHistoryEntry,
+    CookSession, CookSessionCreate, CookStepConfirm, CookStepView,
 )
 from .barcode_service import get_product_from_barcode
 from .telegram_service import telegram_bot
@@ -611,6 +612,96 @@ async def delete_pending_refill(refill_id: int):
     if not success:
         raise HTTPException(status_code=404, detail="Pending refill not found")
     return None
+
+# --- Cook Sessions (guided cook on a kitchen scale) -------------------------
+
+@app.post("/api/cook-sessions", response_model=CookSession, status_code=201)
+async def start_cook_session(payload: CookSessionCreate):
+    """Start a guided cook session for a recipe on a kitchen scale. Builds one
+    step per recipe ingredient. Fails if the scale already has an active session."""
+    try:
+        return await db.create_cook_session(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+@app.get("/api/cook-sessions/{session_id}", response_model=CookSession)
+async def get_cook_session(session_id: int):
+    session = await db.get_cook_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Cook session not found")
+    return session
+
+@app.post("/api/cook-sessions/{session_id}/confirm-step", response_model=CookSession)
+async def confirm_cook_step(session_id: int, payload: CookStepConfirm):
+    try:
+        session = await db.confirm_cook_step(session_id, payload.actual_qty, skip=False)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if not session:
+        raise HTTPException(status_code=404, detail="Cook session not found")
+    return session
+
+@app.post("/api/cook-sessions/{session_id}/skip-step", response_model=CookSession)
+async def skip_cook_step(session_id: int):
+    """Skip the current step (ingredient added without weighing or excluded)."""
+    try:
+        session = await db.confirm_cook_step(session_id, actual_qty=0.0, skip=True)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if not session:
+        raise HTTPException(status_code=404, detail="Cook session not found")
+    return session
+
+@app.post("/api/cook-sessions/{session_id}/complete")
+async def complete_cook_session(session_id: int):
+    """Finalize the session: deduct stock for every confirmed product step,
+    mark the linked diet plan as consumed if any."""
+    try:
+        return await db.complete_cook_session(session_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+@app.post("/api/cook-sessions/{session_id}/cancel", status_code=204)
+async def cancel_cook_session(session_id: int):
+    success = await db.cancel_cook_session(session_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Cook session not active or not found")
+    return None
+
+@app.get("/api/scales/{scale_id}/cook-step", response_model=CookStepView)
+async def get_scale_cook_step(scale_id: int):
+    """Polled by the kitchen ESP32 to know what to show on the OLED. Returns
+    the active step on this scale, or status='idle' if none."""
+    session = await db.get_active_cook_session_for_scale(scale_id)
+    if not session:
+        return CookStepView(status='idle')
+    if session.current_step >= len(session.steps):
+        # All steps confirmed/skipped but the session hasn't been completed yet
+        recipe = await db.get_recipe(session.recipe_id)
+        return CookStepView(
+            status='completed',
+            session_id=session.id,
+            recipe_name=recipe.name if recipe else None,
+            step_order=session.current_step,
+            total_steps=len(session.steps),
+        )
+    step = session.steps[session.current_step]
+    recipe = await db.get_recipe(session.recipe_id)
+    name = step.custom_name
+    if step.product_barcode and not name:
+        prod = await db.get_product(step.product_barcode)
+        name = prod.name if prod else step.product_barcode
+    return CookStepView(
+        status='active',
+        session_id=session.id,
+        recipe_name=recipe.name if recipe else None,
+        step_order=step.step_order,
+        total_steps=len(session.steps),
+        ingredient_name=name,
+        target_qty=step.target_qty,
+        unit=step.unit,
+        weighable=bool(step.weighable),
+    )
 
 # Health check
 @app.get("/api/health")

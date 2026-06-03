@@ -190,6 +190,7 @@ class BodyWeightCreate(BaseModel):
 class Scale(BaseModel):
     id: int
     name: str
+    scale_type: str = 'fixed'  # 'fixed' (cupboard, single product) | 'kitchen' (portable, guided cook)
     ha_entity_id: Optional[str] = None
     product_barcode: Optional[str] = None
     batch_id: Optional[int] = None
@@ -202,6 +203,7 @@ class Scale(BaseModel):
 
 class ScaleCreate(BaseModel):
     name: str
+    scale_type: str = 'fixed'
     ha_entity_id: Optional[str] = None
     product_barcode: Optional[str] = None
     tare_g: float = 0
@@ -209,6 +211,7 @@ class ScaleCreate(BaseModel):
 
 class ScaleUpdate(BaseModel):
     name: Optional[str] = None
+    scale_type: Optional[str] = None
     ha_entity_id: Optional[str] = None
     product_barcode: Optional[str] = None
     batch_id: Optional[int] = None
@@ -271,4 +274,58 @@ class PriceHistoryEntry(BaseModel):
     source_ref: Optional[str] = None
     observed_at: str
     created_at: Optional[datetime] = None
+
+
+# --- Cook Session (guided cook on a kitchen scale) --------------------------
+
+class CookSessionStep(BaseModel):
+    id: int
+    session_id: int
+    step_order: int
+    product_barcode: Optional[str] = None
+    custom_name: Optional[str] = None
+    target_qty: float
+    unit: str
+    weighable: bool = False
+    actual_qty: Optional[float] = None
+    status: str = 'pending'  # 'pending' | 'confirmed' | 'skipped'
+    confirmed_at: Optional[datetime] = None
+
+class CookSession(BaseModel):
+    id: int
+    scale_id: int
+    recipe_id: int
+    diet_plan_id: Optional[int] = None
+    servings: float = 1.0
+    status: str = 'active'  # 'active' | 'completed' | 'cancelled'
+    current_step: int = 0
+    created_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    steps: List[CookSessionStep] = []
+
+class CookSessionCreate(BaseModel):
+    scale_id: int
+    recipe_id: int
+    diet_plan_id: Optional[int] = None
+    servings: float = 1.0
+
+class CookStepConfirm(BaseModel):
+    """Confirm the current step with the actual measured (or manually entered)
+    quantity. The frontend supplies actual_qty; for non-weighable steps it
+    usually equals target_qty."""
+    actual_qty: float
+
+class CookStepView(BaseModel):
+    """Lightweight payload polled by the kitchen ESP32 to know what to show on
+    the OLED. Returns the active step for the given scale, or status='idle' if
+    no active session is bound to it."""
+    status: str  # 'idle' | 'active' | 'completed'
+    session_id: Optional[int] = None
+    recipe_name: Optional[str] = None
+    step_order: Optional[int] = None
+    total_steps: Optional[int] = None
+    ingredient_name: Optional[str] = None
+    target_qty: Optional[float] = None
+    unit: Optional[str] = None
+    weighable: Optional[bool] = None
 

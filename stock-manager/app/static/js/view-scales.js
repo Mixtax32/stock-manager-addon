@@ -78,14 +78,12 @@ function _webhookBase() {
 }
 
 function _scaleCard(scale) {
-    const product = _findProduct(scale.product_barcode);
-    const productLabel = product
-        ? `${window.esc(product.name)}`
-        : `<span class="muted">sin asignar</span>`;
+    const isKitchen = scale.scale_type === 'kitchen';
     const weight = _formatWeight(scale.last_stable_weight_g);
     const lastEvent = _formatRelativeTime(scale.last_event_at);
     const webhook = `${_webhookBase()}/api/scales/${scale.id}/event`;
     const weightUrl = `${_webhookBase()}/api/scales/${scale.id}/weight`;
+    const cookStepUrl = `${_webhookBase()}/api/scales/${scale.id}/cook-step`;
 
     const productOptions = [
         `<option value="">— sin asignar —</option>`,
@@ -94,11 +92,15 @@ function _scaleCard(scale) {
         )),
     ].join('');
 
+    const typeBadge = isKitchen
+        ? `<span class="pill" style="background:#3a2a52; color:#d4b5ff;">cocina</span>`
+        : `<span class="pill" style="background:#2a3a52; color:#a5d0ff;">armario</span>`;
+
     return `
-        <div class="card" data-scale-id="${scale.id}">
+        <div class="card" data-scale-id="${scale.id}" data-scale-type="${scale.scale_type}">
             <div class="card-head">
                 <div>
-                    <div class="card-title">${window.esc(scale.name)}</div>
+                    <div class="card-title">${window.esc(scale.name)} ${typeBadge}</div>
                     <span class="card-sub">id #${scale.id} · último evento ${lastEvent}</span>
                 </div>
                 <div style="font-size:1.8rem; font-weight:700; font-variant-numeric:tabular-nums;">
@@ -107,16 +109,26 @@ function _scaleCard(scale) {
             </div>
 
             <div class="stack" style="gap:10px; margin-top:12px;">
-                <label class="field">
-                    <span class="field-label">Producto asignado</span>
-                    <select data-action="change-product">${productOptions}</select>
-                </label>
+                ${isKitchen ? `
+                    <div class="tiny" style="opacity:.7;">
+                        Báscula de cocina — se usa en sesiones de "Cocinar con báscula" desde una receta.
+                        No tiene producto fijo asignado.
+                    </div>
+                ` : `
+                    <label class="field">
+                        <span class="field-label">Producto asignado</span>
+                        <select data-action="change-product">${productOptions}</select>
+                    </label>
+                `}
 
                 <details>
                     <summary style="cursor:pointer; font-size:.85rem; opacity:.7;">Webhook URLs para el ESP32</summary>
                     <div class="stack" style="gap:6px; margin-top:8px; font-family:var(--mono); font-size:.75rem; opacity:.8;">
-                        <div><strong>Event:</strong> <span style="user-select:all">${window.esc(webhook)}</span></div>
                         <div><strong>Weight:</strong> <span style="user-select:all">${window.esc(weightUrl)}</span></div>
+                        ${isKitchen
+                            ? `<div><strong>Cook step (GET):</strong> <span style="user-select:all">${window.esc(cookStepUrl)}</span></div>`
+                            : `<div><strong>Event:</strong> <span style="user-select:all">${window.esc(webhook)}</span></div>`
+                        }
                     </div>
                 </details>
 
@@ -143,10 +155,17 @@ function _addScaleForm() {
             </div>
             <div class="stack" style="gap:10px;">
                 <label class="field">
-                    <span class="field-label">Nombre (ej. "Arroz", "Café")</span>
-                    <input type="text" id="new-scale-name" placeholder="Nombre identificativo">
+                    <span class="field-label">Tipo</span>
+                    <select id="new-scale-type">
+                        <option value="fixed" selected>Armario — fija, pesa un único producto en continuo</option>
+                        <option value="kitchen">Cocina — portátil, guía recetas paso a paso</option>
+                    </select>
                 </label>
                 <label class="field">
+                    <span class="field-label">Nombre (ej. "Arroz", "Báscula cocina")</span>
+                    <input type="text" id="new-scale-name" placeholder="Nombre identificativo">
+                </label>
+                <label class="field" id="new-scale-product-field">
                     <span class="field-label">Producto asignado</span>
                     <select id="new-scale-product">${productOptions}</select>
                 </label>
@@ -255,6 +274,17 @@ window.initScales = function() {
         });
     }
 
+    const typeSelect = root.querySelector('#new-scale-type');
+    const productField = root.querySelector('#new-scale-product-field');
+    const _syncTypeUI = () => {
+        if (!typeSelect || !productField) return;
+        productField.style.display = typeSelect.value === 'kitchen' ? 'none' : '';
+    };
+    if (typeSelect) {
+        typeSelect.addEventListener('change', _syncTypeUI);
+        _syncTypeUI();
+    }
+
     if (addBtn && form) {
         addBtn.addEventListener('click', () => {
             form.hidden = false;
@@ -270,7 +300,10 @@ window.initScales = function() {
     if (confirmBtn) {
         confirmBtn.addEventListener('click', async () => {
             const name = root.querySelector('#new-scale-name').value.trim();
-            const productBarcode = root.querySelector('#new-scale-product').value || null;
+            const scaleType = (typeSelect && typeSelect.value) || 'fixed';
+            const productBarcode = scaleType === 'kitchen'
+                ? null
+                : (root.querySelector('#new-scale-product').value || null);
             if (!name) {
                 window.showToast('Poné un nombre para la báscula', 'error');
                 return;
@@ -278,10 +311,12 @@ window.initScales = function() {
             try {
                 const created = await window.apiCall('/scales', 'POST', {
                     name,
+                    scale_type: scaleType,
                     product_barcode: productBarcode,
                 });
-                // If the user picked a product, flip its tracking_mode to "scale".
-                if (productBarcode) {
+                // Only flip product tracking_mode for fixed scales — kitchen scales
+                // don't own a product.
+                if (scaleType !== 'kitchen' && productBarcode) {
                     try {
                         await window.apiCall(`/products/${productBarcode}`, 'PATCH', { tracking_mode: 'scale' });
                     } catch (e) {
