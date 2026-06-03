@@ -458,7 +458,79 @@ function _renderSummary() {
     }));
 }
 
-async function _onComplete() {
+// Compare each confirmed step's actual_qty against the product's current stock.
+// Returns an array of shortfalls — products where we're about to deduct more
+// than the system thinks we have. Empty array means everything cuadra.
+function _computeShortfalls() {
+    if (!session) return [];
+    const out = [];
+    for (const step of session.steps || []) {
+        if (step.status !== 'confirmed' || !step.product_barcode) continue;
+        const product = window.findProductById
+            ? window.findProductById(step.product_barcode)
+            : null;
+        if (!product) continue;
+        const available = Number(product.stock) || 0;
+        const requested = Number(step.actual_qty) || 0;
+        if (requested - available > 0.5) {  // ignore sub-gram rounding noise
+            out.push({
+                name: product.name,
+                available,
+                requested,
+                shortfall: requested - available,
+                unit: step.unit,
+            });
+        }
+    }
+    return out;
+}
+
+function _renderShortfallWarning(shortfalls) {
+    _stopPolling();
+    const mount = document.getElementById('modal-mount');
+    if (!mount) return;
+
+    const rows = shortfalls.map(s => `
+        <div class="row" style="justify-content:space-between; align-items:flex-start; padding:8px 0; border-bottom:1px solid var(--border,#333)">
+            <div style="flex:1; min-width:0;">
+                <div style="font-weight:600;">${window.esc(s.name)}</div>
+                <div class="muted" style="font-size:11px">
+                    Pesado: ${_formatQty(s.requested, s.unit)} · Stock registrado: ${_formatQty(s.available, s.unit)}
+                </div>
+            </div>
+            <div style="color:var(--warn,#facc15); font-variant-numeric:tabular-nums; font-size:13px;">
+                +${_formatQty(s.shortfall, s.unit)} de más
+            </div>
+        </div>
+    `).join('');
+
+    mount.innerHTML = `
+        <div class="modal-backdrop">
+            <div class="modal" style="max-width:480px">
+                <h3>El inventario no cuadra</h3>
+                <div class="modal-sub" style="margin-bottom:12px">
+                    Pesaste más de lo que el sistema cree que hay. Si confirmás, el stock
+                    de estos productos quedará en 0 — el inventario tenía menos registrado
+                    de lo que realmente había.
+                </div>
+                <div class="stack" style="gap:0; margin-bottom:18px">${rows}</div>
+                <div class="row" style="justify-content:flex-end; gap:8px">
+                    <button class="btn ghost" data-action="proceed">Confirmar de todos modos</button>
+                    <button class="btn accent" data-action="back">Volver al resumen</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    mount.querySelector('[data-action="back"]')?.addEventListener('click', () => {
+        _renderSummary();
+    });
+    mount.querySelector('[data-action="proceed"]')?.addEventListener('click', () => {
+        _doComplete();
+    });
+}
+
+async function _doComplete() {
     if (!session) return;
     const recipe = currentRecipe;
     try {
@@ -503,6 +575,20 @@ async function _onComplete() {
     } catch (e) {
         window.showToast('Error finalizando: ' + e.message, 'error');
     }
+}
+
+async function _onComplete() {
+    if (!session) return;
+    // Trust the scale: if the user weighed more than the system thinks we
+    // have, it means the inventory was under-counted, not that the recipe is
+    // wrong. Warn the user with the list so they know their stock numbers
+    // were off, and require an explicit confirm before zeroing things out.
+    const shortfalls = _computeShortfalls();
+    if (shortfalls.length > 0) {
+        _renderShortfallWarning(shortfalls);
+        return;
+    }
+    await _doComplete();
 }
 
 // ---- Public entrypoint -----------------------------------------------------
