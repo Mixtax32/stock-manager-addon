@@ -222,6 +222,19 @@ void drawStatusLine(const char* status) {
   oled.display();
 }
 
+// Pick the largest text size whose rendered width fits the screen with a bit
+// of room for the unit suffix. Returns the size; sets out_charW to the
+// per-character width at that size. Adafruit_GFX has 6×8 base glyphs scaled
+// uniformly, so width = 6 * size and we want to leave ~size*8 px for the unit.
+int chooseFitSize(int textLen) {
+  for (int s = 4; s >= 2; --s) {
+    int charW = 6 * s;
+    int needed = textLen * charW + (s * 8);  // unit suffix ~ size px wide
+    if (needed <= OLED_W) return s;
+  }
+  return 2;
+}
+
 void renderDisplay() {
   if (!oledReady) return;
 
@@ -238,7 +251,7 @@ void renderDisplay() {
     return;
   }
 
-  // ---- Top bar: IP or wifi status ----
+  // ---- Top bar: IP / wifi status ----
   oled.setTextSize(1);
   oled.setCursor(0, 0);
   if (WiFi.status() == WL_CONNECTED) {
@@ -248,26 +261,25 @@ void renderDisplay() {
   }
   oled.drawFastHLine(0, 10, OLED_W, SSD1306_WHITE);
 
-  // ---- Middle: big weight number, centered ----
-  char buf[12];
+  // ---- Big weight, centered, dynamic size 4→3→2 to fit any value ----
+  char buf[16];
   snprintf(buf, sizeof(buf), "%.1f", currentWeightG);
-  int textWidth = (int)strlen(buf) * 18;          // size 3 = 18 px / char
-  int x = (OLED_W - textWidth - 12) / 2;          // leave 12 px for " g"
+  int len     = (int)strlen(buf);
+  int size    = chooseFitSize(len);
+  int charW   = 6 * size;
+  int charH   = 8 * size;
+  int totalW  = len * charW + charW;            // value + unit suffix
+  int x       = (OLED_W - totalW) / 2;
   if (x < 0) x = 0;
-  oled.setTextSize(3);
-  oled.setCursor(x, 18);
+  // Vertically centre between the HLine (y=10) and the bottom (y=63).
+  int y       = 10 + ((64 - 10) - charH) / 2;
+  oled.setTextSize(size);
+  oled.setCursor(x, y);
   oled.print(buf);
-  oled.setTextSize(1);
-  oled.setCursor(x + textWidth + 2, 34);
+  // Unit at the same scale, half-step down so it reads as a subscript.
+  oled.setCursor(x + len * charW + 2, y + charH - 8);
+  oled.setTextSize(size > 1 ? size - 1 : 1);
   oled.print("g");
-
-  // ---- Bottom: button counters ----
-  oled.setTextSize(1);
-  oled.setCursor(0, 56);
-  oled.printf("T:%lu C:%lu N:%lu",
-              (unsigned long)btnTare.pressCount,
-              (unsigned long)btnConsumo.pressCount,
-              (unsigned long)btnNuevo.pressCount);
 
   oled.display();
 }

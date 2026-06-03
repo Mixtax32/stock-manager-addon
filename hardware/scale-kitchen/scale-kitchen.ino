@@ -232,63 +232,133 @@ void drawStatusLine(const char* status) {
   oled.display();
 }
 
-// Render in cook mode: top line = recipe + step counter, middle = ingredient
-// name (wrapped/truncated), then the target, then live current weight with a
-// little delta hint so the user can see how far off they are.
+// Pick the largest text size whose rendered width fits the screen with a bit
+// of room for the unit suffix. Same helper as scale-test's chooseFitSize.
+int chooseFitSize(int textLen) {
+  for (int s = 4; s >= 2; --s) {
+    int charW = 6 * s;
+    int needed = textLen * charW + (s * 8);
+    if (needed <= OLED_W) return s;
+  }
+  return 2;
+}
+
+// Centered single-line text helper. Picks the biggest size that fits.
+void drawCenteredText(const String& text, int y, int maxSize) {
+  int len = text.length();
+  if (len == 0) return;
+  int size = maxSize;
+  while (size > 1 && len * 6 * size > OLED_W) size--;
+  oled.setTextSize(size);
+  int w = len * 6 * size;
+  int x = (OLED_W - w) / 2;
+  if (x < 0) x = 0;
+  oled.setCursor(x, y);
+  oled.print(text);
+}
+
+// Render in cook mode: header (step/recipe) at top, big ingredient name in
+// the middle, progress bar showing % to target, and current vs target weight
+// at the bottom. Non-weighable steps hide the bar and show 'manual' instead.
 void renderCookMode() {
   oled.clearDisplay();
 
-  // Top bar: step counter + recipe name (truncated to fit)
+  // ---- Header: 'N/M  Recipe' (compact, single line) ----
   oled.setTextSize(1);
   oled.setCursor(0, 0);
-  oled.printf("Paso %d/%d", cook.stepOrder + 1, cook.totalSteps);
-  // Right-aligned recipe name (truncate if too long)
+  oled.printf("%d/%d", cook.stepOrder + 1, cook.totalSteps);
   String r = cook.recipeName;
-  if (r.length() > 13) r = r.substring(0, 13);
+  // Right-align the recipe name after the step counter takes its slot.
+  int counterWidth = 5 * 6;  // up to "99/99" worst case
+  int maxRecipeChars = (OLED_W - counterWidth - 6) / 6;
+  if ((int)r.length() > maxRecipeChars) r = r.substring(0, maxRecipeChars);
   int rx = OLED_W - r.length() * 6;
-  if (rx < 38) rx = 38;
+  if (rx < counterWidth + 6) rx = counterWidth + 6;
   oled.setCursor(rx, 0);
   oled.print(r);
   oled.drawFastHLine(0, 10, OLED_W, SSD1306_WHITE);
 
-  // Ingredient name — size 2 if it fits, size 1 otherwise
+  // ---- Ingredient name: dominant element, adaptive sizing ----
+  // ≤10 chars  → size 2 single line (12×16 glyphs)
+  // 11–21      → size 1 single line
+  // 22+        → size 1, two-line wrap (truncate at 42)
   String name = cook.ingredientName;
   if (name.length() == 0) name = "(sin nombre)";
-  bool bigName = name.length() <= 10;
-  oled.setTextSize(bigName ? 2 : 1);
-  oled.setCursor(0, 14);
-  if (!bigName && name.length() > 21) name = name.substring(0, 21);
-  oled.print(name);
+  if (name.length() <= 10) {
+    drawCenteredText(name, 14, 2);
+  } else if (name.length() <= 21) {
+    drawCenteredText(name, 18, 1);
+  } else {
+    String first  = name.substring(0, 21);
+    int cutEnd    = name.length() > 42 ? 42 : name.length();
+    String second = name.substring(21, cutEnd);
+    oled.setTextSize(1);
+    int w1 = first.length() * 6;
+    int w2 = second.length() * 6;
+    oled.setCursor((OLED_W - w1) / 2, 14);
+    oled.print(first);
+    oled.setCursor((OLED_W - w2) / 2, 22);
+    oled.print(second);
+  }
 
-  // Target line
-  oled.setTextSize(1);
-  oled.setCursor(0, bigName ? 32 : 26);
-  oled.printf("Objetivo: %.0f %s", cook.targetQty, cook.unit.c_str());
+  // ---- Progress bar (weighable only) ----
+  const int barTop = 34;
+  const int barH   = 12;
+  const int barL   = 2;
+  const int barR   = OLED_W - 2;
+  const int innerW = barR - barL - 4;
 
-  // Current weight, bigger
-  char buf[16];
-  snprintf(buf, sizeof(buf), "%.0f", currentWeightG);
-  oled.setTextSize(2);
-  int textWidth = (int)strlen(buf) * 12;
-  int x = OLED_W - textWidth - 14;
-  if (x < 0) x = 0;
-  oled.setCursor(x, 46);
-  oled.print(buf);
-  oled.setTextSize(1);
-  oled.setCursor(OLED_W - 10, 52);
-  oled.print(cook.unit.c_str());
-
-  // Delta hint (left side, bottom)
   if (cook.weighable && cook.targetQty > 0) {
+    oled.drawRect(barL, barTop, barR - barL, barH, SSD1306_WHITE);
+    float ratio = currentWeightG / cook.targetQty;
+    if (ratio < 0) ratio = 0;
+    int fillW = (int)(innerW * (ratio > 1.0f ? 1.0f : ratio));
+    if (fillW > 0) {
+      oled.fillRect(barL + 2, barTop + 2, fillW, barH - 4, SSD1306_WHITE);
+    }
+    // Overshoot marker: small triangle on the right edge of the bar
+    if (ratio > 1.05f) {
+      int tx = barR - 1;
+      int ty = barTop + barH / 2;
+      oled.fillTriangle(tx - 4, ty - 3, tx - 4, ty + 3, tx + 1, ty, SSD1306_WHITE);
+    }
+  } else {
+    // Non-weighable: instead of a bar, show a hint band
+    oled.setTextSize(1);
+    drawCenteredText("(añadir manualmente)", barTop + 2, 1);
+  }
+
+  // ---- Bottom line: current / target + delta hint ----
+  oled.setTextSize(1);
+  if (cook.weighable && cook.targetQty > 0) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.0f / %.0f %s",
+             currentWeightG, cook.targetQty, cook.unit.c_str());
+    int w = (int)strlen(buf) * 6;
+    int x = (OLED_W - w) / 2;
+    if (x < 0) x = 0;
+    oled.setCursor(x, 50);
+    oled.print(buf);
+
     float delta = currentWeightG - cook.targetQty;
-    oled.setCursor(0, 54);
-    if (fabsf(delta) < 5.0f) {
+    oled.setCursor(0, 56);
+    if (fabsf(delta) <= 5.0f) {
       oled.print("OK");
     } else if (delta < 0) {
-      oled.printf("falta %.0f", -delta);
+      oled.printf("falta %.0f%s", -delta, cook.unit.c_str());
     } else {
-      oled.printf("sobra %.0f", delta);
+      oled.printf("sobra %.0f%s", delta, cook.unit.c_str());
     }
+  } else {
+    // Non-weighable: show the target only (e.g. "1 ud")
+    char buf[24];
+    snprintf(buf, sizeof(buf), "Objetivo: %.0f %s",
+             cook.targetQty, cook.unit.c_str());
+    int w = (int)strlen(buf) * 6;
+    int x = (OLED_W - w) / 2;
+    if (x < 0) x = 0;
+    oled.setCursor(x, 54);
+    oled.print(buf);
   }
 
   oled.display();
@@ -313,7 +383,7 @@ void renderDisplay() {
     return;
   }
 
-  // Idle: same layout as scale-test (IP top, big weight middle, button counts bottom)
+  // ---- Idle: IP top, dominant centered weight, no clutter ----
   oled.setTextSize(1);
   oled.setCursor(0, 0);
   if (WiFi.status() == WL_CONNECTED) {
@@ -323,24 +393,22 @@ void renderDisplay() {
   }
   oled.drawFastHLine(0, 10, OLED_W, SSD1306_WHITE);
 
-  char buf[12];
+  char buf[16];
   snprintf(buf, sizeof(buf), "%.1f", currentWeightG);
-  int textWidth = (int)strlen(buf) * 18;
-  int x = (OLED_W - textWidth - 12) / 2;
+  int len    = (int)strlen(buf);
+  int size   = chooseFitSize(len);
+  int charW  = 6 * size;
+  int charH  = 8 * size;
+  int totalW = len * charW + charW;
+  int x      = (OLED_W - totalW) / 2;
   if (x < 0) x = 0;
-  oled.setTextSize(3);
-  oled.setCursor(x, 18);
+  int y      = 10 + ((64 - 10) - charH) / 2;
+  oled.setTextSize(size);
+  oled.setCursor(x, y);
   oled.print(buf);
-  oled.setTextSize(1);
-  oled.setCursor(x + textWidth + 2, 34);
+  oled.setCursor(x + len * charW + 2, y + charH - 8);
+  oled.setTextSize(size > 1 ? size - 1 : 1);
   oled.print("g");
-
-  oled.setTextSize(1);
-  oled.setCursor(0, 56);
-  oled.printf("T:%lu OK:%lu SK:%lu",
-              (unsigned long)btnTare.pressCount,
-              (unsigned long)btnConfirmar.pressCount,
-              (unsigned long)btnSaltar.pressCount);
 
   oled.display();
 }
