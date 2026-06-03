@@ -336,7 +336,19 @@ async function _onCancel() {
         _closeModal();
         return;
     }
-    if (!confirm('¿Cancelar la sesión? No se descontará nada del stock.')) return;
+    // Pause polling while the confirm dialog is up so we don't keep poking the
+    // DOM that just got replaced by it.
+    _stopPolling();
+    const proceed = window.confirmDialog
+        ? await window.confirmDialog('¿Cancelar la sesión? No se descontará nada del stock.')
+        : window.confirm('¿Cancelar la sesión? No se descontará nada del stock.');
+    if (!proceed) {
+        // User backed out — confirmDialog wiped #modal-mount, restore our view.
+        const total = (session.steps || []).length;
+        if (session.current_step >= total) _renderSummary();
+        else { _renderSession(); _startPolling(); }
+        return;
+    }
     try {
         await window.apiCall(`/cook-sessions/${session.id}/cancel`, 'POST', {});
     } catch (e) {

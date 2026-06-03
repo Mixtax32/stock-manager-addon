@@ -539,8 +539,8 @@ window.confirmDialog = function(message) {
                     <h3>Confirmar</h3>
                     <div class="modal-sub">${window.esc(message)}</div>
                     <div class="row" style="justify-content:flex-end; gap:8px">
-                        <button class="btn ghost" data-action="no">Cancelar</button>
-                        <button class="btn primary" data-action="yes">Sí</button>
+                        <button class="btn ghost" data-action="yes">Sí</button>
+                        <button class="btn accent" data-action="no">Cancelar</button>
                     </div>
                 </div>
             </div>`;
