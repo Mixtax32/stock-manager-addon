@@ -291,9 +291,9 @@ function _renderSession() {
         </div>
     `;
 
-    mount.querySelector('[data-action="cancel"]')?.addEventListener('click', _onCancel);
-    mount.querySelector('[data-action="skip"]')?.addEventListener('click', _onSkip);
-    mount.querySelector('[data-action="confirm"]')?.addEventListener('click', _onConfirm);
+    mount.querySelectorAll('[data-action="cancel"]').forEach(b => b.addEventListener('click', _onCancel));
+    mount.querySelectorAll('[data-action="skip"]').forEach(b => b.addEventListener('click', _onSkip));
+    mount.querySelectorAll('[data-action="confirm"]').forEach(b => b.addEventListener('click', _onConfirm));
 
     _updateWeightDisplay();
 }
@@ -395,8 +395,8 @@ function _renderSummary() {
         </div>
     `;
 
-    mount.querySelector('[data-action="cancel"]')?.addEventListener('click', _onCancel);
-    mount.querySelector('[data-action="complete"]')?.addEventListener('click', _onComplete);
+    mount.querySelectorAll('[data-action="cancel"]').forEach(b => b.addEventListener('click', _onCancel));
+    mount.querySelectorAll('[data-action="complete"]').forEach(b => b.addEventListener('click', _onComplete));
 }
 
 async function _onComplete() {
