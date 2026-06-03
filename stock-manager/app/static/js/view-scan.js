@@ -1,10 +1,11 @@
 /*
    View: Scan — barcode scanner + ticket OCR
-   v0.8.25 — adds "Leer ticket de compra" path alongside barcode flow
+   v0.13.0 — in-app camera viewfinder (HTTPS required, e.g. Nabu Casa).
+             Falls back to native file-input capture when getUserMedia is unavailable.
 */
 
 let scanState = {
-    phase: 'idle',           // idle | scanning | review | ticket-loading | ticket-review
+    phase: 'idle',           // idle | scanning | review | ticket-loading | ticket-review | live-barcode | live-ticket
     barcode: null,
     product: null,           // existing product if found
     barcodeData: null,       // from HA /barcode/{ean} lookup
@@ -30,6 +31,14 @@ let scanState = {
     ticketItems: [],         // [{ line, name, qty, unit_price?, total_price?, match: product|null, score, checked }]
     ticketSource: 'image',   // 'image' (OCR) or 'pdf' (Mercadona PDF parser)
     ticketMeta: null,        // { date, ticket_id, total } for PDF tickets
+};
+
+// Live-camera state lives outside scanState because MediaStream objects must
+// not be cloned by any render path that serializes state.
+let liveCamera = {
+    stream: null,
+    videoEl: null,
+    busy: false,
 };
 
 // ─── Barcode helpers ──────────────────────────────────────────────────────────
@@ -243,6 +252,85 @@ async function _processTicketPdf(file) {
     window.renderPage();
 }
 
+// ─── Live camera viewfinder ───────────────────────────────────────────────────
+
+function _hasLiveCameraSupport() {
+    return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia
+              && window.isSecureContext);
+}
+
+async function _openLiveCamera(mode) {
+    // mode: 'barcode' | 'ticket'
+    if (!_hasLiveCameraSupport()) {
+        // Fallback: trigger native file input (existing behaviour).
+        const inputId = mode === 'ticket' ? 'ticket-input' : 'camera-input';
+        const el = document.getElementById(inputId);
+        if (el) el.click();
+        return;
+    }
+
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+            audio: false,
+        });
+        liveCamera.stream = stream;
+        scanState.phase = mode === 'ticket' ? 'live-ticket' : 'live-barcode';
+        window.renderPage();
+    } catch (err) {
+        // Permission denied, no camera, or iframe missing `allow="camera"`.
+        // Fall back to the native picker so the user always has a path.
+        window.showToast('No se pudo abrir la cámara. Usá la app del sistema.', 'info');
+        const inputId = mode === 'ticket' ? 'ticket-input' : 'camera-input';
+        const el = document.getElementById(inputId);
+        if (el) el.click();
+    }
+}
+
+function _closeLiveCamera() {
+    if (liveCamera.stream) {
+        liveCamera.stream.getTracks().forEach(t => t.stop());
+    }
+    liveCamera.stream = null;
+    liveCamera.videoEl = null;
+    liveCamera.busy = false;
+}
+
+async function _captureFromLive() {
+    if (liveCamera.busy) return;
+    const video = liveCamera.videoEl;
+    if (!video || !video.videoWidth) {
+        window.showToast('La cámara todavía no está lista', 'error');
+        return;
+    }
+    liveCamera.busy = true;
+
+    const w = video.videoWidth;
+    const h = video.videoHeight;
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    canvas.getContext('2d').drawImage(video, 0, 0, w, h);
+
+    const isTicket = scanState.phase === 'live-ticket';
+
+    canvas.toBlob(async (blob) => {
+        if (!blob) {
+            liveCamera.busy = false;
+            window.showToast('No se pudo capturar la imagen', 'error');
+            return;
+        }
+        const filename = isTicket ? 'ticket.jpg' : 'barcode.jpg';
+        const file = new File([blob], filename, { type: 'image/jpeg' });
+        _closeLiveCamera();
+        if (isTicket) {
+            await _processTicketFile(file);
+        } else {
+            await _scanImageFile(file);
+        }
+    }, 'image/jpeg', 0.92);
+}
+
 // ─── Render functions ─────────────────────────────────────────────────────────
 
 function _renderIdle() {
@@ -283,6 +371,33 @@ function _renderScanning() {
         <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:60px 20px; text-align:center">
             <div class="loader-spin"></div>
             <p style="font-size:14px; color:var(--ink-2); margin:0">Procesando imagen…</p>
+        </div>
+    `;
+}
+
+function _renderLiveCamera() {
+    const isTicket = scanState.phase === 'live-ticket';
+    const eyebrow = isTicket ? 'Apuntá al ticket' : 'Apuntá al código de barras';
+    const hint = isTicket
+        ? 'Encuadrá el ticket entero y dale a Capturar'
+        : 'Centrá el código y dale a Capturar';
+    return `
+        <div class="scan-live">
+            <video id="live-video" class="scan-live-video" playsinline muted autoplay></video>
+            <div class="scan-live-frame ${isTicket ? 'ticket' : ''}">
+                <div class="scan-corner tl"></div>
+                <div class="scan-corner tr"></div>
+                <div class="scan-corner bl"></div>
+                <div class="scan-corner br"></div>
+            </div>
+            <div class="scan-live-eyebrow">${eyebrow}</div>
+            <div class="scan-live-hint">${hint}</div>
+            <div class="scan-live-actions">
+                <button class="btn ghost" data-action="live-cancel">Cancelar</button>
+                <button class="btn accent" data-action="live-capture">
+                    ${window.icon('scan')} Capturar
+                </button>
+            </div>
         </div>
     `;
 }
@@ -475,6 +590,7 @@ window.renderScan = function() {
     let body = '';
     if (scanState.phase === 'idle') body = _renderIdle();
     else if (scanState.phase === 'scanning') body = _renderScanning();
+    else if (scanState.phase === 'live-barcode' || scanState.phase === 'live-ticket') body = _renderLiveCamera();
     else if (scanState.phase === 'ticket-loading') body = _renderTicketLoading();
     else if (scanState.phase === 'ticket-review') body = _renderTicketReview();
     else body = _renderReview();
@@ -535,11 +651,12 @@ window.initScan = function() {
             });
         }
 
-        root.querySelector('[data-action="start"]')?.addEventListener('click', _triggerFileInput);
+        root.querySelector('[data-action="start"]')?.addEventListener('click', () => {
+            _openLiveCamera('barcode');
+        });
 
         root.querySelector('[data-action="start-ticket"]')?.addEventListener('click', () => {
-            const ti = document.getElementById('ticket-input');
-            if (ti) ti.click();
+            _openLiveCamera('ticket');
         });
 
         root.querySelector('[data-action="start-ticket-pdf"]')?.addEventListener('click', () => {
@@ -551,6 +668,22 @@ window.initScan = function() {
             const code = root.querySelector('#manual-barcode').value.trim();
             if (!code) return;
             _onScanSuccess(code);
+        });
+
+    } else if (scanState.phase === 'live-barcode' || scanState.phase === 'live-ticket') {
+        const video = root.querySelector('#live-video');
+        if (video && liveCamera.stream) {
+            liveCamera.videoEl = video;
+            video.srcObject = liveCamera.stream;
+            video.play().catch(() => { /* autoplay blocked is fine; user can still capture */ });
+        }
+        root.querySelector('[data-action="live-capture"]')?.addEventListener('click', () => {
+            _captureFromLive();
+        });
+        root.querySelector('[data-action="live-cancel"]')?.addEventListener('click', () => {
+            _closeLiveCamera();
+            scanState.phase = 'idle';
+            window.renderPage();
         });
 
     } else if (scanState.phase === 'ticket-review') {
@@ -652,6 +785,7 @@ window.initScan = function() {
 // ─── Reset ────────────────────────────────────────────────────────────────────
 
 function _resetScan() {
+    _closeLiveCamera();
     scanState = {
         phase: 'idle',
         barcode: null,
