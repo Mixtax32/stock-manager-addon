@@ -1,6 +1,6 @@
 /*
    Cook Session — guided cooking on a kitchen scale.
-   v0.14.0
+   v0.14.10
    Exposes window.openCookSession({ recipe, dietPlanId? }).
 */
 
@@ -17,11 +17,32 @@ let selectedScaleId = null;
 let servings = 1;
 let latestWeight = null;
 let outputStorage = 'fridge';  // 'fridge' | 'freezer' — only relevant when recipe has output_qty > 0
+let completing = false;        // idempotency guard for _doComplete (kills the double-click → "is not active" race)
 
 function _stopPolling() {
     if (pollTimer) {
         clearInterval(pollTimer);
         pollTimer = null;
+    }
+}
+
+// Disable the button + replace its label with a processing hint while fn runs.
+// Re-entrant clicks during the in-flight call are silently dropped. The button
+// is restored only if it's still in the DOM (the modal might have been
+// re-rendered or closed during the async work).
+async function _runOnce(buttonEl, fn) {
+    if (!buttonEl) return await fn();
+    if (buttonEl.disabled) return;
+    const originalHtml = buttonEl.innerHTML;
+    buttonEl.disabled = true;
+    buttonEl.innerHTML = '<span style="opacity:.7">Procesando…</span>';
+    try {
+        return await fn();
+    } finally {
+        if (buttonEl.isConnected) {
+            buttonEl.disabled = false;
+            buttonEl.innerHTML = originalHtml;
+        }
     }
 }
 
@@ -174,7 +195,8 @@ function _renderPicker(recipe) {
         setTimeout(() => { servingsIn.focus(); servingsIn.select(); }, 0);
     }
 
-    mount.querySelector('[data-action="start"]')?.addEventListener('click', () => _startSession(recipe));
+    const startBtn = mount.querySelector('[data-action="start"]');
+    if (startBtn) startBtn.addEventListener('click', () => _runOnce(startBtn, () => _startSession(recipe)));
 }
 
 // ---- Step 2: actually run the session --------------------------------------
@@ -305,9 +327,9 @@ function _renderSession() {
         </div>
     `;
 
-    mount.querySelectorAll('[data-action="cancel"]').forEach(b => b.addEventListener('click', _onCancel));
-    mount.querySelectorAll('[data-action="skip"]').forEach(b => b.addEventListener('click', _onSkip));
-    mount.querySelectorAll('[data-action="confirm"]').forEach(b => b.addEventListener('click', _onConfirm));
+    mount.querySelectorAll('[data-action="cancel"]').forEach(b => b.addEventListener('click', () => _runOnce(b, _onCancel)));
+    mount.querySelectorAll('[data-action="skip"]').forEach(b => b.addEventListener('click', () => _runOnce(b, _onSkip)));
+    mount.querySelectorAll('[data-action="confirm"]').forEach(b => b.addEventListener('click', () => _runOnce(b, _onConfirm)));
 
     _updateWeightDisplay();
 }
@@ -450,8 +472,8 @@ function _renderSummary() {
         </div>
     `;
 
-    mount.querySelectorAll('[data-action="cancel"]').forEach(b => b.addEventListener('click', _onCancel));
-    mount.querySelectorAll('[data-action="complete"]').forEach(b => b.addEventListener('click', _onComplete));
+    mount.querySelectorAll('[data-action="cancel"]').forEach(b => b.addEventListener('click', () => _runOnce(b, _onCancel)));
+    mount.querySelectorAll('[data-action="complete"]').forEach(b => b.addEventListener('click', () => _runOnce(b, _onComplete)));
     mount.querySelectorAll('[data-storage]').forEach(b => b.addEventListener('click', () => {
         outputStorage = b.dataset.storage;
         _renderSummary();
@@ -525,17 +547,18 @@ function _renderShortfallWarning(shortfalls) {
     mount.querySelector('[data-action="back"]')?.addEventListener('click', () => {
         _renderSummary();
     });
-    mount.querySelector('[data-action="proceed"]')?.addEventListener('click', () => {
-        _doComplete();
-    });
+    const proceedBtn = mount.querySelector('[data-action="proceed"]');
+    if (proceedBtn) proceedBtn.addEventListener('click', () => _runOnce(proceedBtn, _doComplete));
 }
 
 async function _doComplete() {
-    if (!session) return;
+    if (!session || completing) return;
+    completing = true;
     const recipe = currentRecipe;
+    const sessionId = session.id;
     try {
         // 1) Backend deducts ingredients and closes the session.
-        const result = await window.apiCall(`/cook-sessions/${session.id}/complete`, 'POST', {});
+        const result = await window.apiCall(`/cook-sessions/${sessionId}/complete`, 'POST', {});
         const deducted = (result && result.consumed) ? result.consumed.length : 0;
 
         // 2) If the recipe produces an output, add it to stock here on the
@@ -562,18 +585,29 @@ async function _doComplete() {
             }
         }
 
+        // Show toast + close the modal IMMEDIATELY. Reloads are heavy (all
+        // products, the whole week, today's log) and we don't want the user
+        // staring at a frozen modal while they run — they get to see the
+        // result update progressively as each reload finishes.
         const parts = [];
         if (deducted) parts.push(`${deducted} ingrediente${deducted > 1 ? 's' : ''} restado${deducted > 1 ? 's' : ''}`);
         if (addedOutput) parts.push(`${_formatQty(servings, 'ud')} añadido${servings > 1 ? 's' : ''} a la despensa`);
         window.showToast(parts.length ? parts.join(' · ') : 'Receta registrada', 'success');
-
         _closeModal();
-        if (window.reloadProducts) await window.reloadProducts();
-        if (window.reloadWeek) await window.reloadWeek();
-        if (window.reloadTodayLog) await window.reloadTodayLog();
-        if (window.renderPage) window.renderPage();
+
+        // Fire-and-forget reloads in parallel. renderPage() runs once they all
+        // settle so the visible page reflects the new state.
+        const reloads = [];
+        if (window.reloadProducts)  reloads.push(window.reloadProducts());
+        if (window.reloadWeek)      reloads.push(window.reloadWeek());
+        if (window.reloadTodayLog)  reloads.push(window.reloadTodayLog());
+        Promise.allSettled(reloads).then(() => {
+            if (window.renderPage) window.renderPage();
+        });
     } catch (e) {
         window.showToast('Error finalizando: ' + e.message, 'error');
+    } finally {
+        completing = false;
     }
 }
 
