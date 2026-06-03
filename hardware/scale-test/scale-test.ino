@@ -84,6 +84,7 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <HX711.h>
+#include <Preferences.h>  // NVS — persists tare + calibration across reboots
 
 #include "secrets.h"  // WIFI_SSID, WIFI_PASSWORD, OTA_PASSWORD — gitignored
 
@@ -115,12 +116,22 @@ constexpr float    INITIAL_CAL_FACTOR      = 1.0f;   // uncalibrated — set via
 constexpr float    WEIGHT_EMA_ALPHA        = 0.1f;   // EMA weight: smaller = smoother but more lag (0.05 very smooth, 0.2 snappy)
 constexpr float    WEIGHT_JUMP_THRESHOLD_G = 10.0f;  // bypass filter on real load placement / removal
 
+// NVS — persists tare offset + calibration factor through power cycles, so
+// the user never has to recalibrate after a reboot. Settings can still be
+// changed at runtime via the web UI; each change overwrites the previous
+// value in flash.
+constexpr const char* NVS_NAMESPACE       = "scale";
+constexpr const char* NVS_KEY_CAL_FACTOR  = "cal_factor";
+constexpr const char* NVS_KEY_TARE_OFFSET = "tare_off";
+constexpr const char* NVS_KEY_HAS_TARE    = "has_tare";
+
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
 HX711 scale;
 WebServer server(80);
 Adafruit_SSD1306 oled(OLED_W, OLED_H, &Wire, OLED_RESET);
+Preferences prefs;
 
 float currentWeightG    = 0.0f;
 float calibrationFactor = INITIAL_CAL_FACTOR;
@@ -402,9 +413,10 @@ void handleState() {
 
 void handleTare() {
   scale.tare(10);
+  saveTareToNVS();
   resetWeightFilter(scale.is_ready() ? scale.get_units(3) : 0.0f);
   lastSentWeightG = currentWeightG;
-  Serial.println("Tare via web");
+  Serial.println("Tare via web (saved to NVS)");
   server.send(200, "application/json", "{\"ok\":true}");
 }
 
@@ -425,10 +437,24 @@ void handleCalibrate() {
   }
   calibrationFactor = (float)reading / knownG;
   scale.set_scale(calibrationFactor);
-  Serial.printf("Calibrated: factor=%.4f (raw=%ld, known=%.1fg)\n",
+  saveCalibrationToNVS();
+  syncCalibrationToAddon();
+  Serial.printf("Calibrated: factor=%.4f (raw=%ld, known=%.1fg) — saved to NVS\n",
                 calibrationFactor, reading, knownG);
   String resp = "{\"ok\":true,\"factor\":" + String(calibrationFactor, 4) + "}";
   server.send(200, "application/json", resp);
+}
+
+void handleResetCalibration() {
+  prefs.remove(NVS_KEY_CAL_FACTOR);
+  prefs.remove(NVS_KEY_TARE_OFFSET);
+  prefs.remove(NVS_KEY_HAS_TARE);
+  calibrationFactor = INITIAL_CAL_FACTOR;
+  scale.set_scale(calibrationFactor);
+  scale.tare(10);
+  resetWeightFilter(0.0f);
+  Serial.println("Calibration wiped from NVS — back to factory defaults");
+  server.send(200, "application/json", "{\"ok\":true}");
 }
 
 // ---------------------------------------------------------------------------
@@ -499,6 +525,40 @@ bool postJson(const String& url, const String& body) {
   return ok;
 }
 
+bool patchJson(const String& url, const String& body) {
+  HTTPClient http;
+  http.setTimeout(ADDON_HTTP_TIMEOUT_MS);
+  http.setReuse(false);
+  if (!http.begin(url)) {
+    Serial.printf("HTTP begin failed: %s\n", url.c_str());
+    return false;
+  }
+  http.addHeader("Content-Type", "application/json");
+  int code = http.sendRequest("PATCH", body);
+  bool ok = (code >= 200 && code < 300);
+  if (!ok) Serial.printf("HTTP %d <- PATCH %s\n", code, url.c_str());
+  http.end();
+  return ok;
+}
+
+// Push the current calibration factor to the addon so its DB stays in sync
+// with the ESP. Best-effort — failure is logged but doesn't disrupt the scale.
+void syncCalibrationToAddon() {
+  if (!addonEnabled()) return;
+  String url  = String(ADDON_BASE_URL) + "/api/scales/" + String(SCALE_ID);
+  String body = "{\"calibration_factor\":" + String(calibrationFactor, 4) + "}";
+  patchJson(url, body);
+}
+
+void saveCalibrationToNVS() {
+  prefs.putFloat(NVS_KEY_CAL_FACTOR, calibrationFactor);
+}
+
+void saveTareToNVS() {
+  prefs.putLong(NVS_KEY_TARE_OFFSET, scale.get_offset());
+  prefs.putBool(NVS_KEY_HAS_TARE, true);
+}
+
 void postScaleEvent(const char* type, float weight_g) {
   if (!addonEnabled()) return;
   String url  = String(ADDON_BASE_URL) + "/api/scales/" + String(SCALE_ID) + "/event";
@@ -532,10 +592,26 @@ void setup() {
   btnConsumo.lastReading = btnConsumo.stableState = digitalRead(PIN_BTN_CONSUMO);
   btnNuevo.lastReading   = btnNuevo.stableState   = digitalRead(PIN_BTN_NUEVO);
 
+  // NVS first so the calibration factor + tare offset are loaded before the
+  // HX711 is configured. On the very first boot (or after handleResetCalibration)
+  // the saved factor falls back to INITIAL_CAL_FACTOR and we tare from zero.
+  prefs.begin(NVS_NAMESPACE, false);
+  calibrationFactor = prefs.getFloat(NVS_KEY_CAL_FACTOR, INITIAL_CAL_FACTOR);
+  bool hasSavedTare = prefs.getBool(NVS_KEY_HAS_TARE, false);
+  long savedTareOffset = prefs.getLong(NVS_KEY_TARE_OFFSET, 0);
+
   scale.begin(PIN_HX711_DT, PIN_HX711_SCK);
   scale.set_scale(calibrationFactor);
-  scale.tare(10);
-  Serial.println("HX711 ready");
+  if (hasSavedTare) {
+    scale.set_offset(savedTareOffset);
+    Serial.printf("HX711 ready (NVS: factor=%.4f, tare_offset=%ld)\n",
+                  calibrationFactor, savedTareOffset);
+  } else {
+    scale.tare(10);
+    saveTareToNVS();
+    Serial.printf("HX711 ready (first boot — tared and saved, factor=%.4f)\n",
+                  calibrationFactor);
+  }
 
   drawStatusLine("WiFi...");
   WiFi.mode(WIFI_STA);
@@ -559,6 +635,7 @@ void setup() {
   server.on("/api/state", handleState);
   server.on("/api/tare", HTTP_POST, handleTare);
   server.on("/api/calibrate", HTTP_POST, handleCalibrate);
+  server.on("/api/reset-calibration", HTTP_POST, handleResetCalibration);
   server.begin();
   Serial.println("HTTP server up on :80");
 }
@@ -568,10 +645,11 @@ void loop() {
 
   if (pollButton(btnTare)) {
     scale.tare(10);
+    saveTareToNVS();
     resetWeightFilter(scale.is_ready() ? scale.get_units(3) : 0.0f);
     postScaleEvent("tare", currentWeightG);
     lastSentWeightG = currentWeightG;  // resync so the weight POST doesn't immediately fire
-    Serial.println("BTN: TARE");
+    Serial.println("BTN: TARE (saved to NVS)");
   }
   if (pollButton(btnConsumo)) {
     postScaleEvent("consumo", currentWeightG);
