@@ -1673,8 +1673,16 @@ class Database:
 
     async def create_cook_session(self, payload: CookSessionCreate) -> CookSession:
         """Start a cook session for a recipe on a kitchen scale. Builds one step
-        per recipe ingredient, scaled by `servings`. Refuses if the scale already
-        has an active session (one active session per scale at a time)."""
+        per recipe ingredient, scaled by the ratio between the user-requested
+        amount (`payload.servings`) and the recipe's base output. Refuses if
+        the scale already has an active session.
+
+        Mind the naming: `payload.servings` is what the user typed in the
+        picker — for a recipe with output_qty=37 nuggets, that's "how many
+        nuggets to make". Ingredient quantities in the DB are already scaled
+        for the FULL recipe batch, so the multiplier is `requested / base`,
+        not `requested` itself.
+        """
         scale = await self.get_scale(payload.scale_id)
         if not scale:
             raise ValueError(f"Scale {payload.scale_id} not found")
@@ -1685,6 +1693,15 @@ class Database:
             raise ValueError(f"Recipe {payload.recipe_id} not found")
         if not recipe.ingredients:
             raise ValueError("Recipe has no ingredients")
+
+        # Match the frontend's _makeRecipe ratio logic exactly.
+        if recipe.output_qty and recipe.output_qty > 0:
+            base_qty = float(recipe.output_qty)
+        elif recipe.servings and recipe.servings > 0:
+            base_qty = float(recipe.servings)
+        else:
+            base_qty = 1.0
+        ratio = float(payload.servings) / base_qty if base_qty > 0 else 1.0
 
         async with aiosqlite.connect(self.db_path) as db:
             # Block if there's already an active session on this scale
@@ -1706,7 +1723,7 @@ class Database:
             for idx, ing in enumerate(recipe.ingredients):
                 unit = (ing.unit or '').strip().lower()
                 weighable = 1 if unit == 'g' else 0
-                target = float(ing.quantity) * float(payload.servings)
+                target = float(ing.quantity) * ratio
                 await db.execute(
                     """INSERT INTO cook_session_steps
                        (session_id, step_order, product_barcode, custom_name, target_qty, unit, weighable, status)

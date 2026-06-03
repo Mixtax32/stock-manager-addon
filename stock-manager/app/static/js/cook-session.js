@@ -11,10 +11,12 @@ const POLL_INTERVAL_MS = 1500;       // live weight refresh cadence
 
 let pollTimer = null;
 let session = null;
+let currentRecipe = null;
 let kitchenScales = [];
 let selectedScaleId = null;
 let servings = 1;
 let latestWeight = null;
+let outputStorage = 'fridge';  // 'fridge' | 'freezer' — only relevant when recipe has output_qty > 0
 
 function _stopPolling() {
     if (pollTimer) {
@@ -28,8 +30,18 @@ function _closeModal() {
     const mount = document.getElementById('modal-mount');
     if (mount) mount.innerHTML = '';
     session = null;
+    currentRecipe = null;
     selectedScaleId = null;
     latestWeight = null;
+}
+
+function _expiryFromDays(days) {
+    if (days === null || days === undefined || days === '') return null;
+    const n = Number(days);
+    if (Number.isNaN(n) || n < 0) return null;
+    const dt = new Date(); dt.setHours(0, 0, 0, 0);
+    dt.setDate(dt.getDate() + n);
+    return dt.toISOString().slice(0, 10);
 }
 
 async function _loadKitchenScales() {
@@ -175,6 +187,8 @@ async function _startSession(recipe) {
             servings,
             diet_plan_id: window._cookDietPlanId || null,
         });
+        currentRecipe = recipe;
+        outputStorage = 'fridge';
         _renderSession();
         _startPolling();
     } catch (e) {
@@ -388,6 +402,34 @@ function _renderSummary() {
         `;
     }).join('');
 
+    const hasOutput = currentRecipe && Number(currentRecipe.output_qty) > 0;
+    const outputName = currentRecipe && currentRecipe.output_product_id
+        ? (window.findProductById(currentRecipe.output_product_id) || {}).name || currentRecipe.name
+        : (currentRecipe ? currentRecipe.name : '');
+    const fridgeDays = currentRecipe
+        ? (currentRecipe.fridge_expiry_days != null ? currentRecipe.fridge_expiry_days : currentRecipe.default_expiry_days)
+        : null;
+    const freezerDays = currentRecipe
+        ? (currentRecipe.freezer_expiry_days != null ? currentRecipe.freezer_expiry_days : currentRecipe.default_expiry_days)
+        : null;
+
+    const storageBlock = hasOutput ? `
+        <div class="card sunken" style="padding:12px; margin:0 0 16px;">
+            <div class="muted" style="font-size:12px; margin-bottom:6px">¿Dónde guardás «${window.esc(outputName)}»?</div>
+            <div class="row" style="gap:8px">
+                <button type="button" class="btn sm ${outputStorage === 'fridge' ? 'accent' : 'ghost'}" data-storage="fridge">
+                    Nevera ${fridgeDays != null ? `· ${fridgeDays}d` : ''}
+                </button>
+                <button type="button" class="btn sm ${outputStorage === 'freezer' ? 'accent' : 'ghost'}" data-storage="freezer">
+                    Congelador ${freezerDays != null ? `· ${freezerDays}d` : ''}
+                </button>
+            </div>
+            <div class="muted" style="font-size:11px; margin-top:6px">
+                Al finalizar se añadirán ${_formatQty(servings, 'ud')} a tu despensa con la caducidad correspondiente.
+            </div>
+        </div>
+    ` : '';
+
     mount.innerHTML = `
         <div class="modal-backdrop">
             <div class="modal" style="max-width:480px">
@@ -396,9 +438,10 @@ function _renderSummary() {
                     <button class="btn icon sm ghost" data-action="cancel">${window.icon('close')}</button>
                 </div>
                 <div class="modal-sub" style="margin-bottom:12px">
-                    Si confirmás, se descuentan estos pesos reales del stock.
+                    Si confirmás, se descuentan estos pesos reales del stock${hasOutput ? ' y se añade el resultado a la despensa' : ''}.
                 </div>
-                <div class="stack" style="gap:0; margin-bottom:18px">${rows}</div>
+                <div class="stack" style="gap:0; margin-bottom:${hasOutput ? '14' : '18'}px">${rows}</div>
+                ${storageBlock}
                 <div class="row" style="justify-content:flex-end; gap:8px">
                     <button class="btn ghost" data-action="cancel">Cancelar sesión</button>
                     <button class="btn accent" data-action="complete">Finalizar y registrar</button>
@@ -409,13 +452,49 @@ function _renderSummary() {
 
     mount.querySelectorAll('[data-action="cancel"]').forEach(b => b.addEventListener('click', _onCancel));
     mount.querySelectorAll('[data-action="complete"]').forEach(b => b.addEventListener('click', _onComplete));
+    mount.querySelectorAll('[data-storage]').forEach(b => b.addEventListener('click', () => {
+        outputStorage = b.dataset.storage;
+        _renderSummary();
+    }));
 }
 
 async function _onComplete() {
     if (!session) return;
+    const recipe = currentRecipe;
     try {
-        await window.apiCall(`/cook-sessions/${session.id}/complete`, 'POST', {});
-        window.showToast('Receta registrada y stock descontado', 'success');
+        // 1) Backend deducts ingredients and closes the session.
+        const result = await window.apiCall(`/cook-sessions/${session.id}/complete`, 'POST', {});
+        const deducted = (result && result.consumed) ? result.consumed.length : 0;
+
+        // 2) If the recipe produces an output, add it to stock here on the
+        //    client (mirroring _makeRecipe in view-recipes.js). The backend
+        //    doesn't do this because the output product needs ensure/create
+        //    logic that already lives on the frontend.
+        let addedOutput = false;
+        if (recipe && Number(recipe.output_qty) > 0 && window.ensureRecipeOutputProduct) {
+            const outputBarcode = await window.ensureRecipeOutputProduct(recipe);
+            if (outputBarcode) {
+                const days = outputStorage === 'freezer'
+                    ? (recipe.freezer_expiry_days != null ? recipe.freezer_expiry_days : recipe.default_expiry_days)
+                    : (recipe.fridge_expiry_days != null ? recipe.fridge_expiry_days : recipe.default_expiry_days);
+                try {
+                    await window.apiCall(`/products/${outputBarcode}/stock`, 'POST', {
+                        quantity: servings,  // raw user-requested units (already in output product units)
+                        expiry_date: _expiryFromDays(days),
+                        location: outputStorage === 'freezer' ? 'Congelador' : 'Nevera',
+                    });
+                    addedOutput = true;
+                } catch (e) {
+                    window.showToast('Ingredientes restados pero falló agregar el resultado: ' + e.message, 'warn');
+                }
+            }
+        }
+
+        const parts = [];
+        if (deducted) parts.push(`${deducted} ingrediente${deducted > 1 ? 's' : ''} restado${deducted > 1 ? 's' : ''}`);
+        if (addedOutput) parts.push(`${_formatQty(servings, 'ud')} añadido${servings > 1 ? 's' : ''} a la despensa`);
+        window.showToast(parts.length ? parts.join(' · ') : 'Receta registrada', 'success');
+
         _closeModal();
         if (window.reloadProducts) await window.reloadProducts();
         if (window.reloadWeek) await window.reloadWeek();
