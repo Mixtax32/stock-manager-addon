@@ -203,6 +203,62 @@ bool cookActive() {
 // ---------------------------------------------------------------------------
 // OLED rendering
 // ---------------------------------------------------------------------------
+
+// The recipe/ingredient strings travel as UTF-8 from the addon. Adafruit_GFX's
+// built-in font is single-byte CP437, so the two-byte ñ/á/é/í/ó/ú sequences
+// render as random glyphs (the "Champ-li-ñones" bug). Translating UTF-8 →
+// CP437 for the common Spanish set keeps the firmware tiny — much cheaper than
+// shipping a Latin-1 GFX font.
+String toCP437(const String& src) {
+  String out;
+  out.reserve(src.length());
+  int n = src.length();
+  for (int i = 0; i < n; i++) {
+    uint8_t c = (uint8_t)src[i];
+    if (c < 0x80) { out += (char)c; continue; }
+    if (c == 0xC3 && i + 1 < n) {
+      uint8_t c2 = (uint8_t)src[i + 1];
+      char m = 0;
+      switch (c2) {
+        case 0xA0: m = (char)0x85; break;  // à
+        case 0xA1: m = (char)0xA0; break;  // á
+        case 0xA2: m = (char)0x83; break;  // â
+        case 0xA8: m = (char)0x8A; break;  // è
+        case 0xA9: m = (char)0x82; break;  // é
+        case 0xAD: m = (char)0xA1; break;  // í
+        case 0xB1: m = (char)0xA4; break;  // ñ
+        case 0xB3: m = (char)0xA2; break;  // ó
+        case 0xBA: m = (char)0xA3; break;  // ú
+        case 0xBC: m = (char)0x81; break;  // ü
+        case 0x81: m = 'A';        break;  // Á (no glyph in CP437 built-in)
+        case 0x89: m = (char)0x90; break;  // É
+        case 0x8D: m = 'I';        break;  // Í
+        case 0x91: m = (char)0xA5; break;  // Ñ
+        case 0x93: m = 'O';        break;  // Ó
+        case 0x9A: m = 'U';        break;  // Ú
+        case 0x9C: m = (char)0x9A; break;  // Ü
+        default: break;
+      }
+      if (m) { out += m; i++; continue; }
+      i++; out += '?'; continue;
+    }
+    if (c == 0xC2 && i + 1 < n) {
+      uint8_t c2 = (uint8_t)src[i + 1];
+      char m = 0;
+      switch (c2) {
+        case 0xA1: m = (char)0xAD; break;  // ¡
+        case 0xB0: m = (char)0xF8; break;  // °
+        case 0xBF: m = (char)0xA8; break;  // ¿
+        default: break;
+      }
+      if (m) { out += m; i++; continue; }
+      i++; out += '?'; continue;
+    }
+    out += '?';
+  }
+  return out;
+}
+
 void setupDisplay() {
   Wire.begin();
   if (!oled.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR)) {
@@ -210,6 +266,7 @@ void setupDisplay() {
     return;
   }
   oledReady = true;
+  oled.cp437(true);
   oled.clearDisplay();
   oled.setTextColor(SSD1306_WHITE);
   oled.setTextSize(1);
@@ -257,108 +314,94 @@ void drawCenteredText(const String& text, int y, int maxSize) {
   oled.print(text);
 }
 
-// Render in cook mode: header (step/recipe) at top, big ingredient name in
-// the middle, progress bar showing % to target, and current vs target weight
-// at the bottom. Non-weighable steps hide the bar and show 'manual' instead.
+// Render in cook mode — minimalist layout:
+//
+//   1/2                             ← step counter only (no recipe name)
+//   ───────────────────────         ← divider at y=10
+//
+//        Champiñones                ← ingredient, size 2 if short, size 1 wrap if long
+//
+//     █████░░░░░░░░░                ← thin progress bar (5px high)
+//
+//        363 / 656 g                ← current / target, size 1
+//         falta 293g                ← delta hint, size 1, own line (no overlap)
+//
+// Recipe name is dropped: the cook already knows what they're cooking, and the
+// space goes to the only thing that matters at this instant — the ingredient.
 void renderCookMode() {
   oled.clearDisplay();
 
-  // ---- Header: 'N/M  Recipe' (compact, single line) ----
+  // ---- Header: just the step counter ----
   oled.setTextSize(1);
   oled.setCursor(0, 0);
   oled.printf("%d/%d", cook.stepOrder + 1, cook.totalSteps);
-  String r = cook.recipeName;
-  // Right-align the recipe name after the step counter takes its slot.
-  int counterWidth = 5 * 6;  // up to "99/99" worst case
-  int maxRecipeChars = (OLED_W - counterWidth - 6) / 6;
-  if ((int)r.length() > maxRecipeChars) r = r.substring(0, maxRecipeChars);
-  int rx = OLED_W - r.length() * 6;
-  if (rx < counterWidth + 6) rx = counterWidth + 6;
-  oled.setCursor(rx, 0);
-  oled.print(r);
   oled.drawFastHLine(0, 10, OLED_W, SSD1306_WHITE);
 
-  // ---- Ingredient name: dominant element, adaptive sizing ----
-  // ≤10 chars  → size 2 single line (12×16 glyphs)
-  // 11–21      → size 1 single line
-  // 22+        → size 1, two-line wrap (truncate at 42)
-  String name = cook.ingredientName;
+  // ---- Ingredient name (dominant) ----
+  String name = toCP437(cook.ingredientName);
   if (name.length() == 0) name = "(sin nombre)";
   if (name.length() <= 10) {
-    drawCenteredText(name, 14, 2);
+    drawCenteredText(name, 16, 2);
   } else if (name.length() <= 21) {
-    drawCenteredText(name, 18, 1);
+    drawCenteredText(name, 20, 1);
   } else {
-    String first  = name.substring(0, 21);
-    int cutEnd    = name.length() > 42 ? 42 : name.length();
-    String second = name.substring(21, cutEnd);
+    // Try to break at the last space within the first 21 chars
+    int cut = 21;
+    for (int i = 20; i >= 10; --i) {
+      if (name.charAt(i) == ' ') { cut = i; break; }
+    }
+    String first = name.substring(0, cut);
+    String rest  = name.substring(name.charAt(cut) == ' ' ? cut + 1 : cut);
+    if (rest.length() > 21) rest = rest.substring(0, 18) + "...";
     oled.setTextSize(1);
     int w1 = first.length() * 6;
-    int w2 = second.length() * 6;
-    oled.setCursor((OLED_W - w1) / 2, 14);
+    int w2 = rest.length() * 6;
+    oled.setCursor((OLED_W - w1) / 2, 16);
     oled.print(first);
-    oled.setCursor((OLED_W - w2) / 2, 22);
-    oled.print(second);
+    oled.setCursor((OLED_W - w2) / 2, 24);
+    oled.print(rest);
   }
 
-  // ---- Progress bar (weighable only) ----
-  const int barTop = 34;
-  const int barH   = 12;
-  const int barL   = 2;
-  const int barR   = OLED_W - 2;
-  const int innerW = barR - barL - 4;
+  // ---- Thin progress bar ----
+  const int barTop = 36;
+  const int barH   = 5;
+  const int barL   = 8;
+  const int barR   = OLED_W - 8;
 
   if (cook.weighable && cook.targetQty > 0) {
     oled.drawRect(barL, barTop, barR - barL, barH, SSD1306_WHITE);
     float ratio = currentWeightG / cook.targetQty;
     if (ratio < 0) ratio = 0;
-    int fillW = (int)(innerW * (ratio > 1.0f ? 1.0f : ratio));
-    if (fillW > 0) {
-      oled.fillRect(barL + 2, barTop + 2, fillW, barH - 4, SSD1306_WHITE);
-    }
-    // Overshoot marker: small triangle on the right edge of the bar
-    if (ratio > 1.05f) {
-      int tx = barR - 1;
-      int ty = barTop + barH / 2;
-      oled.fillTriangle(tx - 4, ty - 3, tx - 4, ty + 3, tx + 1, ty, SSD1306_WHITE);
-    }
-  } else {
-    // Non-weighable: instead of a bar, show a hint band
-    oled.setTextSize(1);
-    drawCenteredText("(añadir manualmente)", barTop + 2, 1);
+    if (ratio > 1) ratio = 1;
+    int fillW = (int)((barR - barL - 2) * ratio);
+    if (fillW > 0) oled.fillRect(barL + 1, barTop + 1, fillW, barH - 2, SSD1306_WHITE);
   }
 
-  // ---- Bottom line: current / target + delta hint ----
+  // ---- Bottom: current / target on row 1, delta hint on row 2 ----
+  String unit = toCP437(cook.unit);
   oled.setTextSize(1);
   if (cook.weighable && cook.targetQty > 0) {
     char buf[32];
     snprintf(buf, sizeof(buf), "%.0f / %.0f %s",
-             currentWeightG, cook.targetQty, cook.unit.c_str());
-    int w = (int)strlen(buf) * 6;
-    int x = (OLED_W - w) / 2;
-    if (x < 0) x = 0;
-    oled.setCursor(x, 50);
-    oled.print(buf);
+             currentWeightG, cook.targetQty, unit.c_str());
+    drawCenteredText(String(buf), 46, 1);
 
+    char hint[24];
     float delta = currentWeightG - cook.targetQty;
-    oled.setCursor(0, 56);
     if (fabsf(delta) <= 5.0f) {
-      oled.print("OK");
+      snprintf(hint, sizeof(hint), "OK");
     } else if (delta < 0) {
-      oled.printf("falta %.0f%s", -delta, cook.unit.c_str());
+      snprintf(hint, sizeof(hint), "falta %.0f%s", -delta, unit.c_str());
     } else {
-      oled.printf("sobra %.0f%s", delta, cook.unit.c_str());
+      snprintf(hint, sizeof(hint), "sobra %.0f%s", delta, unit.c_str());
     }
+    drawCenteredText(String(hint), 56, 1);
   } else {
-    // Non-weighable: show the target only (e.g. "1 ud")
     char buf[24];
-    snprintf(buf, sizeof(buf), "Objetivo: %.0f %s",
-             cook.targetQty, cook.unit.c_str());
-    int w = (int)strlen(buf) * 6;
-    int x = (OLED_W - w) / 2;
-    if (x < 0) x = 0;
-    oled.setCursor(x, 54);
-    oled.print(buf);
+    snprintf(buf, sizeof(buf), "objetivo: %.0f %s",
+             cook.targetQty, unit.c_str());
+    drawCenteredText(toCP437("(añadir manualmente)"), 38, 1);
+    drawCenteredText(String(buf), 52, 1);
   }
 
   oled.display();
