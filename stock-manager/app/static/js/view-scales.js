@@ -133,7 +133,7 @@ function _scaleCard(scale) {
                 </details>
 
                 <div class="row" style="gap:8px; justify-content:flex-end;">
-                    <button class="secondary" data-action="delete">Eliminar</button>
+                    <button class="btn ghost" data-action="delete">Eliminar</button>
                 </div>
             </div>
         </div>
@@ -170,8 +170,8 @@ function _addScaleForm() {
                     <select id="new-scale-product">${productOptions}</select>
                 </label>
                 <div class="row" style="gap:8px; justify-content:flex-end;">
-                    <button class="secondary" id="cancel-add-scale">Cancelar</button>
-                    <button id="confirm-add-scale">Crear</button>
+                    <button class="btn ghost" id="cancel-add-scale">Cancelar</button>
+                    <button class="btn accent" id="confirm-add-scale">Crear</button>
                 </div>
             </div>
         </div>
@@ -189,8 +189,8 @@ function _refillCard(refill) {
                 <div style="font-weight:600;">${window.esc(productLabel)}</div>
                 <div style="font-size:.75rem; opacity:.6;">~${refill.qty_estimated} ${unit} · ${refill.source} · ${created}</div>
             </div>
-            <button data-action="resolve-refill" data-qty="${refill.qty_estimated}">Resolver</button>
-            <button class="secondary" data-action="cancel-refill">Cancelar</button>
+            <button class="btn sm accent" data-action="resolve-refill" data-qty="${refill.qty_estimated}">Resolver</button>
+            <button class="btn sm ghost" data-action="cancel-refill">Cancelar</button>
         </div>
     `;
 }
@@ -215,8 +215,8 @@ window.renderScales = function() {
                 <h1 class="page-title">Básculas</h1>
             </div>
             <div class="row" style="gap:8px;">
-                <button id="edit-scale-host" class="secondary" title="Editar IP del addon usada en los webhook URLs">Editar IP</button>
-                <button id="open-add-scale" class="primary">+ Nueva</button>
+                <button id="edit-scale-host" class="btn ghost" title="Editar IP del addon usada en los webhook URLs">Editar IP</button>
+                <button id="open-add-scale" class="btn accent">+ Nueva</button>
             </div>
         </div>
 
