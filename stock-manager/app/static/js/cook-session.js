@@ -126,12 +126,10 @@ function _renderPicker(recipe) {
                 </div>
             </div>
         `;
-        mount.querySelectorAll('[data-close], [data-action="close"]').forEach(el => {
-            el.addEventListener('click', (e) => {
-                if (el.dataset.close === '1' && e.target.dataset.close !== '1') return;
-                _closeModal();
-            });
+        mount.querySelectorAll('[data-action="close"]').forEach(el => {
+            el.addEventListener('click', _closeModal);
         });
+        window.wireBackdropClose(mount.querySelector('[data-close]'), _closeModal);
         return;
     }
 
@@ -176,9 +174,7 @@ function _renderPicker(recipe) {
         </div>
     `;
 
-    mount.querySelector('[data-close]').addEventListener('click', e => {
-        if (e.target.dataset.close === '1') _closeModal();
-    });
+    window.wireBackdropClose(mount.querySelector('[data-close]'), _closeModal);
     mount.querySelectorAll('[data-action="close"]').forEach(b =>
         b.addEventListener('click', _closeModal)
     );

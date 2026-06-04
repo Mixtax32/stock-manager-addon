@@ -14,6 +14,24 @@ window.esc = function(str) {
         .replace(/'/g, '&#39;');
 };
 
+// ===== Backdrop close guard =====
+// A modal closes when the user clicks the backdrop. But if the user starts a
+// click INSIDE the modal (e.g. mousedown on an input to select text) and
+// releases on the backdrop, the browser fires `click` on the common ancestor
+// (the backdrop) — which would incorrectly close the modal. This helper only
+// closes when both mousedown AND mouseup target the backdrop element itself.
+window.wireBackdropClose = function(backdropEl, closeFn) {
+    if (!backdropEl) return;
+    let downOnBackdrop = false;
+    backdropEl.addEventListener('mousedown', e => {
+        downOnBackdrop = (e.target === backdropEl && e.target.dataset.close === '1');
+    });
+    backdropEl.addEventListener('click', e => {
+        if (!downOnBackdrop) return;
+        if (e.target.dataset.close === '1') closeFn();
+    });
+};
+
 // ===== MacroRing — multi-segment SVG ring =====
 window.macroRingHTML = function(kcal, target, p, c, fat, size, stroke) {
     size = size || 220;
@@ -249,9 +267,7 @@ window.openFoodPicker = function(options) {
         `;
 
         // Wire close handlers (shell-level — never recreated)
-        mount.querySelector('[data-close]').addEventListener('click', (e) => {
-            if (e.target.dataset.close === '1') close();
-        });
+        window.wireBackdropClose(mount.querySelector('[data-close]'), close);
         mount.querySelectorAll('[data-action="close"]').forEach(b => b.addEventListener('click', close));
 
         // Wire search input once — only updates the results list, never re-renders the shell
@@ -545,7 +561,7 @@ window.confirmDialog = function(message) {
                 </div>
             </div>`;
         const close = (v) => { mount.innerHTML = ''; resolve(v); };
-        mount.querySelector('[data-close]').addEventListener('click', e => { if (e.target.dataset.close === '1') close(false); });
+        window.wireBackdropClose(mount.querySelector('[data-close]'), () => close(false));
         mount.querySelector('[data-action="no"]').addEventListener('click', () => close(false));
         mount.querySelector('[data-action="yes"]').addEventListener('click', () => close(true));
     });
@@ -626,9 +642,7 @@ window.openMakeRecipeDialog = function(options) {
         </div>`;
 
         // Close handlers
-        mount.querySelector('[data-close]').addEventListener('click', e => {
-            if (e.target.dataset.close === '1') close();
-        });
+        window.wireBackdropClose(mount.querySelector('[data-close]'), () => close());
         mount.querySelectorAll('[data-action="close"]').forEach(b => b.addEventListener('click', close));
 
         // Qty input — only update ratio text, no full re-render
@@ -696,7 +710,7 @@ window.promptQty = function(currentQty) {
 
         const close = (val) => { mount.innerHTML = ''; resolve(val); };
 
-        mount.querySelector('[data-close]').addEventListener('click', e => { if (e.target.dataset.close === '1') close(null); });
+        window.wireBackdropClose(mount.querySelector('[data-close]'), () => close(null));
         mount.querySelector('[data-action="cancel"]').addEventListener('click', () => close(null));
         mount.querySelector('[data-action="save"]').addEventListener('click', () => {
             const v = parseFloat(input.value);

@@ -437,9 +437,7 @@ window.openEditProduct = function(barcode) {
         </div>`;
 
     const close = () => { mount.innerHTML = ''; };
-    mount.querySelector('[data-close]').addEventListener('click', e => {
-        if (e.target.dataset.close === '1') close();
-    });
+    window.wireBackdropClose(mount.querySelector('[data-close]'), close);
     mount.querySelectorAll('[data-action="close"]').forEach(b => b.addEventListener('click', close));
 
     // Batch fields (caducidad / ubicación / precio) are NOT auto-saved — they

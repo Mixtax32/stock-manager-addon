@@ -185,7 +185,7 @@ function _showUnsavedDialog() {
                 </div>
             </div>`;
         const close = (v) => { mount.innerHTML = ''; resolve(v); };
-        mount.querySelector('[data-close]').addEventListener('click', e => { if (e.target.dataset.close === '1') close('cancel'); });
+        window.wireBackdropClose(mount.querySelector('[data-close]'), () => close('cancel'));
         mount.querySelector('[data-action="discard"]').addEventListener('click', () => close('discard'));
         mount.querySelector('[data-action="save"]').addEventListener('click', () => close('save'));
     });

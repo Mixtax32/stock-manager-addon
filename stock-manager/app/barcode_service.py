@@ -24,10 +24,49 @@ def map_external_category_to_internal(external_category: str) -> str:
 
     # Mapping rules (order matters - more specific first)
     mappings = {
-        "Higiene": ["higiene", "cosméticos", "cosmetic", "beauty", "personal care", "skincare", "hair", "body care", "belleza"],
-        "Bebidas": ["bebida", "drink", "beverage", "juice", "water", "soda", "café", "coffee", "tea", "té"],
-        "Limpieza": ["limpieza", "cleaning", "detergent", "soap", "hygiene", "disinfectant"],
-        "Alimentos": ["alimento", "food", "comida", "snack", "candy", "chocolate", "cereal", "pan", "bread", "pet food", "perro", "gato", "dog", "cat", "mascotas"],
+        "Higiene": [
+            "higiene", "cosmétic", "cosmetic", "beauty", "personal care",
+            "skincare", "skin care", "hair", "body care", "belleza",
+            "shampoo", "champú", "champu", "dental", "toothpaste",
+            "pasta de dientes", "desodorante", "deodorant", "shaving",
+            "afeitar", "papel higiénico", "toilet paper", "pañal",
+            "diaper", "perfume", "fragancia", "fragrance", "maquillaje",
+            "makeup",
+        ],
+        "Bebidas": [
+            "bebida", "drink", "beverage", "juice", "zumo", "agua",
+            "water", "soda", "refresco", "café", "coffee", "tea", "té",
+            "infusion", "infusión", "vino", "wine", "beer", "cerveza",
+            "alcohol", "licor", "spirits", "smoothie", "milkshake",
+            "batido",
+        ],
+        "Limpieza": [
+            "limpieza", "cleaning", "detergent", "detergente", "lejía",
+            "lejia", "bleach", "suavizante", "fabric softener",
+            "lavavajillas", "dishwasher", "dish soap", "multiuso",
+            "multipurpose", "limpiador", "cleaner", "ambientador",
+            "air freshener", "disinfectant", "desinfectante",
+        ],
+        "Alimentos": [
+            "aliment", "food", "comida", "snack", "candy", "chocolate",
+            "cereal", "pan", "bread", "pet food", "perro", "gato", "dog",
+            "cat", "mascotas",
+            "meat", "carne", "fish", "pescado", "seafood", "marisco",
+            "dairy", "dairi", "lácteo", "lacteo", "milk", "leche",
+            "cheese", "queso", "yogurt", "yoghurt", "yogur",
+            "egg", "huevo", "fruit", "fruta", "vegetable", "verdura",
+            "vegetal", "hortaliza", "pasta", "sauce", "salsa", "soup",
+            "sopa", "embutido", "sausage", "ham", "jamón", "jamon",
+            "fiambre", "fresh foods", "fresh-food", "frozen", "meal",
+            "plant-based", "plant based", "condiment", "condimento",
+            "seasoning", "especia", "spice", "breakfast", "desayuno",
+            "postre", "dessert", "helado", "ice cream", "ice-cream",
+            "bakery", "panadería", "panaderia", "conserva", "canned",
+            "rice", "arroz", "legumbre", "legume", "bean", "judía",
+            "judia", "frijol", "nut", "fruto seco", "oil", "aceite",
+            "honey", "miel", "flour", "harina", "sugar", "azúcar",
+            "azucar", "salt", "sal", "vinegar", "vinagre",
+        ],
     }
 
     # Try to find a match

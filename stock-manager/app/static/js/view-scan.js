@@ -534,6 +534,8 @@ function _renderReview() {
                 </div>
                 <div class="field"><label class="field-label">Ubicación</label><input id="np-loc" class="input" placeholder="Nevera / Despensa…" value="${window.esc(np.location)}"/></div>
                 <div class="field"><label class="field-label">Stock mín.</label><input id="np-min" class="input num" type="number" step="0.1" value="${window.esc(np.min_stock)}"/></div>
+                <div class="field"><label class="field-label">Peso por unidad / paquete (g)</label><input id="np-weight" class="input num" type="number" step="0.1" placeholder="ej. 200" value="${window.esc(np.weight_g)}"/></div>
+                <div class="field"><label class="field-label">Ración estándar</label><input id="np-serving" class="input num" type="number" step="0.1" placeholder="ej. 30" value="${window.esc(np.serving_size)}"/></div>
                 <div class="field" style="grid-column:span 2"><label class="field-label">Macros (por 100g/100ml)</label>
                     <div class="grid cols-4 keep" style="gap:6px">
                         <input id="np-kcal" class="input num" type="number" step="0.1" placeholder="kcal" value="${window.esc(np.kcal_100g)}"/>
@@ -741,6 +743,7 @@ window.initScan = function() {
         const fields = [
             ['np-name', 'name'], ['np-cat', 'category'], ['np-unit', 'unit_type'],
             ['np-loc', 'location'], ['np-min', 'min_stock'],
+            ['np-weight', 'weight_g'], ['np-serving', 'serving_size'],
             ['np-kcal', 'kcal_100g'], ['np-p', 'proteins_100g'],
             ['np-c', 'carbs_100g'], ['np-f', 'fat_100g'],
         ];
