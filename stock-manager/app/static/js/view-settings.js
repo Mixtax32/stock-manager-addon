@@ -224,6 +224,10 @@ window.initSettings = function() {
     // `input` updates the draft silently while typing; `change` (fires on blur or
     // Enter) is what triggers the re-render. Re-rendering on every keystroke
     // destroys the DOM and rips focus out of the field on mobile.
+    // The render is deferred to the next tick so that a pending click on a
+    // button (e.g. "Aplicar →" while the input still had focus) reaches its
+    // handler before the DOM is rebuilt — otherwise mousedown/mouseup land on
+    // different nodes and the click is dropped.
     function bind(id, key, parse) {
         const el = root.querySelector('#' + id);
         if (!el) return;
@@ -232,7 +236,7 @@ window.initSettings = function() {
             d[key] = Number.isFinite(v) ? v : 0;
             _touched = true;
         });
-        el.addEventListener('change', () => window.renderPage());
+        el.addEventListener('change', () => setTimeout(() => window.renderPage(), 0));
     }
 
     bind('s-weight', 'weight', parseFloat);
@@ -252,7 +256,7 @@ window.initSettings = function() {
             d.factors[key] = Math.max(0, parseFloat(e.target.value) || 0);
             _touched = true;
         });
-        el.addEventListener('change', () => window.renderPage());
+        el.addEventListener('change', () => setTimeout(() => window.renderPage(), 0));
     });
 
     root.querySelectorAll('[data-mode]').forEach(btn => {
