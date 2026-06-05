@@ -86,12 +86,14 @@ window.macroBarsHTML = function(totals, goals) {
     return `<div class="stack" style="gap:14px">` + rows.map(r => {
         const pct = r.goal > 0 ? Math.min((r.val / r.goal) * 100, 100) : 0;
         const over = r.val > r.goal;
-        const overText = over ? `<span style="color:var(--warn); margin-left:6px">(+${Math.round(r.val - r.goal)})</span>` : '';
+        // kcal stays integer; gram macros show one decimal.
+        const fmt = r.unit === 'g' ? window.fmtMacro : Math.round;
+        const overText = over ? `<span style="color:var(--warn); margin-left:6px">(+${fmt(r.val - r.goal)})</span>` : '';
         return `
             <div class="macro-bar">
                 <div class="name">${r.name}</div>
                 <div class="track"><div class="fill" style="width:${pct}%; background:${r.color}"></div></div>
-                <div class="vals"><strong>${Math.round(r.val)}</strong><span> / ${Math.round(r.goal)} ${r.unit}</span>${overText}</div>
+                <div class="vals"><strong>${fmt(r.val)}</strong><span> / ${Math.round(r.goal)} ${r.unit}</span>${overText}</div>
             </div>
         `;
     }).join('') + `</div>`;
@@ -100,9 +102,9 @@ window.macroBarsHTML = function(totals, goals) {
 // ===== MacroChips =====
 window.macroChipsHTML = function(totals, compact) {
     const kcal = Math.round(totals.kcal || 0);
-    const p = Math.round(totals.p || 0);
-    const c = Math.round(totals.c || 0);
-    const fat = Math.round(totals.fat || 0);
+    const p = window.fmtMacro(totals.p);
+    const c = window.fmtMacro(totals.c);
+    const fat = window.fmtMacro(totals.fat);
     if (compact) {
         return `
             <div class="row" style="gap:6px">

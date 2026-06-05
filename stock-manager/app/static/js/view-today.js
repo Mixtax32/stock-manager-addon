@@ -39,19 +39,23 @@ window.renderToday = function() {
             const unit = p ? (p.unit_type === 'uds' ? 'ud' : (p.unit_type || 'g')) : 'g';
             const im = window.macrosFor(it.productId, it.qty);
             const thumb = window.productThumbHTML(p, 36);
+            const sanity = window.macroSanity(p);
+            const warnHTML = (sanity && !sanity.ok)
+                ? `<span class="macro-warn" title="Las macros (P·4 + C·4 + G·9 ≈ ${Math.round(sanity.computed)} kcal/100g) no cuadran con las ${Math.round(sanity.stated)} kcal/100g indicadas. Revisa los datos del producto.">${window.icon('alert')}</span>`
+                : '';
             return `
                 <div class="food-row">
                     <div class="row" style="align-items:center;">
                         ${thumb}
                         <div>
-                            <div class="ttl">${window.esc(name)}</div>
+                            <div class="ttl">${window.esc(name)}${warnHTML}</div>
                             <div class="sub"><span class="num">${it.qty}</span> ${unit}<span class="muted"> · ${Math.round(im.kcal)} kcal</span></div>
                         </div>
                     </div>
                     <div class="macros">
-                        <span class="chip p" title="Proteína">P ${Math.round(im.p)}</span>
-                        <span class="chip c" title="Carbos">C ${Math.round(im.c)}</span>
-                        <span class="chip f" title="Grasas">G ${Math.round(im.fat)}</span>
+                        <span class="chip p" title="Proteína">P ${window.fmtMacro(im.p)}</span>
+                        <span class="chip c" title="Carbos">C ${window.fmtMacro(im.c)}</span>
+                        <span class="chip f" title="Grasas">G ${window.fmtMacro(im.fat)}</span>
                     </div>
                     <div class="actions">
                         <button class="btn icon sm ghost" data-edit="${meal.id}:${it.movementId || i}:${it.qty}" title="Editar cantidad">${window.icon('edit')}</button>

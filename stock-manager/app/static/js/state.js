@@ -404,6 +404,37 @@ window.macrosFor = function(productId, qty) {
     };
 };
 
+// fmtMacro: format a macro gram value showing at least the first decimal.
+// (e.g. 12 -> "12.0", 12.34 -> "12.3"). Used so macros never look like bare ints.
+window.fmtMacro = function(n) {
+    return (Number(n) || 0).toFixed(1);
+};
+
+// macroSanity: sanity-check a product's stated kcal_100g against its macros
+// using Atwater factors (protein 4, carbs 4, fat 9 kcal/g).
+// Returns { computed, stated, diff, ratio, ok } or null when there isn't enough data.
+// `ok` is false when the stated kcal can't be reconciled with the macros, which
+// usually means the product's nutrition data was entered/scanned wrong.
+window.macroSanity = function(product) {
+    if (!product) return null;
+    const stated = Number(product.kcal_100g) || 0;
+    const p = Number(product.proteins_100g) || 0;
+    const c = Number(product.carbs_100g) || 0;
+    const f = Number(product.fat_100g) || 0;
+    // Nothing to check if we have no nutrition data at all.
+    if (stated <= 0 && p === 0 && c === 0 && f === 0) return null;
+    const computed = p * 4 + c * 4 + f * 9;
+    const diff = stated - computed;
+    const ratio = computed > 0 ? stated / computed : (stated > 0 ? Infinity : 1);
+    // Only meaningful when there are macros to reconcile against. A product with
+    // kcal but no macros is incomplete, not inconsistent → don't flag it.
+    if (computed <= 0) return { computed, stated, diff, ratio, ok: true };
+    // Tolerance: allow up to 12 kcal/100g absolute slack (rounding of macros),
+    // or 15% relative deviation. Beyond that the numbers don't add up.
+    const ok = Math.abs(diff) <= 12 || Math.abs(diff) / computed <= 0.15;
+    return { computed, stated, diff, ratio, ok };
+};
+
 window.sumMacros = function(items) {
     return (items || []).reduce((acc, it) => {
         const m = window.macrosFor(it.productId, it.qty);
