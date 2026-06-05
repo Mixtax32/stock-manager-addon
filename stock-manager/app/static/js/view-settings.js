@@ -24,6 +24,29 @@ function _initDraft() {
     };
 }
 
+function _formulaHTML(d) {
+    const factors = d.factors;
+    const calcByWeight = Math.round(d.weight * d.kPerKg);
+    const sumPct = +(d.pPct + d.cPct + d.fatPct).toFixed(1);
+    return `${d.weight}kg × ${String(d.kPerKg).replace('.', ',')} = <strong style="color:var(--ink)">${calcByWeight} kcal</strong>
+        · P${Math.round((calcByWeight * d.pPct / 100) / factors.p)}g
+        · C${Math.round((calcByWeight * d.cPct / 100) / factors.c)}g
+        · G${Math.round((calcByWeight * d.fatPct / 100) / factors.fat)}g
+        ${sumPct !== 100 ? `<span style="color:var(--warn)"> ⚠ ${String(sumPct).replace('.', ',')}%</span>` : ''}`;
+}
+
+function _refreshDerived(root) {
+    const d = settingsDraft;
+    if (!d) return;
+    const calcByWeight = Math.round(d.weight * d.kPerKg);
+    const calcEl = root.querySelector('#s-calc-display');
+    if (calcEl) calcEl.innerHTML = `${calcByWeight} <span style="font-size:12px; color:var(--ink-3); margin-left:6px; font-family:var(--mono)">kcal</span>`;
+    const formulaEl = root.querySelector('#s-formula-display');
+    if (formulaEl) formulaEl.innerHTML = _formulaHTML(d);
+    const modeSumEl = root.querySelector('#s-mode-summary');
+    if (modeSumEl) modeSumEl.textContent = `P×${d.factors.p} · C×${d.factors.c} · G×${d.factors.fat}`;
+}
+
 function _modeCard(id, title, sub, val, isSel) {
     return `
         <button class="card tight" data-mode="${id}"
@@ -70,7 +93,7 @@ window.renderSettings = function() {
                 </div>
                 <div class="field" style="margin-bottom:14px">
                     <label class="field-label">Calorías estimadas</label>
-                    <div class="input num" style="display:flex; align-items:center; min-height:40px; padding:8px 12px;">${calcByWeight} <span style="font-size:12px; color:var(--ink-3); margin-left:6px; font-family:var(--mono)">kcal</span></div>
+                    <div id="s-calc-display" class="input num" style="display:flex; align-items:center; min-height:40px; padding:8px 12px;">${calcByWeight} <span style="font-size:12px; color:var(--ink-3); margin-left:6px; font-family:var(--mono)">kcal</span></div>
                 </div>
                 <button class="btn accent" style="width:100%" data-action="apply-weight">Aplicar →</button>
                 <div class="muted" style="font-size:12px; margin-top:10px; line-height:1.5">
@@ -122,12 +145,8 @@ window.renderSettings = function() {
                             <div class="field"><label class="field-label">Carbos</label><input id="s-cPct" class="input num" type="number" step="0.1" min="0" max="100" value="${d.cPct}"/></div>
                             <div class="field"><label class="field-label">Grasas</label><input id="s-fPct" class="input num" type="number" step="0.1" min="0" max="100" value="${d.fatPct}"/></div>
                         </div>
-                        <div class="muted" style="font-size:12px; font-family:var(--mono); line-height:1.6">
-                            ${d.weight}kg × ${String(d.kPerKg).replace('.', ',')} = <strong style="color:var(--ink)">${calcByWeight} kcal</strong>
-                            · P${Math.round((calcByWeight * d.pPct / 100) / factors.p)}g
-                            · C${Math.round((calcByWeight * d.cPct / 100) / factors.c)}g
-                            · G${Math.round((calcByWeight * d.fatPct / 100) / factors.fat)}g
-                            ${sumPct !== 100 ? `<span style="color:var(--warn)"> ⚠ ${String(sumPct).replace('.', ',')}%</span>` : ''}
+                        <div id="s-formula-display" class="muted" style="font-size:12px; font-family:var(--mono); line-height:1.6">
+                            ${_formulaHTML(d)}
                         </div>
                     </div>
 
@@ -144,7 +163,7 @@ window.renderSettings = function() {
                     <div class="card">
                         <div class="spread" style="margin-bottom:10px">
                             <div class="card-title">Modo de cálculo</div>
-                            <span class="card-sub">P×${factors.p} · C×${factors.c} · G×${factors.fat}</span>
+                            <span id="s-mode-summary" class="card-sub">P×${factors.p} · C×${factors.c} · G×${factors.fat}</span>
                         </div>
                         <div class="stack" style="gap:8px; margin-bottom:${mode === 'custom' ? '12px' : '0'}">
                             ${_modeCard('estandar', 'Estándar Atwater', 'OMS, USDA', '4 · 4 · 9', mode === 'estandar')}
@@ -222,12 +241,9 @@ window.initSettings = function() {
     }
 
     // `input` updates the draft silently while typing; `change` (fires on blur or
-    // Enter) is what triggers the re-render. Re-rendering on every keystroke
-    // destroys the DOM and rips focus out of the field on mobile.
-    // The render is deferred to the next tick so that a pending click on a
-    // button (e.g. "Aplicar →" while the input still had focus) reaches its
-    // handler before the DOM is rebuilt — otherwise mousedown/mouseup land on
-    // different nodes and the click is dropped.
+    // Enter) updates only the derived display nodes (#s-calc-display, #s-formula-display,
+    // #s-mode-summary). Re-rendering the whole page on blur destroys the DOM and
+    // drops in-flight button clicks (e.g. clicking "Aplicar →" right after typing).
     function bind(id, key, parse) {
         const el = root.querySelector('#' + id);
         if (!el) return;
@@ -236,7 +252,7 @@ window.initSettings = function() {
             d[key] = Number.isFinite(v) ? v : 0;
             _touched = true;
         });
-        el.addEventListener('change', () => setTimeout(() => window.renderPage(), 0));
+        el.addEventListener('change', () => _refreshDerived(root));
     }
 
     bind('s-weight', 'weight', parseFloat);
@@ -256,7 +272,7 @@ window.initSettings = function() {
             d.factors[key] = Math.max(0, parseFloat(e.target.value) || 0);
             _touched = true;
         });
-        el.addEventListener('change', () => setTimeout(() => window.renderPage(), 0));
+        el.addEventListener('change', () => _refreshDerived(root));
     });
 
     root.querySelectorAll('[data-mode]').forEach(btn => {

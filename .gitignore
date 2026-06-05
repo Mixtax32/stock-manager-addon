@@ -7,3 +7,7 @@
 
 # MSYS/Cygwin bash crash dumps on Windows — environment noise, not project state.
 *.stackdump
+
+# Python bytecode caches — generated at runtime by the addon.
+__pycache__/
+*.py[cod]
