@@ -894,6 +894,8 @@ async function _confirmScan() {
         if (isNew) {
             const np = scanState.newProduct;
             if (!np.name.trim()) { window.showToast('Pon un nombre al producto', 'error'); return; }
+            const proceed = await window.confirmMacroSanity(np);
+            if (!proceed) return;
             await window.apiCall('/products', 'POST', {
                 barcode: scanState.barcode,
                 name: np.name,

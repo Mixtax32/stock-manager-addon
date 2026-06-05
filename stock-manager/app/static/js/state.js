@@ -435,6 +435,22 @@ window.macroSanity = function(product) {
     return { computed, stated, diff, ratio, ok };
 };
 
+// confirmMacroSanity: when the macros being saved don't reconcile with the
+// stated kcal (see macroSanity), warn the user and let them decide.
+// `macros` = { kcal_100g, proteins_100g, carbs_100g, fat_100g } (numbers or ''/null).
+// Resolves true if it's OK to proceed, false to abort. No dialog when consistent.
+window.confirmMacroSanity = async function(macros) {
+    const s = window.macroSanity({
+        kcal_100g: macros.kcal_100g,
+        proteins_100g: macros.proteins_100g,
+        carbs_100g: macros.carbs_100g,
+        fat_100g: macros.fat_100g,
+    });
+    if (!s || s.ok) return true;
+    const msg = `Las macros no cuadran con las kcal: proteína·4 + carbos·4 + grasa·9 ≈ ${Math.round(s.computed)} kcal/100g, pero has puesto ${Math.round(s.stated)} kcal/100g. ¿Guardar de todas formas?`;
+    return window.confirmDialog ? await window.confirmDialog(msg) : true;
+};
+
 window.sumMacros = function(items) {
     return (items || []).reduce((acc, it) => {
         const m = window.macrosFor(it.productId, it.qty);

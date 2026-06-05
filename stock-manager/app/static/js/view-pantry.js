@@ -517,6 +517,17 @@ window.openEditProduct = function(barcode) {
             return;
         }
 
+        // Macro/kcal consistency check on the effective values (new input, or the
+        // existing product value when a field is left blank).
+        const eff = (v, prev) => v === '' ? prev : Number(v);
+        const proceed = await window.confirmMacroSanity({
+            kcal_100g:     eff(kcalVal,  p.kcal_100g),
+            proteins_100g: eff(protVal,  p.proteins_100g),
+            carbs_100g:    eff(carbsVal, p.carbs_100g),
+            fat_100g:      eff(fatVal,   p.fat_100g),
+        });
+        if (!proceed) return;
+
         try {
             await window.apiCall(`/products/${barcode}`, 'PATCH', payload);
             for (const [id, patch] of Object.entries(batchUpdates)) {
