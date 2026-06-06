@@ -240,8 +240,68 @@ window.renderScales = function() {
                 ? `<div class="empty"><div class="t">Sin básculas configuradas</div><div>Tocá "+ Nueva" para registrar tu primera báscula ESP32.</div></div>`
                 : `<div class="stack" style="gap:14px;">${scales.map(_scaleCard).join('')}</div>`)
         }
+
+        ${_bleDiagnosticCard()}
     `;
 };
+
+// Diagnostic gate for the planned BLE/portable mode: validates that Web
+// Bluetooth is actually reachable from inside HA's ingress iframe before we
+// invest in firmware + bridge UI. Remove once portable mode is wired up.
+function _bleDiagnosticCard() {
+    return `
+        <div class="card" style="margin-top:14px;">
+            <div class="card-head">
+                <div class="card-title">Diagnóstico · Web Bluetooth</div>
+                <span class="card-sub">Validación previa al modo portátil</span>
+            </div>
+            <p style="font-size:13px; color:var(--ink-2); margin:10px 0 0">
+                Comprobamos si la ingress de HA permite Web Bluetooth en el iframe.
+                Tocá el botón: si todo está bien, el sistema operativo abre su
+                picker de dispositivos Bluetooth. Si sale un error, copialo entero.
+            </p>
+            <div class="row" style="gap:8px; margin-top:10px">
+                <button id="ble-test-btn" class="btn accent">Probar Bluetooth</button>
+            </div>
+            <pre id="ble-test-output" style="margin-top:12px; padding:10px; background:rgba(0,0,0,0.18); color:var(--ink); border-radius:6px; font-family:var(--mono,monospace); font-size:11px; line-height:1.4; white-space:pre-wrap; word-break:break-word; max-height:300px; overflow:auto">Sin pruebas todavía.</pre>
+        </div>
+    `;
+}
+
+async function _bleTest() {
+    const out = document.getElementById('ble-test-output');
+    if (!out) return;
+    out.textContent = '[Web Bluetooth test]';
+    const log = (msg) => { out.textContent += '\n' + msg; out.scrollTop = out.scrollHeight; };
+
+    log('UA: ' + navigator.userAgent);
+    log('isSecureContext: ' + window.isSecureContext);
+    log('en iframe: ' + (window.self !== window.top));
+    log('navigator.bluetooth: ' + (typeof navigator.bluetooth));
+
+    if (!navigator.bluetooth) {
+        log('FAIL — navigator.bluetooth no existe. Navegador sin soporte, o ');
+        log('       Permissions Policy bloqueó la API entera en este iframe.');
+        return;
+    }
+
+    try {
+        const available = await navigator.bluetooth.getAvailability();
+        log('getAvailability(): ' + available);
+    } catch (e) {
+        log('getAvailability() throw: ' + e.name + ' — ' + e.message);
+    }
+
+    log('Llamando requestDevice({ acceptAllDevices: true })…');
+    try {
+        const device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true });
+        log('OK — picker abrió. Elegiste: ' + (device.name || '(sin nombre)') + ' / id=' + device.id);
+    } catch (e) {
+        log('requestDevice throw: ' + e.name + ' — ' + e.message);
+        log('NOTA: NotFoundError = abriste el picker y lo cerraste vos. Eso CUENTA como OK.');
+        log('      SecurityError o "permissions policy" = ingress de HA bloquea la API.');
+    }
+}
 
 window.initScales = function() {
     const root = document.getElementById('page-root');
@@ -252,6 +312,9 @@ window.initScales = function() {
     const cancelBtn = root.querySelector('#cancel-add-scale');
     const confirmBtn = root.querySelector('#confirm-add-scale');
     const editHostBtn = root.querySelector('#edit-scale-host');
+
+    const bleTestBtn = root.querySelector('#ble-test-btn');
+    if (bleTestBtn) bleTestBtn.addEventListener('click', _bleTest);
 
     if (editHostBtn) {
         editHostBtn.addEventListener('click', () => {
