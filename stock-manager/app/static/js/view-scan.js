@@ -50,13 +50,26 @@ async function _scanImageFile(file) {
     }
     scanState.phase = 'scanning';
     window.renderPage();
+
+    // html5-qrcode's scanFile is an INSTANCE method, and the constructor needs
+    // a real DOM element to mount on. Use a hidden throwaway container.
+    let holder = document.getElementById('qr-scan-holder');
+    if (!holder) {
+        holder = document.createElement('div');
+        holder.id = 'qr-scan-holder';
+        holder.style.display = 'none';
+        document.body.appendChild(holder);
+    }
+    const reader = new Html5Qrcode('qr-scan-holder', /* verbose */ false);
     try {
-        const decoded = await Html5Qrcode.scanFile(file, false);
+        const decoded = await reader.scanFile(file, false);
         await _onScanSuccess(decoded);
     } catch (err) {
         scanState.phase = 'idle';
         window.renderPage();
-        window.showToast('No se detectó código de barras. Acercate más e intentá de nuevo.', 'error');
+        window.showToast('No se detectó código de barras. Acércate más e inténtalo de nuevo.', 'error');
+    } finally {
+        try { await reader.clear(); } catch (e) { /* nothing rendered */ }
     }
 }
 
