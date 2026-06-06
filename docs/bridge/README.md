@@ -36,16 +36,27 @@ La página no tiene backend. Es código que vive en el navegador del usuario. Ca
 
 ### Pasos
 
-1. **Generá un Long-Lived Access Token en HA**:
+1. **Habilitá CORS en HA** (una vez, antes de cualquier otra cosa):
+   - HA por defecto solo acepta requests desde su propia origen. El puente vive en `https://mixtax32.github.io`, así que hay que añadirla a la allowlist o todos los `fetch` van a fallar con `Failed to fetch` (CORS preflight bloqueado).
+   - Editá `/config/configuration.yaml` (con la addon "File Editor" o "Studio Code Server" si nunca lo tocaste) y añadí — mergeando si ya tenés un bloque `http:`:
+     ```yaml
+     http:
+       cors_allowed_origins:
+         - https://mixtax32.github.io
+     ```
+   - **Settings → System → Restart Home Assistant**. No basta con "Reload YAML config" — el bloque `http:` solo se aplica con reboot completo.
+   - Si forkeaste este repo y usás tu propia URL de Pages, poné TU origin (`https://<tu-user>.github.io`) en vez.
+
+2. **Generá un Long-Lived Access Token en HA**:
    - Entrá a HA → tocá tu nombre arriba a la izquierda → "Perfil" → pestaña "Seguridad" → bajá hasta "Tokens de acceso de larga duración" → "Crear token".
    - Nombralo `stock-manager-bridge` o lo que quieras.
    - **Copialo entero** (no lo vas a poder ver de nuevo).
 
-2. **Abrí el puente en Chrome Android**:
+3. **Abrí el puente en Chrome Android**:
    - URL: `https://mixtax32.github.io/stock-manager-addon/bridge/`
    - "Agregar a pantalla de inicio" desde el menú de Chrome (queda como app).
 
-3. **Configuración**:
+4. **Configuración**:
    - **URL de Home Assistant**: tu URL de Nabu Casa (ej. `https://xxx.ui.nabu.casa`).
    - **Long-Lived Access Token**: pegá el que acabás de copiar.
    - **Scale ID (fallback)**: el ID numérico de tu báscula en la addon. Si la báscula expone su ID por BLE (info characteristic), este campo es opcional.
@@ -53,12 +64,12 @@ La página no tiene backend. Es código que vive en el navegador del usuario. Ca
    - Tocá "Probar conexión HA" — debería loguear "OK". Si falla, revisá URL o token.
    - Tocá "Guardar".
 
-4. **Conectá la báscula**:
+5. **Conectá la báscula**:
    - "Conectar báscula" → el SO te muestra el picker de dispositivos Bluetooth → elegí el que se llame `Stock-Scale-…`.
    - El peso empieza a aparecer en grande.
    - Botón "Tarar" envía la orden de tara a la báscula.
 
-5. **Mientras lo uses**:
+6. **Mientras lo uses**:
    - Mantené esta pestaña visible. La página pide Wake Lock (pantalla no se apaga sola). Si pasás a otra app, BLE se mantiene mientras el SO lo permita.
    - Si la báscula se desconecta (movimiento, batería), el log te avisa y tenés que tocar "Conectar báscula" otra vez.
 
