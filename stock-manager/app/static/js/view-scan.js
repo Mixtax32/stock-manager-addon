@@ -54,13 +54,15 @@ async function _scanImageFile(file) {
     scanState.phase = 'scanning';
     window.renderPage();
 
-    // html5-qrcode's scanFile is an INSTANCE method, and the constructor needs
-    // a real DOM element to mount on. Use a hidden throwaway container.
+    // html5-qrcode's scanFile is an INSTANCE method and needs a real DOM element.
+    // It sizes its decode canvas from the element's clientWidth/Height, so the
+    // container must NOT be display:none (that yields 0 → the image is shrunk and
+    // 1D barcodes stop decoding). Keep it off-screen but with a real size.
     let holder = document.getElementById('qr-scan-holder');
     if (!holder) {
         holder = document.createElement('div');
         holder.id = 'qr-scan-holder';
-        holder.style.display = 'none';
+        holder.style.cssText = 'position:fixed;left:-100000px;top:0;width:1024px;height:1024px;overflow:hidden;z-index:-1;';
         document.body.appendChild(holder);
     }
     const reader = new Html5Qrcode('qr-scan-holder', /* verbose */ false);
@@ -70,7 +72,10 @@ async function _scanImageFile(file) {
     } catch (err) {
         scanState.phase = 'idle';
         window.renderPage();
-        window.showToast('No se detectó código de barras. Acércate más e inténtalo de nuevo.', 'error');
+        // html5-qrcode rejects decode misses with a plain string, not an Error.
+        const msg = (err && err.message) ? err.message : String(err);
+        console.error('[scan] scanFile failed:', err);
+        window.showToast('No se detectó el código. (' + msg + ')', 'error');
     } finally {
         try { await reader.clear(); } catch (e) { /* nothing rendered */ }
     }
@@ -394,7 +399,9 @@ async function _startLiveBarcode() {
     } catch (err) {
         // Permission denied, no camera, or iframe missing allow="camera".
         await _stopLiveBarcode();
-        window.showToast('No se pudo abrir la cámara. Usa la app del sistema.', 'info');
+        const msg = (err && (err.name || err.message)) ? `${err.name || ''} ${err.message || ''}`.trim() : String(err);
+        console.error('[scan] live start failed:', err);
+        window.showToast('Cámara en vivo no disponible: ' + msg + '. Usa la foto.', 'info');
         const el = document.getElementById('camera-input');
         if (el) el.click();
         scanState.phase = 'idle';
