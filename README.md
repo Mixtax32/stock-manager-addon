@@ -18,6 +18,15 @@ Este repositorio contiene el complemento de gestión de stock para Home Assistan
 3. En la pestaña de **Configuración**, pega tu `telegram_token` y tu `allowed_chat_ids`.
 4. Inicia el add-on.
 
+## 📡 Modo portátil (báscula Bluetooth fuera de casa)
+
+Cuando estás fuera de casa, la báscula Bluetooth se conecta al móvil vía Web Bluetooth y los pesos viajan a tu HA por Nabu Casa. La interfaz vive en una página estática hospedada en GitHub Pages (no en la addon, por una limitación de la ingress de HA).
+
+- **URL del puente**: [https://mixtax32.github.io/stock-manager-addon/bridge/](https://mixtax32.github.io/stock-manager-addon/bridge/)
+- **Setup y arquitectura completos**: [docs/bridge/README.md](docs/bridge/README.md)
+
+Requiere Chrome en Android y Nabu Casa activo. No funciona en iOS (Safari no soporta Web Bluetooth).
+
 ---
 
 Para más detalles, consulta el [README de la aplicación](stock-manager/README.md).

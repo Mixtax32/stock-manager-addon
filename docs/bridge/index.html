@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e1015">
+<title>Stock Manager · Puente BLE</title>
+<style>
+  :root {
+    --bg: #0e1015;
+    --bg-card: #161922;
+    --bg-input: #1c2030;
+    --border: #2a2f40;
+    --text: #e6e8ec;
+    --text-dim: #a0a4af;
+    --accent: #8be17a;
+    --warn: #e3a04e;
+    --err: #e35a5a;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); }
+  body {
+    padding: 16px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    max-width: 640px;
+    margin-inline: auto;
+  }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  a { color: var(--accent); }
+  .eyebrow {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--text-dim); margin-bottom: 4px;
+  }
+  .card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px; margin-bottom: 14px;
+  }
+  .card-title {
+    font-weight: 600; margin-bottom: 8px;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  }
+  .field { display: block; margin-bottom: 10px; }
+  .field-label {
+    display: block; font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--text-dim); margin-bottom: 4px;
+  }
+  .input {
+    width: 100%; background: var(--bg-input); border: 1px solid var(--border);
+    color: var(--text); padding: 10px 12px; border-radius: 8px;
+    font-family: inherit; font-size: 14px;
+  }
+  .input.mono { font-family: var(--mono); font-size: 12px; }
+  .btn {
+    background: var(--bg-input); border: 1px solid var(--border); color: var(--text);
+    padding: 10px 14px; border-radius: 8px; font-family: inherit; font-size: 14px;
+    cursor: pointer;
+  }
+  .btn.accent { background: var(--accent); color: #0a0c10; border-color: var(--accent); font-weight: 600; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .pill {
+    display: inline-block; padding: 2px 8px; border-radius: 999px;
+    font-size: 11px; background: var(--bg-input); color: var(--text-dim);
+  }
+  .pill.ok  { background: rgba(139, 225, 122, 0.18); color: var(--accent); }
+  .pill.err { background: rgba(227, 90, 90, 0.18); color: var(--err); }
+  .weight-display {
+    font-family: var(--mono); font-size: 56px; font-weight: 700;
+    text-align: center; margin: 16px 0; letter-spacing: -0.02em;
+  }
+  .weight-display .unit { font-size: 24px; color: var(--text-dim); margin-left: 6px; }
+  .log {
+    font-family: var(--mono); font-size: 11px;
+    background: rgba(0,0,0,0.3); padding: 8px 10px; border-radius: 8px;
+    max-height: 200px; overflow-y: auto; color: var(--text-dim);
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .help { font-size: 12px; color: var(--text-dim); margin-top: 6px; }
+  details summary { cursor: pointer; padding: 6px 0; user-select: none; list-style: none; }
+  details summary::-webkit-details-marker { display: none; }
+  details[open] summary::after { content: " ▼"; color: var(--text-dim); }
+  details:not([open]) summary::after { content: " ▶"; color: var(--text-dim); }
+  code { font-family: var(--mono); font-size: 0.95em; background: rgba(0,0,0,0.3); padding: 1px 4px; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<header style="margin-bottom: 18px;">
+  <div class="eyebrow">Stock Manager</div>
+  <h1>Puente BLE — Modo portátil</h1>
+  <div class="help">
+    Lee la báscula Bluetooth y envía los pesos a tu Home Assistant desde cualquier lado.
+    Necesita Chrome en Android (Web Bluetooth no existe en iOS).
+  </div>
+</header>
+
+<div class="card" id="setup-card">
+  <details id="setup-details">
+    <summary>
+      <span class="card-title" style="display:inline;">
+        Configuración <span id="setup-status" class="pill">…</span>
+      </span>
+    </summary>
+    <div style="margin-top: 10px;">
+      <div class="field">
+        <label class="field-label" for="ha-url">URL de Home Assistant (Nabu Casa)</label>
+        <input id="ha-url" class="input mono" placeholder="https://xxx.ui.nabu.casa" autocomplete="off" />
+        <div class="help">Tu URL HTTPS de HA — la que ya usás para acceder desde fuera de casa.</div>
+      </div>
+      <div class="field">
+        <label class="field-label" for="ha-token">Long-Lived Access Token</label>
+        <input id="ha-token" class="input mono" type="password" placeholder="eyJ..." autocomplete="off" />
+        <div class="help">HA → Perfil → "Tokens de acceso de larga duración" → Crear token. Pegalo entero.</div>
+      </div>
+      <div class="field">
+        <label class="field-label" for="scale-id-fallback">Scale ID (fallback)</label>
+        <input id="scale-id-fallback" class="input mono" placeholder="1" autocomplete="off" />
+        <div class="help">Solo se usa si la báscula no expone su ID por BLE. Es el ID numérico de la báscula en la addon.</div>
+      </div>
+      <div class="field">
+        <label class="field-label" for="send-rate">Envío de peso (Hz)</label>
+        <input id="send-rate" class="input mono" type="number" min="1" max="10" value="2" />
+        <div class="help">Lecturas por segundo enviadas a HA. La báscula notifica más rápido; el puente filtra para no saturar.</div>
+      </div>
+      <div class="row">
+        <button id="btn-save" class="btn accent">Guardar</button>
+        <button id="btn-test-ha" class="btn">Probar conexión HA</button>
+      </div>
+    </div>
+  </details>
+</div>
+
+<div class="card">
+  <div class="card-title">
+    Báscula <span id="ble-pill" class="pill">Desconectado</span>
+  </div>
+  <div id="ble-info" class="help" style="margin-bottom: 10px;">
+    Tocá "Conectar báscula" y elegí tu dispositivo (algo tipo <code>Stock-Scale-…</code>).
+  </div>
+  <div class="weight-display">
+    <span id="weight-value">—</span><span class="unit">g</span>
+  </div>
+  <div class="row">
+    <button id="btn-connect" class="btn accent">Conectar báscula</button>
+    <button id="btn-disconnect" class="btn" disabled>Desconectar</button>
+    <button id="btn-tare" class="btn" disabled>Tarar</button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">
+    Actividad <button id="btn-clear-log" class="btn" style="font-size:11px; padding:4px 8px;">Limpiar</button>
+  </div>
+  <div id="log" class="log">Sin actividad.</div>
+</div>
+
+<footer style="font-size:11px; color: var(--text-dim); margin-top: 24px; text-align: center;">
+  Esta página es estática (HTML+JS). No envía datos a ningún sitio salvo a la URL de HA que configurás arriba.
+  Código en <a href="https://github.com/Mixtax32/stock-manager-addon/tree/main/docs/bridge">github.com/Mixtax32/stock-manager-addon</a>.
+</footer>
+
+<script>
+(() => {
+'use strict';
+
+// ── GATT contract ──────────────────────────────────────────────────────────
+// Defined in engram memory `portable-mode/ble-gatt-contract`. Any change here
+// must mirror in firmware (hardware/scale-kitchen/scale-kitchen.ino).
+const SVC_UUID    = 'c9d5e500-9c5b-4b69-b3e8-92a30f73c7d1';
+const WEIGHT_UUID = 'c9d5e501-9c5b-4b69-b3e8-92a30f73c7d1';
+const TARE_UUID   = 'c9d5e502-9c5b-4b69-b3e8-92a30f73c7d1';
+const INFO_UUID   = 'c9d5e504-9c5b-4b69-b3e8-92a30f73c7d1';
+
+// ── localStorage keys ──────────────────────────────────────────────────────
+const LS = {
+  url:   'sm_bridge_ha_url',
+  token: 'sm_bridge_ha_token',
+  fbId:  'sm_bridge_scale_id_fallback',
+  rate:  'sm_bridge_send_rate_hz',
+};
+
+const $ = (id) => document.getElementById(id);
+const ui = {
+  setupDetails:  $('setup-details'),
+  setupStatus:   $('setup-status'),
+  haUrl:         $('ha-url'),
+  haToken:       $('ha-token'),
+  scaleIdFb:     $('scale-id-fallback'),
+  sendRate:      $('send-rate'),
+  btnSave:       $('btn-save'),
+  btnTestHA:     $('btn-test-ha'),
+  blePill:       $('ble-pill'),
+  bleInfo:       $('ble-info'),
+  weightValue:   $('weight-value'),
+  btnConnect:    $('btn-connect'),
+  btnDisconnect: $('btn-disconnect'),
+  btnTare:       $('btn-tare'),
+  log:           $('log'),
+  btnClearLog:   $('btn-clear-log'),
+};
+
+const state = {
+  cfg: { ha_url: '', ha_token: '', scale_id_fallback: '', send_rate_hz: 2 },
+  ble: { device: null, server: null, weightChar: null, tareChar: null, scaleId: null },
+  lastWeight: null,
+  lastSentAt: 0,
+  postInFlight: false,
+  wakeLock: null,
+};
+
+// ── tiny logger ────────────────────────────────────────────────────────────
+function log(msg, level = 'info') {
+  const t = new Date().toLocaleTimeString('es-ES', { hour12: false });
+  const prefix = level === 'err' ? '✖' : level === 'warn' ? '⚠' : '·';
+  const line = `${t} ${prefix} ${msg}`;
+  if (ui.log.textContent === 'Sin actividad.') ui.log.textContent = '';
+  ui.log.textContent += (ui.log.textContent ? '\n' : '') + line;
+  ui.log.scrollTop = ui.log.scrollHeight;
+  if (level === 'err') console.error('[bridge]', msg);
+  else console.log('[bridge]', msg);
+}
+
+// ── config persistence ─────────────────────────────────────────────────────
+function loadConfig() {
+  state.cfg.ha_url            = localStorage.getItem(LS.url)   || '';
+  state.cfg.ha_token          = localStorage.getItem(LS.token) || '';
+  state.cfg.scale_id_fallback = localStorage.getItem(LS.fbId)  || '';
+  state.cfg.send_rate_hz      = Number(localStorage.getItem(LS.rate)) || 2;
+  ui.haUrl.value     = state.cfg.ha_url;
+  ui.haToken.value   = state.cfg.ha_token;
+  ui.scaleIdFb.value = state.cfg.scale_id_fallback;
+  ui.sendRate.value  = state.cfg.send_rate_hz;
+  reflectSetupStatus();
+}
+
+function saveConfig() {
+  const url   = ui.haUrl.value.trim().replace(/\/$/, '');
+  const token = ui.haToken.value.trim();
+  const fbId  = ui.scaleIdFb.value.trim();
+  const rate  = Math.max(1, Math.min(10, Number(ui.sendRate.value) || 2));
+  if (!url || !token) {
+    log('Faltan URL o token — no se guardó.', 'err');
+    return false;
+  }
+  localStorage.setItem(LS.url, url);
+  localStorage.setItem(LS.token, token);
+  if (fbId) localStorage.setItem(LS.fbId, fbId);
+  else localStorage.removeItem(LS.fbId);
+  localStorage.setItem(LS.rate, String(rate));
+  state.cfg = { ha_url: url, ha_token: token, scale_id_fallback: fbId, send_rate_hz: rate };
+  log('Configuración guardada.');
+  reflectSetupStatus();
+  ui.setupDetails.open = false;
+  return true;
+}
+
+function reflectSetupStatus() {
+  const ok = !!(state.cfg.ha_url && state.cfg.ha_token);
+  ui.setupStatus.textContent = ok ? 'Configurado' : 'Falta configurar';
+  ui.setupStatus.className = 'pill ' + (ok ? 'ok' : 'err');
+  ui.setupDetails.open = !ok;
+}
+
+// ── HA REST ────────────────────────────────────────────────────────────────
+// Fires events under the user's token identity. Subscribe via HA Developer
+// Tools → Events → "stock_manager_bridge_weight" to inspect them live.
+async function postEvent(eventType, payload) {
+  if (!state.cfg.ha_url || !state.cfg.ha_token) throw new Error('HA no configurado');
+  const res = await fetch(`${state.cfg.ha_url}/api/events/${eventType}`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${state.cfg.ha_token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => '');
+    throw new Error(`HA ${res.status} ${res.statusText} — ${txt.slice(0, 200)}`);
+  }
+  return res.json().catch(() => ({}));
+}
+
+async function testHA() {
+  if (!saveConfig()) return;
+  try {
+    log('Probando conexión con HA…');
+    await postEvent('stock_manager_bridge_test', { ts: new Date().toISOString() });
+    log('OK — HA aceptó el evento. Verlo en vivo: Developer Tools → Events → "stock_manager_bridge_test" → Start Listening.');
+  } catch (e) {
+    log('Falló la prueba HA: ' + e.message, 'err');
+  }
+}
+
+// ── weight posting (throttled to cfg.send_rate_hz) ─────────────────────────
+async function maybePostWeight(grams) {
+  state.lastWeight = grams;
+  ui.weightValue.textContent = grams.toFixed(1);
+
+  const now = performance.now();
+  const minIntervalMs = 1000 / Math.max(1, state.cfg.send_rate_hz);
+  if (now - state.lastSentAt < minIntervalMs) return;
+  if (state.postInFlight) return;
+
+  state.lastSentAt = now;
+  state.postInFlight = true;
+  try {
+    await postEvent('stock_manager_bridge_weight', {
+      scale_id:    state.ble.scaleId || state.cfg.scale_id_fallback || null,
+      weight_g:    grams,
+      ts:          new Date().toISOString(),
+      source:      'ble_bridge',
+      battery_pct: null,
+    });
+  } catch (e) {
+    log('Post a HA falló: ' + e.message, 'err');
+  } finally {
+    state.postInFlight = false;
+  }
+}
+
+// ── BLE ────────────────────────────────────────────────────────────────────
+async function connectBLE() {
+  if (!navigator.bluetooth) {
+    log('navigator.bluetooth no existe — usá Chrome en Android.', 'err');
+    return;
+  }
+  try {
+    log('Abriendo picker de dispositivos…');
+    const device = await navigator.bluetooth.requestDevice({
+      filters: [{ services: [SVC_UUID] }],
+      optionalServices: [SVC_UUID],
+    });
+    state.ble.device = device;
+    device.addEventListener('gattserverdisconnected', onDisconnected);
+    log(`Elegiste: ${device.name || '(sin nombre)'} — conectando…`);
+
+    const server = await device.gatt.connect();
+    state.ble.server = server;
+    const svc = await server.getPrimaryService(SVC_UUID);
+
+    state.ble.weightChar = await svc.getCharacteristic(WEIGHT_UUID);
+    state.ble.tareChar   = await svc.getCharacteristic(TARE_UUID).catch(() => null);
+
+    try {
+      const infoChar = await svc.getCharacteristic(INFO_UUID);
+      const buf = await infoChar.readValue();
+      const txt = new TextDecoder().decode(buf);
+      try {
+        const info = JSON.parse(txt);
+        state.ble.scaleId = info.scale_id || null;
+        log(`Info báscula: scale_id=${info.scale_id}, type=${info.type}, fw=${info.fw_version}`);
+      } catch {
+        log('Info no es JSON: ' + txt, 'warn');
+      }
+    } catch {
+      log('Sin characteristic Info — uso el scale_id fallback de la config.', 'warn');
+    }
+
+    await state.ble.weightChar.startNotifications();
+    state.ble.weightChar.addEventListener('characteristicvaluechanged', onWeightNotify);
+
+    ui.blePill.textContent = 'Conectado';
+    ui.blePill.className = 'pill ok';
+    ui.bleInfo.textContent = `Conectado a ${device.name || '(sin nombre)'}. Esperando lecturas…`;
+    ui.btnConnect.disabled = true;
+    ui.btnDisconnect.disabled = false;
+    ui.btnTare.disabled = !state.ble.tareChar;
+    requestWakeLock();
+    log('Suscripto al peso. Listo.');
+  } catch (e) {
+    log('Conectar BLE falló: ' + (e.name || '') + ' — ' + e.message, 'err');
+  }
+}
+
+function onWeightNotify(event) {
+  const buf = event.target.value;
+  const txt = new TextDecoder().decode(buf);
+  const g = parseFloat(txt);
+  if (Number.isFinite(g)) maybePostWeight(g);
+  else log('Notify ilegible: ' + txt, 'warn');
+}
+
+async function tare() {
+  if (!state.ble.tareChar) return;
+  try {
+    await state.ble.tareChar.writeValueWithoutResponse(new Uint8Array([0x01]));
+    log('Tara enviada.');
+  } catch (e) {
+    log('Tara falló: ' + e.message, 'err');
+  }
+}
+
+function disconnectBLE() {
+  if (state.ble.device && state.ble.device.gatt.connected) state.ble.device.gatt.disconnect();
+}
+
+function onDisconnected() {
+  log('Báscula desconectada.', 'warn');
+  state.ble = { device: null, server: null, weightChar: null, tareChar: null, scaleId: null };
+  ui.blePill.textContent = 'Desconectado';
+  ui.blePill.className = 'pill err';
+  ui.bleInfo.textContent = 'Tocá "Conectar báscula" para volver a empezar.';
+  ui.btnConnect.disabled = false;
+  ui.btnDisconnect.disabled = true;
+  ui.btnTare.disabled = true;
+  releaseWakeLock();
+}
+
+// ── wake lock (so the screen doesn't sleep mid-cooking) ────────────────────
+async function requestWakeLock() {
+  if (!('wakeLock' in navigator)) return;
+  try {
+    state.wakeLock = await navigator.wakeLock.request('screen');
+    log('Wake lock activado — pantalla no se apaga mientras esté conectado.');
+    state.wakeLock.addEventListener('release', () => {
+      state.wakeLock = null;
+    });
+  } catch (e) {
+    log('Wake lock no disponible: ' + e.message, 'warn');
+  }
+}
+
+function releaseWakeLock() {
+  if (state.wakeLock) {
+    state.wakeLock.release().catch(() => {});
+    state.wakeLock = null;
+  }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible'
+      && state.ble.device
+      && state.ble.device.gatt.connected) {
+    requestWakeLock();
+  }
+});
+
+// ── wire UI ────────────────────────────────────────────────────────────────
+ui.btnSave.addEventListener('click', saveConfig);
+ui.btnTestHA.addEventListener('click', testHA);
+ui.btnConnect.addEventListener('click', connectBLE);
+ui.btnDisconnect.addEventListener('click', disconnectBLE);
+ui.btnTare.addEventListener('click', tare);
+ui.btnClearLog.addEventListener('click', () => { ui.log.textContent = 'Sin actividad.'; });
+
+// ── boot ───────────────────────────────────────────────────────────────────
+loadConfig();
+log('Puente cargado. ' + (state.cfg.ha_url ? '' : 'Faltan datos de HA — abrí la sección Configuración.'));
+if (!navigator.bluetooth) {
+  log('Este navegador no tiene Web Bluetooth. Andate a Chrome standalone en Android.', 'err');
+  ui.btnConnect.disabled = true;
+}
+
+})();
+</script>
+
+</body>
+</html>

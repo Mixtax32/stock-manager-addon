@@ -35,6 +35,7 @@ Stock Manager es un add-on para Home Assistant que combina inventario, control d
 - 🌗 **Tema claro / oscuro**.
 - 🔄 **Sincronización entre dispositivos**: toda la información se persiste en el backend, así que móvil, tablet y PC ven exactamente lo mismo.
 - 💾 **Importar y exportar CSV** del inventario.
+- 📡 **Báscula en modo portátil (BLE)** — la báscula ESP32 expone Bluetooth y un puente estático en GitHub Pages la conecta a tu HA por Nabu Casa cuando estás fuera de casa. Ver [docs/bridge/](../docs/bridge/README.md).
 
 ---
 
