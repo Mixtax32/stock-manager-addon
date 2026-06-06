@@ -1,7 +1,9 @@
 /*
    View: Scan — barcode scanner + ticket OCR
-   v0.13.0 — in-app camera viewfinder (HTTPS required, e.g. Nabu Casa).
-             Falls back to native file-input capture when getUserMedia is unavailable.
+   v0.14.17 — live continuous barcode scanning (auto-detect via html5-qrcode).
+              Tickets still capture a single frame for OCR.
+              Requires HTTPS (e.g. Nabu Casa); falls back to native file-input
+              capture when getUserMedia/secure context is unavailable.
 */
 
 let scanState = {
@@ -36,9 +38,10 @@ let scanState = {
 // Live-camera state lives outside scanState because MediaStream objects must
 // not be cloned by any render path that serializes state.
 let liveCamera = {
-    stream: null,
-    videoEl: null,
+    stream: null,       // MediaStream for the ticket capture flow
+    videoEl: null,      // <video> for the ticket capture flow
     busy: false,
+    qrScanner: null,    // Html5Qrcode instance for continuous live barcode scan
 };
 
 // ─── Barcode helpers ──────────────────────────────────────────────────────────
@@ -282,6 +285,17 @@ async function _openLiveCamera(mode) {
         return;
     }
 
+    // Barcode: html5-qrcode owns the camera and decodes continuously. We only
+    // switch phase here; the scanner is started in init() once the container
+    // element (#live-reader) is in the DOM.
+    if (mode === 'barcode') {
+        scanState.phase = 'live-barcode';
+        window.renderPage();
+        return;
+    }
+
+    // Ticket: keep the manual getUserMedia + capture-a-frame flow (it's an OCR
+    // photo, not a continuous decode).
     try {
         const stream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
@@ -344,6 +358,68 @@ async function _captureFromLive() {
     }, 'image/jpeg', 0.92);
 }
 
+// ─── Live continuous barcode scan (html5-qrcode) ──────────────────────────────
+
+async function _startLiveBarcode() {
+    if (typeof Html5Qrcode === 'undefined') {
+        window.showToast('Librería de escaneo no disponible. Comprueba la conexión a internet.', 'error');
+        scanState.phase = 'idle';
+        window.renderPage();
+        return;
+    }
+    if (liveCamera.qrScanner) return; // already running
+
+    const scanner = new Html5Qrcode('live-reader', /* verbose */ false);
+    liveCamera.qrScanner = scanner;
+    liveCamera.busy = false;
+
+    const config = {
+        fps: 10,
+        // Wide box suits 1D EAN barcodes better than a square.
+        qrbox: (vw, vh) => {
+            const w = Math.floor(Math.min(vw, vh, 360) * 0.9);
+            return { width: w, height: Math.floor(w * 0.55) };
+        },
+        // Use the platform BarcodeDetector when available — faster, better 1D.
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+    };
+
+    try {
+        await scanner.start(
+            { facingMode: 'environment' },
+            config,
+            (decodedText) => { _onLiveBarcodeDetected(decodedText); },
+            () => { /* per-frame "not found" — ignore, it fires constantly */ }
+        );
+    } catch (err) {
+        // Permission denied, no camera, or iframe missing allow="camera".
+        await _stopLiveBarcode();
+        window.showToast('No se pudo abrir la cámara. Usa la app del sistema.', 'info');
+        const el = document.getElementById('camera-input');
+        if (el) el.click();
+        scanState.phase = 'idle';
+        window.renderPage();
+    }
+}
+
+async function _onLiveBarcodeDetected(decodedText) {
+    // Guard against the success callback firing repeatedly before we stop.
+    if (!liveCamera.qrScanner || liveCamera.busy) return;
+    liveCamera.busy = true;
+    await _stopLiveBarcode();
+    window.navGuard = null;
+    await _onScanSuccess(decodedText);
+}
+
+async function _stopLiveBarcode() {
+    const s = liveCamera.qrScanner;
+    liveCamera.qrScanner = null; // synchronous: blocks re-entrant callbacks
+    if (s) {
+        try { await s.stop(); } catch (e) { /* already stopped */ }
+        try { await s.clear(); } catch (e) { /* nothing to clear */ }
+    }
+}
+
 // ─── Render functions ─────────────────────────────────────────────────────────
 
 function _renderIdle() {
@@ -390,21 +466,40 @@ function _renderScanning() {
 
 function _renderLiveCamera() {
     const isTicket = scanState.phase === 'live-ticket';
-    const eyebrow = isTicket ? 'Apuntá al ticket' : 'Apuntá al código de barras';
-    const hint = isTicket
-        ? 'Encuadrá el ticket entero y dale a Capturar'
-        : 'Centrá el código y dale a Capturar';
+
+    // Barcode: continuous auto-detect. html5-qrcode mounts its own <video>
+    // inside #live-reader; no capture button needed.
+    if (!isTicket) {
+        return `
+            <div class="scan-live">
+                <div id="live-reader" class="scan-live-reader"></div>
+                <div class="scan-live-frame">
+                    <div class="scan-corner tl"></div>
+                    <div class="scan-corner tr"></div>
+                    <div class="scan-corner bl"></div>
+                    <div class="scan-corner br"></div>
+                </div>
+                <div class="scan-live-eyebrow">Apunta al código de barras</div>
+                <div class="scan-live-hint">Detectando automáticamente…</div>
+                <div class="scan-live-actions">
+                    <button class="btn ghost" data-action="live-cancel">Cancelar</button>
+                </div>
+            </div>
+        `;
+    }
+
+    // Ticket: capture a frame for OCR.
     return `
         <div class="scan-live">
             <video id="live-video" class="scan-live-video" playsinline muted autoplay></video>
-            <div class="scan-live-frame ${isTicket ? 'ticket' : ''}">
+            <div class="scan-live-frame ticket">
                 <div class="scan-corner tl"></div>
                 <div class="scan-corner tr"></div>
                 <div class="scan-corner bl"></div>
                 <div class="scan-corner br"></div>
             </div>
-            <div class="scan-live-eyebrow">${eyebrow}</div>
-            <div class="scan-live-hint">${hint}</div>
+            <div class="scan-live-eyebrow">Apunta al ticket</div>
+            <div class="scan-live-hint">Encuadra el ticket entero y dale a Capturar</div>
             <div class="scan-live-actions">
                 <button class="btn ghost" data-action="live-cancel">Cancelar</button>
                 <button class="btn accent" data-action="live-capture">
@@ -685,7 +780,19 @@ window.initScan = function() {
             _onScanSuccess(code);
         });
 
-    } else if (scanState.phase === 'live-barcode' || scanState.phase === 'live-ticket') {
+    } else if (scanState.phase === 'live-barcode') {
+        // Continuous auto-detect. Stop the camera if the user navigates away.
+        window.navGuard = async () => { await _stopLiveBarcode(); return true; };
+        _startLiveBarcode();
+        root.querySelector('[data-action="live-cancel"]')?.addEventListener('click', async () => {
+            window.navGuard = null;
+            await _stopLiveBarcode();
+            scanState.phase = 'idle';
+            window.renderPage();
+        });
+
+    } else if (scanState.phase === 'live-ticket') {
+        window.navGuard = async () => { _closeLiveCamera(); return true; };
         const video = root.querySelector('#live-video');
         if (video && liveCamera.stream) {
             liveCamera.videoEl = video;
@@ -696,6 +803,7 @@ window.initScan = function() {
             _captureFromLive();
         });
         root.querySelector('[data-action="live-cancel"]')?.addEventListener('click', () => {
+            window.navGuard = null;
             _closeLiveCamera();
             scanState.phase = 'idle';
             window.renderPage();
@@ -802,6 +910,8 @@ window.initScan = function() {
 
 function _resetScan() {
     _closeLiveCamera();
+    _stopLiveBarcode(); // fire-and-forget; nulls the scanner synchronously
+    window.navGuard = null;
     scanState = {
         phase: 'idle',
         barcode: null,
