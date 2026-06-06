@@ -1,9 +1,8 @@
 /*
    View: Scan — barcode scanner + ticket OCR
-   v0.14.17 — live continuous barcode scanning (auto-detect via html5-qrcode).
-              Tickets still capture a single frame for OCR.
-              Requires HTTPS (e.g. Nabu Casa); falls back to native file-input
-              capture when getUserMedia/secure context is unavailable.
+   v0.14.20 — live decoder restricted to 1D supermarket formats (EAN/UPC/Code128)
+              and fps bumped to 15 for snappier auto-detect. QR intentionally
+              omitted until we wire up the Mercadona meat QR flow.
 */
 
 let scanState = {
@@ -378,8 +377,20 @@ async function _startLiveBarcode() {
     liveCamera.qrScanner = scanner;
     liveCamera.busy = false;
 
+    // Restrict to 1D supermarket formats. ZXing (used as fallback when the
+    // platform BarcodeDetector is unavailable, e.g. iOS) gets much faster when
+    // it doesn't have to try QR/Data Matrix/PDF417/Aztec on every frame.
+    // Re-add QR_CODE here when we add the Mercadona meat QR flow.
+    const SUPERMARKET_FORMATS = (typeof Html5QrcodeSupportedFormats !== 'undefined') ? [
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.UPC_A,
+        Html5QrcodeSupportedFormats.UPC_E,
+        Html5QrcodeSupportedFormats.CODE_128,
+    ] : null;
+
     const config = {
-        fps: 10,
+        fps: 15,
         // Wide box suits 1D EAN barcodes better than a square.
         qrbox: (vw, vh) => {
             const w = Math.floor(Math.min(vw, vh, 360) * 0.9);
@@ -387,6 +398,7 @@ async function _startLiveBarcode() {
         },
         // Use the platform BarcodeDetector when available — faster, better 1D.
         experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+        ...(SUPERMARKET_FORMATS ? { formatsToSupport: SUPERMARKET_FORMATS } : {}),
     };
 
     try {
