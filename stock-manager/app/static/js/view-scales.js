@@ -7,6 +7,10 @@ const scalesData = {
     scales: null,
     products: null,
     refills: null,
+    // Map<scaleId, CookStepView> for kitchen scales. Lets the card render an
+    // "active session" banner so the user can cancel zombie sessions that the
+    // cook modal left behind. Armario scales are always omitted.
+    cookSteps: {},
     loading: false,
     pollTimer: null,
 };
@@ -22,14 +26,50 @@ async function _loadScales() {
         scalesData.scales = scales || [];
         scalesData.products = products || [];
         scalesData.refills = refills || [];
+
+        // Cook-step probe for every kitchen scale — runs in parallel and
+        // individual failures degrade to "idle" so one broken scale doesn't
+        // hide the others.
+        const kitchen = scalesData.scales.filter(s => s.scale_type === 'kitchen');
+        const probes = await Promise.all(kitchen.map(s =>
+            window.apiCall(`/scales/${s.id}/cook-step`, 'GET')
+                .then(cs => [s.id, cs])
+                .catch(() => [s.id, { status: 'idle' }])
+        ));
+        scalesData.cookSteps = Object.fromEntries(probes);
     } catch (e) {
         console.error('scales load failed', e);
         scalesData.scales = [];
         scalesData.products = [];
         scalesData.refills = [];
+        scalesData.cookSteps = {};
     } finally {
         scalesData.loading = false;
     }
+}
+
+function _cookSessionBanner(cookStep) {
+    // Render only when there's a real session attached (idle = nothing to do,
+    // missing session_id = endpoint returned an unexpected shape and we don't
+    // want to expose a dead Cancelar button).
+    if (!cookStep || cookStep.status === 'idle' || !cookStep.session_id) return '';
+    const isCompleted = cookStep.status === 'completed';
+    const label = isCompleted ? 'Sesión esperando finalizar' : 'Sesión activa';
+    const recipe = cookStep.recipe_name ? ` — ${window.esc(cookStep.recipe_name)}` : '';
+    const stepLine = isCompleted
+        ? `Todas las etapas confirmadas`
+        : `Paso ${(cookStep.step_order || 0) + 1}/${cookStep.total_steps || '?'}${
+            cookStep.ingredient_name ? ` · ${window.esc(cookStep.ingredient_name)}` : ''
+          }`;
+    return `
+        <div style="background:rgba(227,160,78,0.12); border:1px solid rgba(227,160,78,0.4); border-radius:8px; padding:10px 12px; display:flex; align-items:center; justify-content:space-between; gap:10px;">
+            <div style="min-width:0;">
+                <div style="font-weight:600; font-size:.88rem;">⚠ ${label}${recipe}</div>
+                <div style="font-size:.72rem; opacity:.75; margin-top:2px;">${stepLine}</div>
+            </div>
+            <button class="btn ghost sm" data-action="cancel-cook" data-session-id="${cookStep.session_id}">Cancelar</button>
+        </div>
+    `;
 }
 
 function _findProduct(barcode) {
@@ -96,6 +136,8 @@ function _scaleCard(scale) {
         ? `<span class="pill" style="background:#3a2a52; color:#d4b5ff;">cocina</span>`
         : `<span class="pill" style="background:#2a3a52; color:#a5d0ff;">armario</span>`;
 
+    const sessionBanner = isKitchen ? _cookSessionBanner(scalesData.cookSteps[scale.id]) : '';
+
     return `
         <div class="card" data-scale-id="${scale.id}" data-scale-type="${scale.scale_type}">
             <div class="card-head">
@@ -109,6 +151,7 @@ function _scaleCard(scale) {
             </div>
 
             <div class="stack" style="gap:10px; margin-top:12px;">
+                ${sessionBanner}
                 ${isKitchen ? `
                     <div class="tiny" style="opacity:.7;">
                         Báscula de cocina — se usa en sesiones de "Cocinar con báscula" desde una receta.
@@ -414,6 +457,23 @@ window.initScales = function() {
                     scalesData.scales = null;
                     await _loadScales();
                     if (window.reloadProducts) await window.reloadProducts();
+                    window.renderPage();
+                } catch (e) {
+                    window.showToast('Error: ' + e.message, 'error');
+                }
+            });
+        }
+
+        const cancelCookBtn = card.querySelector('[data-action="cancel-cook"]');
+        if (cancelCookBtn) {
+            cancelCookBtn.addEventListener('click', async () => {
+                const sessionId = parseInt(cancelCookBtn.dataset.sessionId, 10);
+                if (!confirm('¿Cancelar la sesión activa? Las etapas ya confirmadas no se deshacen, pero la sesión deja de pintarse en el OLED de la báscula.')) return;
+                try {
+                    await window.apiCall(`/cook-sessions/${sessionId}/cancel`, 'POST', {});
+                    window.showToast('Sesión cancelada', 'success');
+                    scalesData.scales = null;
+                    await _loadScales();
                     window.renderPage();
                 } catch (e) {
                     window.showToast('Error: ' + e.message, 'error');
