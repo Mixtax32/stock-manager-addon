@@ -66,9 +66,13 @@
 //      - "ArduinoJson"           by Benoit Blanchon  (new vs scale-test!)
 // 3. Copy secrets.h.example to secrets.h and fill in WiFi + ADDON_BASE_URL +
 //    SCALE_ID (the id assigned to your kitchen-type scale in the addon).
-// 4. Flash over USB the first time. Open Serial Monitor @ 115200.
-// 5. Open http://<ip>/ → calibrate once with a known weight.
-// 6. From now on calibration persists across reboots (NVS).
+// 4. Tools -> Partition Scheme -> "Minimal SPIFFS (Large APPS with OTA)".
+//    Default scheme (1.2MB APP) is too small once Bluedroid BLE is linked
+//    in — you get `text section exceeds available space in board`.
+//    Minimal SPIFFS gives 1.9MB APP and keeps OTA working.
+// 5. Flash over USB the first time. Open Serial Monitor @ 115200.
+// 6. Open http://<ip>/ → calibrate once with a known weight.
+// 7. From now on calibration persists across reboots (NVS).
 //
 // ---------------------------------------------------------------------------
 // OTA flashes (no cable) — same as scale-test

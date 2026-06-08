@@ -100,11 +100,12 @@ El firmware vive en `hardware/scale-kitchen/scale-kitchen.ino`. Trae el servicio
 
 1. **Arduino IDE → Boards Manager**: instalá "ESP32 by Espressif Systems" si todavía no la tenés.
 2. **Library Manager**: las libs ya conocidas (`HX711`, `Adafruit GFX/SSD1306`, `ArduinoJson`). La librería BLE viene incluida con la board ESP32 — no hace falta instalar nada extra.
-3. **Primera vez por USB**: cable, Tools → Port → el puerto serial. Sube. Mirá Serial Monitor a 115200 — deberías ver:
+3. **Tools → Partition Scheme → "Minimal SPIFFS (Large APPS with OTA)"**. Esto es OBLIGATORIO desde que se metió BLE: la pila Bluedroid empuja el binario por encima de los 1.31 MB del scheme por defecto y el compilador tira `text section exceeds available space in board`. "Minimal SPIFFS" sube el APP a 1.9 MB y mantiene OTA.
+4. **Primera vez por USB**: cable, Tools → Port → el puerto serial. Sube. Mirá Serial Monitor a 115200 — deberías ver:
    ```
    [BLE] advertising as Stock-Scale-<tu_scale_id> (svc c9d5e500-...)
    ```
-4. **OTA después**: Tools → Port → "scale-kitchen at \<ip\>" bajo Network ports. No hace falta cable de nuevo, así que se flashea sin desmontar la báscula.
+5. **OTA después**: Tools → Port → "scale-kitchen at \<ip\>" bajo Network ports. No hace falta cable de nuevo, así que se flashea sin desmontar la báscula.
 
 Una vez flasheado, la báscula advertise en BLE como `Stock-Scale-<scale_id>` y el puente la encuentra en el picker del SO. Sin tocar nada más, el peso ya viaja:
 - Báscula → BLE notify → puente en el móvil → POST evento a HA por Nabu Casa → addon WebSocket subscriber → DB → UI.
