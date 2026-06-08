@@ -1,5 +1,7 @@
 /*
    View: Scan — barcode scanner + ticket OCR
+   v0.14.29 — Mercadona QR: persist PVP into price_history so the bandeja
+              shows up in the price stats chart. Review shows €/PVP + €/kg chip.
    v0.14.28 — Mercadona meat QR flow: GS1 Digital Link parser pre-fills batch
               expiry, weight and the GTIN-derived EAN-13 for product lookup.
               QR_CODE re-enabled in the live decoder.
@@ -640,6 +642,16 @@ function _renderReview() {
     const p = scanState.product;
     const np = scanState.newProduct;
     const isNew = !p;
+    const mq = scanState.mercadonaQR;
+
+    const fmtEur = n => (Math.round(n * 100) / 100).toFixed(2).replace('.', ',');
+    const mercadonaLine = mq ? `
+                <div class="row" style="gap:6px; margin-top:4px; font-size:12px; color:var(--ink-2); font-family:var(--mono)">
+                    <span>Mercadona QR</span>
+                    ${mq.priceEur != null ? `<span>· ${fmtEur(mq.priceEur)} €</span>` : ''}
+                    ${mq.pricePerKg != null ? `<span>· ${fmtEur(mq.pricePerKg)} €/kg</span>` : ''}
+                    ${mq.lote ? `<span>· lote ${window.esc(mq.lote)}</span>` : ''}
+                </div>` : '';
 
     const productCard = `
         <div class="product-card" style="margin-bottom:14px">
@@ -650,6 +662,7 @@ function _renderReview() {
                 <div class="brand-line">${isNew ? 'Producto nuevo' : 'En inventario'}</div>
                 <div class="pname">${window.esc((p && p.name) || np.name || 'Sin nombre')}</div>
                 <div class="ean">EAN ${window.esc(scanState.barcode)}</div>
+                ${mercadonaLine}
                 ${(p ? p.kcal_100g : np.kcal_100g) ? `
                 <div class="row" style="gap:4px; margin-top:8px; flex-wrap:wrap">
                     <span class="chip k">${Math.round(Number((p && p.kcal_100g) || np.kcal_100g) || 0)} kcal</span>
@@ -1054,6 +1067,21 @@ async function _confirmTicket() {
     window.renderPage();
 }
 
+function _mercadonaPricePayload() {
+    // Builds the price fields the backend expects when adding stock from a
+    // Mercadona QR scan. Returns {} when no QR data is in flight so call sites
+    // can spread it unconditionally.
+    const mq = scanState.mercadonaQR;
+    if (!mq || mq.priceEur == null) return {};
+    return {
+        unit_price: mq.priceEur,
+        pack_count: 1,
+        total_price: mq.priceEur,
+        price_source: 'mercadona_qr',
+        price_observed_at: new Date().toISOString(),
+    };
+}
+
 async function _confirmScan() {
     const isNew = !scanState.product;
     try {
@@ -1080,6 +1108,7 @@ async function _confirmScan() {
             await window.apiCall(`/products/${scanState.barcode}/stock`, 'POST', {
                 quantity: scanState.qty,
                 expiry_date: scanState.expiry || null,
+                ..._mercadonaPricePayload(),
             });
             window.showToast('Producto añadido al inventario', 'success');
         } else if (scanState.target === 'diary') {
@@ -1092,6 +1121,7 @@ async function _confirmScan() {
                 await window.apiCall(`/products/${scanState.barcode}/stock`, 'POST', {
                     quantity: scanState.qty,
                     expiry_date: scanState.expiry || null,
+                    ..._mercadonaPricePayload(),
                 });
                 window.showToast('Stock actualizado', 'success');
             }
