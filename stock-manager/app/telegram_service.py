@@ -354,13 +354,18 @@ class TelegramService:
         self.application.add_handler(CallbackQueryHandler(self.handle_callback))
 
         logger.info("Bot de Telegram iniciado")
+        # `async with self.application` already runs initialize() on enter and
+        # shutdown() on exit. PTB v20 enforces stop()-before-shutdown(): if the
+        # task is cancelled while polling, __aexit__ calls shutdown() and raises
+        # "Application is still running!" unless we stop the updater + app first.
         async with self.application:
-            await self.application.initialize()
             await self.application.start()
             await self.application.updater.start_polling()
-            
-            # Keep running until cancelled
-            while True:
-                await asyncio.sleep(1)
+            try:
+                while True:
+                    await asyncio.sleep(1)
+            finally:
+                await self.application.updater.stop()
+                await self.application.stop()
 
 telegram_bot = TelegramService()
