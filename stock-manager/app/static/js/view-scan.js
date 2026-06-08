@@ -1,8 +1,8 @@
 /*
    View: Scan — barcode scanner + ticket OCR
-   v0.14.20 — live decoder restricted to 1D supermarket formats (EAN/UPC/Code128)
-              and fps bumped to 15 for snappier auto-detect. QR intentionally
-              omitted until we wire up the Mercadona meat QR flow.
+   v0.14.28 — Mercadona meat QR flow: GS1 Digital Link parser pre-fills batch
+              expiry, weight and the GTIN-derived EAN-13 for product lookup.
+              QR_CODE re-enabled in the live decoder.
 */
 
 let scanState = {
@@ -85,18 +85,42 @@ function _triggerFileInput() {
     if (input) input.click();
 }
 
+// GS1 GTIN-14 carries an EAN-13 with a leading 0 padding. Our product store
+// keys on the raw EAN-13 (13 digits), so strip the pad when present so the
+// QR-derived code can match products added via a paper barcode.
+function _gtinToBarcode(gtin) {
+    if (typeof gtin !== 'string') return gtin;
+    if (gtin.length === 14 && gtin.charAt(0) === '0') return gtin.slice(1);
+    return gtin;
+}
+
 async function _onScanSuccess(decodedText) {
-    scanState.barcode = decodedText;
+    // Mercadona meat QR: parse GS1 Digital Link and pre-fill batch fields
+    // before falling through to the standard barcode flow with the GTIN as id.
+    let lookupCode = decodedText;
+    if (typeof window.parseMercadonaQR === 'function') {
+        const mq = window.parseMercadonaQR(decodedText);
+        if (mq) {
+            lookupCode = _gtinToBarcode(mq.gtin);
+            if (mq.expiryDate) scanState.expiry = mq.expiryDate;
+            if (mq.weightKg) scanState.qty = Math.round(mq.weightKg * 1000);
+            scanState.mercadonaQR = mq;
+        } else {
+            scanState.mercadonaQR = null;
+        }
+    }
+
+    scanState.barcode = lookupCode;
     scanState.phase = 'review';
 
-    const existing = window.findProductById(decodedText);
+    const existing = window.findProductById(lookupCode);
     if (existing) {
         scanState.product = existing;
         scanState.qty = 1;
     } else {
         scanState.product = null;
         try {
-            const data = await window.apiCall(`/barcode/${decodedText}`, 'GET');
+            const data = await window.apiCall(`/barcode/${lookupCode}`, 'GET');
             if (data && data.found) {
                 scanState.barcodeData = data;
                 scanState.newProduct.name = data.name || '';
@@ -377,16 +401,16 @@ async function _startLiveBarcode() {
     liveCamera.qrScanner = scanner;
     liveCamera.busy = false;
 
-    // Restrict to 1D supermarket formats. ZXing (used as fallback when the
-    // platform BarcodeDetector is unavailable, e.g. iOS) gets much faster when
-    // it doesn't have to try QR/Data Matrix/PDF417/Aztec on every frame.
-    // Re-add QR_CODE here when we add the Mercadona meat QR flow.
+    // Restrict to 1D supermarket formats + QR for Mercadona meat labels.
+    // ZXing (used as fallback when the platform BarcodeDetector is unavailable,
+    // e.g. iOS) is faster with a narrow allow-list than trying every format.
     const SUPERMARKET_FORMATS = (typeof Html5QrcodeSupportedFormats !== 'undefined') ? [
         Html5QrcodeSupportedFormats.EAN_13,
         Html5QrcodeSupportedFormats.EAN_8,
         Html5QrcodeSupportedFormats.UPC_A,
         Html5QrcodeSupportedFormats.UPC_E,
         Html5QrcodeSupportedFormats.CODE_128,
+        Html5QrcodeSupportedFormats.QR_CODE,
     ] : null;
 
     const config = {
