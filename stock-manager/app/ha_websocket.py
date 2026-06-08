@@ -32,6 +32,14 @@ logger = logging.getLogger(__name__)
 
 HA_WS_URL = "ws://supervisor/core/websocket"
 BRIDGE_EVENT_TYPE = "stock_manager_bridge_weight"
+ADMIN_EVENT_TYPE = "stock_manager_admin"
+
+# Each tuple: (subscribe_id, event_type). Subscribe ids must be unique per
+# WebSocket session; they're just the request correlation handle for HA.
+_SUBSCRIPTIONS = [
+    (1, BRIDGE_EVENT_TYPE),
+    (2, ADMIN_EVENT_TYPE),
+]
 
 # Cap the exponential backoff at 60s. The last value is reused indefinitely.
 _RECONNECT_BACKOFF_S = [1, 2, 5, 10, 30, 60]
@@ -104,17 +112,17 @@ class HABridgeSubscriber:
                 raise RuntimeError(f"HA WS auth failed: {msg}")
             logger.info("HA WS authenticated.")
 
-            # Step 3: subscribe to our custom event type.
-            sub_id = 1
-            await ws.send(json.dumps({
-                "id": sub_id,
-                "type": "subscribe_events",
-                "event_type": BRIDGE_EVENT_TYPE,
-            }))
-            msg = json.loads(await ws.recv())
-            if not (msg.get("type") == "result" and msg.get("success")):
-                raise RuntimeError(f"subscribe_events failed: {msg}")
-            logger.info("Subscribed to event %s.", BRIDGE_EVENT_TYPE)
+            # Step 3: subscribe to every event type in _SUBSCRIPTIONS.
+            for sub_id, event_type in _SUBSCRIPTIONS:
+                await ws.send(json.dumps({
+                    "id": sub_id,
+                    "type": "subscribe_events",
+                    "event_type": event_type,
+                }))
+                msg = json.loads(await ws.recv())
+                if not (msg.get("type") == "result" and msg.get("success")):
+                    raise RuntimeError(f"subscribe_events({event_type}) failed: {msg}")
+                logger.info("Subscribed to event %s.", event_type)
 
             # Step 4: receive events until stop or disconnect.
             while not self._stop_event.is_set():
@@ -124,11 +132,16 @@ class HABridgeSubscriber:
                 except json.JSONDecodeError:
                     logger.warning("HA WS sent non-JSON frame; ignoring.")
                     continue
-                if msg.get("type") == "event":
-                    await self._handle_event(msg.get("event") or {})
-                # ignore other message types (pong-like results, etc.)
+                if msg.get("type") != "event":
+                    continue
+                event = msg.get("event") or {}
+                event_type = event.get("event_type")
+                if event_type == BRIDGE_EVENT_TYPE:
+                    await self._handle_bridge_weight(event)
+                elif event_type == ADMIN_EVENT_TYPE:
+                    await self._handle_admin_command(event)
 
-    async def _handle_event(self, event: dict) -> None:
+    async def _handle_bridge_weight(self, event: dict) -> None:
         data = event.get("data") or {}
         scale_id_raw = data.get("scale_id")
         weight_raw = data.get("weight_g")
@@ -156,6 +169,37 @@ class HABridgeSubscriber:
             logger.warning("Bridge event for unknown scale_id=%s; dropped.", scale_id)
             return
         logger.debug("Bridge ingested weight=%.1fg for scale_id=%s.", weight_g, scale_id)
+
+    async def _handle_admin_command(self, event: dict) -> None:
+        """Receives admin/maintenance commands via HA events. The bearer of the
+        HA long-lived token can fire `stock_manager_admin` events with a
+        `command` field; we dispatch them here. Logged at INFO so the addon
+        log shows what was triggered and from where.
+
+        Supported commands:
+          - `cancel_all_cook_sessions`: cancel every active cook session.
+          - `cancel_cook_session` + `session_id`: cancel one specific session.
+        """
+        data = event.get("data") or {}
+        command = data.get("command")
+        origin = event.get("origin", "?")
+        logger.info("[admin] received command=%r data=%s origin=%s", command, data, origin)
+        try:
+            if command == "cancel_all_cook_sessions":
+                count = await db.cancel_all_active_cook_sessions()
+                logger.info("[admin] cancelled %d active cook session(s).", count)
+            elif command == "cancel_cook_session":
+                session_id_raw = data.get("session_id")
+                if session_id_raw is None:
+                    logger.warning("[admin] cancel_cook_session missing session_id.")
+                    return
+                session_id = int(session_id_raw)
+                ok = await db.cancel_cook_session(session_id)
+                logger.info("[admin] cancel_cook_session(%d) -> %s.", session_id, ok)
+            else:
+                logger.warning("[admin] unknown command: %r", command)
+        except Exception:
+            logger.exception("[admin] command failed: %r", command)
 
 
 # Singleton — imported from main.py for lifespan hookup.
