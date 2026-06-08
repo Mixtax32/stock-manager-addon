@@ -367,9 +367,34 @@ window.saveWeek = async function(week) {
 
 // ===== Macro math (works on HA products + recipe ingredients alike) =====
 
-// Resolve a product by id (barcode) from in-memory store
+// Resolve a product by id (barcode) from in-memory store.
+//
+// Match strategy, in order:
+//   1) Exact match on `barcode`.
+//   2) Exact match on any code in CSV `alt_barcodes` — used to link Mercadona
+//      QR GTINs to products previously created from a paper EAN-13.
+//   3) Prefix match for Mercadona-style variable-weight EAN-13s (`2…`, 13 digits):
+//      check the scanned code's first 7 chars against alt_barcodes entries that
+//      are exactly 7 digits. That covers `2302813003314` linking back to the
+//      "cerdo a tacos" product as long as its `2302813` prefix is on file.
 window.findProductById = function(id) {
-    return (window.AppState.products || []).find(p => String(p.barcode) === String(id));
+    const sid = String(id);
+    const products = window.AppState.products || [];
+    for (const p of products) {
+        if (String(p.barcode) === sid) return p;
+    }
+    for (const p of products) {
+        const alts = (p.alt_barcodes || '').split(',').filter(Boolean);
+        if (alts.includes(sid)) return p;
+    }
+    if (/^2\d{12}$/.test(sid)) {
+        const prefix = sid.slice(0, 7);
+        for (const p of products) {
+            const alts = (p.alt_barcodes || '').split(',').filter(Boolean);
+            if (alts.includes(prefix)) return p;
+        }
+    }
+    return undefined;
 };
 
 // Stock units one ticket pack represents for a product:

@@ -33,6 +33,9 @@ class Product(BaseModel):
     scale_min_delta_g: float = 10.0  # min weight change (g) to sync stock from a scale reading
     last_price: Optional[float] = None  # last observed unit price (€)
     last_price_date: Optional[str] = None  # ISO date of last_price observation
+    # CSV of extra scannable codes that should resolve to this product —
+    # e.g. a Mercadona QR GTIN or the variable-weight EAN-13 prefix.
+    alt_barcodes: Optional[str] = None
     batches: List[Batch] = []
     last_updated: Optional[datetime] = None
 
@@ -53,6 +56,13 @@ class ProductCreate(BaseModel):
     package_quantity: Optional[str] = None
     tracking_mode: str = "manual"
     scale_min_delta_g: float = 10.0
+
+class AltBarcodeLink(BaseModel):
+    """Link a scannable code to an existing product. Used when a Mercadona QR
+    GTIN (or a variable-weight EAN-13 prefix) doesn't match any product on its
+    own — the user picks the right product and we file the code under it for
+    future scans."""
+    code: str
 
 class StockUpdate(BaseModel):
     quantity: float

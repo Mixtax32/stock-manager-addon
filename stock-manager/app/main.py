@@ -14,7 +14,7 @@ from .models import (
     MovementUpdate, BodyWeight, BodyWeightCreate,
     Scale, ScaleCreate, ScaleUpdate, ScaleWeight, ScaleEvent,
     PendingRefill, PendingRefillCreate, PendingRefillResolve,
-    PriceRecord, PriceHistoryEntry,
+    PriceRecord, PriceHistoryEntry, AltBarcodeLink,
     CookSession, CookSessionCreate, CookStepConfirm, CookStepView,
 )
 from .barcode_service import get_product_from_barcode
@@ -373,6 +373,16 @@ async def ocr_ticket_pdf(file: UploadFile = File(...)):
     except Exception as e:
         logger.error(f"PDF ticket error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error procesando PDF: {str(e)}")
+
+@app.post("/api/products/{barcode}/alt-barcodes", response_model=Product)
+async def link_alt_barcode(barcode: str, link: AltBarcodeLink):
+    """Attach an extra scannable code to an existing product so future scans
+    of that code resolve to the same product (e.g. Mercadona QR GTIN or the
+    7-char variable-weight EAN-13 prefix)."""
+    product = await db.add_alt_barcode(barcode, link.code)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return product
 
 @app.post("/api/products/{barcode}/price", response_model=PriceHistoryEntry)
 async def record_product_price(barcode: str, record: PriceRecord):

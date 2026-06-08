@@ -78,6 +78,11 @@ class Database:
                 await db.execute("ALTER TABLE products ADD COLUMN last_price REAL DEFAULT NULL")
             if 'last_price_date' not in columns:
                 await db.execute("ALTER TABLE products ADD COLUMN last_price_date TEXT DEFAULT NULL")
+            # CSV of alternative scannable codes that resolve to this product
+            # (e.g. Mercadona QR GTIN, or the variable-weight EAN-13 prefix
+            # `2302813` shared by every "cerdo a tacos" bandeja).
+            if 'alt_barcodes' not in columns:
+                await db.execute("ALTER TABLE products ADD COLUMN alt_barcodes TEXT DEFAULT NULL")
 
             # Create batches table
             await db.execute("""
@@ -650,6 +655,34 @@ class Database:
 
         product = await self.get_product(barcode)
         return product
+
+    async def add_alt_barcode(self, barcode: str, code: str) -> Optional[Product]:
+        """Append `code` to the product's alt_barcodes CSV, de-duped.
+
+        Returns the updated product, or None if the product does not exist.
+        Same `code` already present is a no-op (still returns the product).
+        """
+        code = (code or "").strip()
+        if not code:
+            return await self.get_product(barcode)
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute(
+                "SELECT alt_barcodes FROM products WHERE barcode = ?", (barcode,)
+            ) as cursor:
+                row = await cursor.fetchone()
+            if row is None:
+                return None
+            current = (row[0] or "").strip()
+            existing = [c for c in current.split(",") if c] if current else []
+            if code not in existing:
+                existing.append(code)
+                new_value = ",".join(existing)
+                await db.execute(
+                    "UPDATE products SET alt_barcodes = ?, last_updated = ? WHERE barcode = ?",
+                    (new_value, datetime.now(), barcode),
+                )
+                await db.commit()
+        return await self.get_product(barcode)
 
     async def delete_product(self, barcode: str) -> bool:
         """Delete product and its batches"""

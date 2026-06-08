@@ -1,5 +1,9 @@
 /*
    View: Scan — barcode scanner + ticket OCR
+   v0.14.30 — "Vincular a producto existente" flow: when the scanned code
+              (Mercadona QR GTIN or variable-weight EAN-13 prefix) doesn't
+              match anything, the user picks an existing product and we file
+              the code under its alt_barcodes for future scans to match.
    v0.14.29 — Mercadona QR: persist PVP into price_history so the bandeja
               shows up in the price stats chart. Review shows €/PVP + €/kg chip.
    v0.14.28 — Mercadona meat QR flow: GS1 Digital Link parser pre-fills batch
@@ -112,14 +116,21 @@ async function _onScanSuccess(decodedText) {
         }
     }
 
-    scanState.barcode = lookupCode;
     scanState.phase = 'review';
 
     const existing = window.findProductById(lookupCode);
     if (existing) {
+        // Canonicalize barcode to the matched product's so the confirm POST
+        // hits an endpoint the backend recognizes. The scanned code might be
+        // a Mercadona GTIN or a variable-weight EAN-13 that resolves via
+        // alt_barcodes / prefix match — neither is the product's primary key.
+        scanState.barcode = existing.barcode;
         scanState.product = existing;
-        scanState.qty = 1;
+        if (!scanState.mercadonaQR || !scanState.qty || scanState.qty <= 1) {
+            scanState.qty = 1;
+        }
     } else {
+        scanState.barcode = lookupCode;
         scanState.product = null;
         try {
             const data = await window.apiCall(`/barcode/${lookupCode}`, 'GET');
@@ -643,6 +654,7 @@ function _renderReview() {
     const np = scanState.newProduct;
     const isNew = !p;
     const mq = scanState.mercadonaQR;
+    const linkCode = isNew ? _linkTargetCode() : null;
 
     const fmtEur = n => (Math.round(n * 100) / 100).toFixed(2).replace('.', ',');
     const mercadonaLine = mq ? `
@@ -674,6 +686,14 @@ function _renderReview() {
             </div>
         </div>
     `;
+
+    const linkPrompt = linkCode ? `
+        <div class="card sunken" style="margin-bottom:14px; padding:12px">
+            <div style="font-size:13px; color:var(--ink-2); margin-bottom:8px">
+                ¿Ya tenés este producto guardado con otro código? Vinculá <code>${window.esc(linkCode)}</code> y los próximos escaneos matchean solos.
+            </div>
+            <button class="btn ghost" data-action="link-existing" style="width:100%">Vincular a producto existente</button>
+        </div>` : '';
 
     const newProductFields = isNew ? `
         <div class="card sunken" style="margin-bottom:14px; padding:14px">
@@ -714,6 +734,7 @@ function _renderReview() {
 
     return `
         ${productCard}
+        ${linkPrompt}
         ${newProductFields}
 
         ${!isNew ? `
@@ -959,6 +980,8 @@ window.initScan = function() {
         root.querySelector('[data-action="confirm"]')?.addEventListener('click', async () => {
             await _confirmScan();
         });
+
+        root.querySelector('[data-action="link-existing"]')?.addEventListener('click', _linkToExistingProduct);
     }
 };
 
@@ -1065,6 +1088,96 @@ async function _confirmTicket() {
     }
     _resetScan();
     window.renderPage();
+}
+
+// What scannable code, if any, should be filed under an existing product
+// when the user pulls "Vincular". Returns null when the scan isn't linkable
+// (e.g. a regular EAN-13 that just isn't in the database yet — that's a real
+// "new product" case, not a missing-link case).
+function _linkTargetCode() {
+    if (scanState.mercadonaQR) {
+        // GTIN already stripped to its 13-char form in _onScanSuccess
+        return scanState.barcode;
+    }
+    const code = String(scanState.barcode || '');
+    // Mercadona-style variable-weight EAN-13: starts with `2` and is 13 digits.
+    // We file the 7-char prefix, which is stable per cut.
+    if (/^2\d{12}$/.test(code)) return code.slice(0, 7);
+    return null;
+}
+
+function _openLinkPicker(targetCode) {
+    return new Promise(resolve => {
+        const mount = document.getElementById('modal-mount');
+        if (!mount) { resolve(null); return; }
+        let q = '';
+        const close = (picked) => { mount.innerHTML = ''; resolve(picked); };
+        const render = () => {
+            const needle = q.trim().toLowerCase();
+            const products = (window.AppState.products || [])
+                .filter(p => !needle || (p.name || '').toLowerCase().includes(needle))
+                .slice(0, 60);
+            mount.innerHTML = `
+                <div class="modal-backdrop" data-close="1">
+                    <div class="modal" data-stop="1" style="max-width:480px">
+                        <h3>Vincular a producto existente</h3>
+                        <div class="modal-sub">Buscá el producto al que pertenece el código <code>${window.esc(targetCode)}</code>. Próximos escaneos con el mismo código matchean solos.</div>
+                        <input id="link-search" class="input" placeholder="Buscar por nombre…" value="${window.esc(q)}"/>
+                        <div style="max-height:50vh; overflow:auto; margin:10px -4px 0">
+                            ${products.length === 0 ? `<div class="empty">${needle ? `Sin resultados para "${window.esc(q)}"` : 'No hay productos guardados todavía.'}</div>` :
+                              products.map(p => `
+                                <button class="food-row link-pick" data-id="${window.esc(p.barcode)}"
+                                    style="width:100%; background:transparent; border:none; text-align:left; cursor:pointer; padding:10px 4px;">
+                                    <div class="row" style="align-items:center;">
+                                        ${window.productThumbHTML(p, 32)}
+                                        <div>
+                                            <div class="ttl">${window.esc(p.name)}</div>
+                                            <div class="sub muted" style="font-size:11px; font-family:var(--mono)">EAN ${window.esc(p.barcode)}</div>
+                                        </div>
+                                    </div>
+                                </button>`).join('')}
+                        </div>
+                        <div class="row" style="justify-content:flex-end; gap:8px; margin-top:12px">
+                            <button class="btn ghost" data-action="link-cancel">Cancelar</button>
+                        </div>
+                    </div>
+                </div>`;
+            window.wireBackdropClose(mount.querySelector('[data-close]'), () => close(null));
+            mount.querySelector('[data-action="link-cancel"]').addEventListener('click', () => close(null));
+            const search = mount.querySelector('#link-search');
+            if (search) {
+                search.addEventListener('input', e => { q = e.target.value; render(); });
+                // Keep focus on the search box across re-renders so typing flows.
+                setTimeout(() => { try { search.focus(); search.setSelectionRange(q.length, q.length); } catch (_) {} }, 0);
+            }
+            mount.querySelectorAll('.link-pick').forEach(btn => {
+                btn.addEventListener('click', () => close(btn.dataset.id));
+            });
+        };
+        render();
+    });
+}
+
+async function _linkToExistingProduct() {
+    const targetCode = _linkTargetCode();
+    if (!targetCode) return;
+    const pickedBarcode = await _openLinkPicker(targetCode);
+    if (!pickedBarcode) return;
+    try {
+        await window.apiCall(`/products/${pickedBarcode}/alt-barcodes`, 'POST', { code: targetCode });
+        await window.reloadProducts();
+        // Re-resolve against the now-linked product so the review flips from
+        // "Producto nuevo / Sin nombre" to the linked product without rescanning.
+        const existing = window.findProductById(scanState.barcode);
+        if (existing) {
+            scanState.product = existing;
+            scanState.barcode = existing.barcode;
+        }
+        window.showToast('Producto vinculado', 'success');
+        window.renderPage();
+    } catch (e) {
+        window.showToast('Error al vincular: ' + (e && e.message ? e.message : e), 'error');
+    }
 }
 
 function _mercadonaPricePayload() {
