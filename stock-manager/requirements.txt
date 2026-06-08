@@ -8,3 +8,4 @@ python-telegram-bot==20.7
 pyzbar==0.1.9
 pytesseract==0.3.10
 pdfplumber==0.11.4
+websockets==12.0

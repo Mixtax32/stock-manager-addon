@@ -19,6 +19,7 @@ from .models import (
 )
 from .barcode_service import get_product_from_barcode
 from .telegram_service import telegram_bot
+from .ha_websocket import ha_bridge
 import asyncio
 # Configure logging
 log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
@@ -38,11 +39,19 @@ async def lifespan(app: FastAPI):
     
     # Start Telegram Bot in background and store task
     bot_task = asyncio.create_task(telegram_bot.run())
+
+    # Start HA WebSocket subscriber for the portable BLE bridge (Phase 3).
+    # No-op when SUPERVISOR_TOKEN is missing (dev environment).
+    await ha_bridge.start()
+
     logger.info("Stock Manager started successfully")
-    
+
     yield
-    
+
     # --- Shutdown ---
+    logger.info("Shutting down HA bridge subscriber...")
+    await ha_bridge.stop()
+
     logger.info("Shutting down Telegram Bot...")
     bot_task.cancel()
     try:

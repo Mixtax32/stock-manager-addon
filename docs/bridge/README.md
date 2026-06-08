@@ -81,13 +81,20 @@ Este puente forma parte de un trabajo en tres fases. Importante para saber qué 
 
 | Fase | Qué | Estado |
 |------|-----|--------|
-| 1 | Página puente — Web Bluetooth + POST a HA | ✅ **lista** (esta página) |
+| 1 | Página puente — Web Bluetooth + POST a HA | ✅ lista (esta página) |
 | 2 | Firmware ESP32 — servicio GATT con UUIDs del contrato | ⏳ pendiente |
-| 3 | Backend addon — subscriber WebSocket que escucha el evento y procesa peso | ⏳ pendiente |
+| 3 | Backend addon — subscriber WebSocket que escucha el evento y procesa peso | ✅ lista (addon v0.14.22) |
 
-Hasta que se complete la fase 3, el peso enviado por el puente **no entra al inventario automáticamente**. Pero **sí podés verlo llegar a HA**: abrí Developer Tools → Events → escribí `stock_manager_bridge_weight` → "Start Listening" → cada lectura del puente aparece ahí en tiempo real.
+A partir de la addon v0.14.22, cualquier evento `stock_manager_bridge_weight` que llegue a HA se enruta automáticamente a la misma función de ingestión que usa la báscula WiFi (`db.record_scale_weight`). Para la UI principal el peso "puente BLE" y el peso "WiFi local" son indistinguibles. Si el `scale_id` del evento no existe en la addon, se loguea warning y se descarta — no rompe nada.
 
-Eso te permite validar la fase 1 sin esperar a las otras dos.
+Cómo verificar que la fase 3 está activa después de actualizar la addon:
+- Logs de la addon (Settings → Add-ons → Stock Manager → Log) deben mostrar:
+  `HA bridge subscriber started (listening for stock_manager_bridge_weight).`
+  seguido por `HA WS authenticated.` y `Subscribed to event stock_manager_bridge_weight.`
+- Si ves `SUPERVISOR_TOKEN not set` significa que algo en el rebuild se torció — borrá la addon y reinstalá.
+- Si ves `auth failed`, falta `homeassistant_api: true` en `config.yaml` — ya viene en v0.14.22 por defecto, no debería pasar.
+
+La fase 2 (firmware) sigue pendiente — sin firmware no hay báscula que mande peso, así que el subscriber está vivo y escuchando, pero no recibe nada hasta que el ESP32 se flashee con el servicio GATT.
 
 ---
 
