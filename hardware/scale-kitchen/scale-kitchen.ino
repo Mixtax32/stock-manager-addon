@@ -87,12 +87,31 @@
 #include <Preferences.h>
 #include <ArduinoJson.h>
 
+// BLE — stock Arduino-ESP32 Bluedroid stack. Big-ish but zero install.
+// If RAM/flash gets tight (e.g. adding more services), migrate to
+// NimBLE-Arduino (~half the footprint) by replacing these four headers and
+// the BLE API calls — protocol stays identical.
+#include <BLEDevice.h>
+#include <BLEServer.h>
+#include <BLEUtils.h>
+#include <BLE2902.h>
+
 #include "secrets.h"
 
 // ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
 #define OTA_HOSTNAME   "scale-kitchen"
+#define FW_VERSION     "1.0.0-ble"   // firmware semver (independent of addon version)
+
+// BLE GATT contract — mirror with docs/bridge/README.md and docs/bridge/index.html.
+// Service prefix c9d5e5XX is shared so all char UUIDs grep together.
+#define BLE_SVC_UUID    "c9d5e500-9c5b-4b69-b3e8-92a30f73c7d1"
+#define BLE_WEIGHT_UUID "c9d5e501-9c5b-4b69-b3e8-92a30f73c7d1"
+#define BLE_TARE_UUID   "c9d5e502-9c5b-4b69-b3e8-92a30f73c7d1"
+#define BLE_INFO_UUID   "c9d5e504-9c5b-4b69-b3e8-92a30f73c7d1"
+
+constexpr uint32_t BLE_NOTIFY_INTERVAL_MS = 200;   // 5 Hz — fast enough for cooking, gentle on BLE air-time
 
 constexpr uint8_t PIN_HX711_DT  = 16;
 constexpr uint8_t PIN_HX711_SCK = 17;
@@ -143,6 +162,14 @@ uint32_t lastWeightPostMs = 0;
 uint32_t lastCookPollMs   = 0;
 
 bool     weightFilterInit = false;
+
+// BLE state — see setupBLE() / bleNotifyWeight() / loop().
+BLEServer*         bleServer        = nullptr;
+BLECharacteristic* bleWeightChar    = nullptr;
+BLECharacteristic* bleInfoChar      = nullptr;
+bool               bleConnected     = false;
+volatile bool      bleTarePending   = false;   // BLE write callback runs off-loop; defer to main loop for HX711 safety
+uint32_t           lastBleNotifyMs  = 0;
 
 // Cook session state, updated by pollCookStep(). status=='active' switches
 // the OLED to cook mode and arms the CONFIRMAR/SALTAR buttons.
@@ -697,11 +724,20 @@ void saveTareToNVS() {
   prefs.putBool(NVS_KEY_HAS_TARE, true);
 }
 
-void handleTare() {
+// Shared tare path. Called by: physical TARE button, web /api/tare,
+// and the BLE tare characteristic (via the bleTarePending flag in loop()).
+// Side effects: zeros HX711 with a 10-sample tare, persists offset to NVS,
+// reseeds the EMA filter, and resets the "last sent" tracker so the next
+// addon POST reflects the new zero.
+void doTare() {
   scale.tare(10);
   saveTareToNVS();
   resetWeightFilter(scale.is_ready() ? scale.get_units(3) : 0.0f);
   lastSentWeightG = currentWeightG;
+}
+
+void handleTare() {
+  doTare();
   Serial.println("Tare via web (saved to NVS)");
   server.send(200, "application/json", "{\"ok\":true}");
 }
@@ -741,6 +777,107 @@ void handleResetCalibration() {
   resetWeightFilter(0.0f);
   Serial.println("Calibration wiped from NVS — back to factory defaults");
   server.send(200, "application/json", "{\"ok\":true}");
+}
+
+// ---------------------------------------------------------------------------
+// BLE GATT — portable mode bridge (see docs/bridge/README.md)
+// ---------------------------------------------------------------------------
+// The phone-side puente reads BLE_WEIGHT_UUID notifications and POSTs them
+// to HA as `stock_manager_bridge_weight` events. The addon's HA WebSocket
+// subscriber (app/ha_websocket.py) routes those into the same DB function
+// the WiFi flow uses, so BLE weights are indistinguishable from WiFi weights
+// in the addon UI.
+//
+// BLE coexists with WiFi on the single radio of the WROOM-32 — time-sliced
+// by the IDF. For our throughput (5 Hz notify + occasional HTTP) the slice
+// hit is invisible. BLE keeps working even if WiFi never associates, which
+// is exactly the portable-mode use case.
+
+class BleServerCallbacks : public BLEServerCallbacks {
+  void onConnect(BLEServer* /*s*/) override {
+    bleConnected = true;
+    Serial.println("[BLE] client connected");
+  }
+  void onDisconnect(BLEServer* /*s*/) override {
+    bleConnected = false;
+    Serial.println("[BLE] client disconnected; restarting advertising");
+    // Without this the stack stops advertising after a disconnect and the
+    // next "Conectar báscula" tap in the puente can't find us.
+    BLEDevice::startAdvertising();
+  }
+};
+
+class BleTareCallbacks : public BLECharacteristicCallbacks {
+  void onWrite(BLECharacteristic* c) override {
+    std::string v = c->getValue();
+    // Contract: write of a single byte 0x01 triggers tare. Any other payload ignored.
+    if (!v.empty() && (uint8_t)v[0] == 0x01) {
+      // Don't touch the HX711 from this callback — it runs in the BLE task and
+      // a 10-sample tare can block for >100ms. Flip a flag, main loop handles it.
+      bleTarePending = true;
+      Serial.println("[BLE] tare requested");
+    }
+  }
+};
+
+void setupBLE() {
+  String name = String("Stock-Scale-") + String(SCALE_ID);
+  BLEDevice::init(name.c_str());
+
+  bleServer = BLEDevice::createServer();
+  bleServer->setCallbacks(new BleServerCallbacks());
+
+  BLEService* svc = bleServer->createService(BLE_SVC_UUID);
+
+  // Weight: read + notify. Payload is UTF-8 decimal grams (e.g. "123.4").
+  bleWeightChar = svc->createCharacteristic(
+    BLE_WEIGHT_UUID,
+    BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY
+  );
+  bleWeightChar->addDescriptor(new BLE2902());
+  bleWeightChar->setValue("0.0");
+
+  // Tare: write (no response).
+  BLECharacteristic* tareChar = svc->createCharacteristic(
+    BLE_TARE_UUID,
+    BLECharacteristic::PROPERTY_WRITE
+  );
+  tareChar->setCallbacks(new BleTareCallbacks());
+
+  // Info: read. JSON so the puente can identify the scale without the user
+  // typing the scale_id by hand in the bridge config.
+  bleInfoChar = svc->createCharacteristic(
+    BLE_INFO_UUID,
+    BLECharacteristic::PROPERTY_READ
+  );
+  String info = String("{\"scale_id\":\"") + String(SCALE_ID) +
+                "\",\"type\":\"kitchen\",\"fw_version\":\"" + FW_VERSION + "\"}";
+  bleInfoChar->setValue(std::string(info.c_str()));
+
+  svc->start();
+
+  BLEAdvertising* adv = BLEDevice::getAdvertising();
+  adv->addServiceUUID(BLE_SVC_UUID);
+  adv->setScanResponse(true);
+  // Hint min/max preferred connection intervals — keeps phones from
+  // negotiating an overly slow conn that would tank notify latency.
+  adv->setMinPreferred(0x06);
+  adv->setMinPreferred(0x12);
+  BLEDevice::startAdvertising();
+
+  Serial.printf("[BLE] advertising as %s (svc %s)\n", name.c_str(), BLE_SVC_UUID);
+}
+
+void bleNotifyWeight(float weight_g) {
+  if (!bleConnected || bleWeightChar == nullptr) return;
+  uint32_t now = millis();
+  if (now - lastBleNotifyMs < BLE_NOTIFY_INTERVAL_MS) return;
+  lastBleNotifyMs = now;
+  char buf[16];
+  int n = snprintf(buf, sizeof(buf), "%.1f", weight_g);
+  if (n <= 0) return;
+  bleWeightChar->setValue((uint8_t*)buf, n);
+  bleWeightChar->notify();
 }
 
 // ---------------------------------------------------------------------------
@@ -826,6 +963,9 @@ void setup() {
     drawStatusLine("NO WIFI");
   }
 
+  // BLE comes up unconditionally — portable mode must work without WiFi.
+  setupBLE();
+
   server.on("/", handleRoot);
   server.on("/api/state", handleState);
   server.on("/api/tare", HTTP_POST, handleTare);
@@ -838,11 +978,16 @@ void setup() {
 void loop() {
   ArduinoOTA.handle();
 
+  // BLE tare callback runs in the BLE task and can't touch HX711 directly;
+  // it flips this flag and we do the actual tare here on the main loop.
+  if (bleTarePending) {
+    bleTarePending = false;
+    doTare();
+    Serial.println("[BLE] TARE applied");
+  }
+
   if (pollButton(btnTare)) {
-    scale.tare(10);
-    saveTareToNVS();
-    resetWeightFilter(scale.is_ready() ? scale.get_units(3) : 0.0f);
-    lastSentWeightG = currentWeightG;
+    doTare();
     Serial.println("BTN: TARE (saved to NVS)");
   }
   if (pollButton(btnConfirmar)) {
@@ -877,6 +1022,10 @@ void loop() {
       currentWeightG = WEIGHT_EMA_ALPHA * raw + (1.0f - WEIGHT_EMA_ALPHA) * currentWeightG;
     }
   }
+
+  // BLE notify is independent of addon HTTP — fires whenever a phone is
+  // connected, even with WiFi offline. Throttled to 5 Hz inside the helper.
+  bleNotifyWeight(currentWeightG);
 
   if (addonEnabled() && now - lastWeightPostMs > WEIGHT_POST_INTERVAL_MS) {
     if (fabsf(currentWeightG - lastSentWeightG) > WEIGHT_POST_DELTA_G) {

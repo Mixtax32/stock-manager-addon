@@ -82,7 +82,7 @@ Este puente forma parte de un trabajo en tres fases. Importante para saber qué 
 | Fase | Qué | Estado |
 |------|-----|--------|
 | 1 | Página puente — Web Bluetooth + POST a HA | ✅ lista (esta página) |
-| 2 | Firmware ESP32 — servicio GATT con UUIDs del contrato | ⏳ pendiente |
+| 2 | Firmware ESP32 — servicio GATT con UUIDs del contrato | ✅ código listo (`hardware/scale-kitchen`, firmware `1.0.0-ble`) — falta flashear |
 | 3 | Backend addon — subscriber WebSocket que escucha el evento y procesa peso | ✅ lista (addon v0.14.22) |
 
 A partir de la addon v0.14.22, cualquier evento `stock_manager_bridge_weight` que llegue a HA se enruta automáticamente a la misma función de ingestión que usa la báscula WiFi (`db.record_scale_weight`). Para la UI principal el peso "puente BLE" y el peso "WiFi local" son indistinguibles. Si el `scale_id` del evento no existe en la addon, se loguea warning y se descarta — no rompe nada.
@@ -94,7 +94,22 @@ Cómo verificar que la fase 3 está activa después de actualizar la addon:
 - Si ves `SUPERVISOR_TOKEN not set` significa que algo en el rebuild se torció — borrá la addon y reinstalá.
 - Si ves `auth failed`, falta `homeassistant_api: true` en `config.yaml` — ya viene en v0.14.22 por defecto, no debería pasar.
 
-La fase 2 (firmware) sigue pendiente — sin firmware no hay báscula que mande peso, así que el subscriber está vivo y escuchando, pero no recibe nada hasta que el ESP32 se flashee con el servicio GATT.
+### Cómo flashear el firmware con soporte BLE (fase 2)
+
+El firmware vive en `hardware/scale-kitchen/scale-kitchen.ino`. Trae el servicio GATT custom (`c9d5e5XX`) además del flujo WiFi existente — BLE y WiFi conviven en el mismo radio del WROOM-32 sin pelearse.
+
+1. **Arduino IDE → Boards Manager**: instalá "ESP32 by Espressif Systems" si todavía no la tenés.
+2. **Library Manager**: las libs ya conocidas (`HX711`, `Adafruit GFX/SSD1306`, `ArduinoJson`). La librería BLE viene incluida con la board ESP32 — no hace falta instalar nada extra.
+3. **Primera vez por USB**: cable, Tools → Port → el puerto serial. Sube. Mirá Serial Monitor a 115200 — deberías ver:
+   ```
+   [BLE] advertising as Stock-Scale-<tu_scale_id> (svc c9d5e500-...)
+   ```
+4. **OTA después**: Tools → Port → "scale-kitchen at \<ip\>" bajo Network ports. No hace falta cable de nuevo, así que se flashea sin desmontar la báscula.
+
+Una vez flasheado, la báscula advertise en BLE como `Stock-Scale-<scale_id>` y el puente la encuentra en el picker del SO. Sin tocar nada más, el peso ya viaja:
+- Báscula → BLE notify → puente en el móvil → POST evento a HA por Nabu Casa → addon WebSocket subscriber → DB → UI.
+
+El flujo WiFi sigue funcionando intacto en paralelo — cuando estás en casa, la báscula sigue posteando por HTTP local al addon en `<ha-ip>:8099`. Cuando estás fuera de casa, el móvil hace de puente vía BLE. Cero conflictos.
 
 ---
 
