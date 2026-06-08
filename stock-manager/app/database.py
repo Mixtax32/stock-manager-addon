@@ -1802,6 +1802,19 @@ class Database:
             await db.commit()
             return cursor.rowcount > 0
 
+    async def cancel_all_active_cook_sessions(self) -> int:
+        """Admin op — cancel every currently-active cook session. Returns the
+        row count. Used to recover from zombie sessions left behind when the
+        cook modal was closed without confirming/cancelling."""
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute(
+                "UPDATE cook_sessions SET status = 'cancelled', completed_at = ? "
+                "WHERE status = 'active'",
+                (datetime.now(),)
+            )
+            await db.commit()
+            return cursor.rowcount
+
     async def complete_cook_session(self, session_id: int) -> dict:
         """Close the session: deduct stock for every confirmed step that maps
         to a product, log movements as 'consumed_in_recipe', mark linked diet
